@@ -17,6 +17,14 @@ export type TechnicalSummary = {
   change1m: number | null;
   change3m: number | null;
   avgVolume20d: number | null;
+  macdLine: number | null;
+  macdSignal: number | null;
+  macdHistogram: number | null;
+  macdSignalType: "bullish_cross" | "bearish_cross" | "bullish" | "bearish" | "neutral" | null;
+  bollingerUpper: number | null;
+  bollingerMiddle: number | null;
+  bollingerLower: number | null;
+  bollingerPosition: "above_upper" | "near_upper" | "middle" | "near_lower" | "below_lower" | null;
   dataPoints: number;
 };
 
@@ -56,6 +64,114 @@ function rounded(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function ema(closes: number[], period: number): number[] {
+  if (closes.length < period) return [];
+
+  const k = 2 / (period + 1);
+  const result: number[] = [];
+  const seed = closes.slice(0, period).reduce((sum, close) => sum + close, 0) / period;
+  result.push(seed);
+
+  for (let i = period; i < closes.length; i += 1) {
+    result.push(closes[i] * k + result[result.length - 1] * (1 - k));
+  }
+
+  return result;
+}
+
+function computeMACD(closes: number[]): {
+  macdLine: number | null;
+  macdSignal: number | null;
+  macdHistogram: number | null;
+  macdSignalType: TechnicalSummary["macdSignalType"];
+} {
+  if (closes.length < 35) {
+    return {
+      macdLine: null,
+      macdSignal: null,
+      macdHistogram: null,
+      macdSignalType: null
+    };
+  }
+
+  const ema12 = ema(closes, 12);
+  const ema26 = ema(closes, 26);
+  const offset = ema12.length - ema26.length;
+  const macdSeries = ema26.map((value, index) => ema12[index + offset] - value);
+  const signalSeries = ema(macdSeries, 9);
+
+  if (macdSeries.length < 2 || signalSeries.length < 2) {
+    return {
+      macdLine: null,
+      macdSignal: null,
+      macdHistogram: null,
+      macdSignalType: null
+    };
+  }
+
+  const macdLine = Math.round(macdSeries[macdSeries.length - 1] * 1000) / 1000;
+  const macdSignal = Math.round(signalSeries[signalSeries.length - 1] * 1000) / 1000;
+  const macdHistogram = Math.round((macdLine - macdSignal) * 1000) / 1000;
+  const prevMacd = macdSeries[macdSeries.length - 2];
+  const prevSignal = signalSeries[signalSeries.length - 2];
+
+  let macdSignalType: TechnicalSummary["macdSignalType"] = "neutral";
+  if (prevMacd < prevSignal && macdLine > macdSignal) {
+    macdSignalType = "bullish_cross";
+  } else if (prevMacd > prevSignal && macdLine < macdSignal) {
+    macdSignalType = "bearish_cross";
+  } else if (macdLine > macdSignal) {
+    macdSignalType = "bullish";
+  } else if (macdLine < macdSignal) {
+    macdSignalType = "bearish";
+  }
+
+  return { macdLine, macdSignal, macdHistogram, macdSignalType };
+}
+
+function computeBollinger(closes: number[], period = 20): {
+  bollingerUpper: number | null;
+  bollingerMiddle: number | null;
+  bollingerLower: number | null;
+  bollingerPosition: TechnicalSummary["bollingerPosition"];
+} {
+  if (closes.length < period) {
+    return {
+      bollingerUpper: null,
+      bollingerMiddle: null,
+      bollingerLower: null,
+      bollingerPosition: null
+    };
+  }
+
+  const slice = closes.slice(-period);
+  const middle = slice.reduce((sum, close) => sum + close, 0) / period;
+  const variance =
+    slice.reduce((sum, close) => sum + Math.pow(close - middle, 2), 0) / period;
+  const stdDev = Math.sqrt(variance);
+  const upper = middle + 2 * stdDev;
+  const lower = middle - 2 * stdDev;
+  const current = closes[closes.length - 1];
+
+  let bollingerPosition: TechnicalSummary["bollingerPosition"] = "middle";
+  if (current > upper) {
+    bollingerPosition = "above_upper";
+  } else if (current >= upper * 0.98) {
+    bollingerPosition = "near_upper";
+  } else if (current <= lower) {
+    bollingerPosition = "below_lower";
+  } else if (current <= lower * 1.02) {
+    bollingerPosition = "near_lower";
+  }
+
+  return {
+    bollingerUpper: rounded(upper),
+    bollingerMiddle: rounded(middle),
+    bollingerLower: rounded(lower),
+    bollingerPosition
+  };
+}
+
 export function computeTechnicals(history: OHLCV[]): TechnicalSummary {
   const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
   const closes = sorted.map((day) => day.close).filter((close) => close > 0);
@@ -80,6 +196,14 @@ export function computeTechnicals(history: OHLCV[]): TechnicalSummary {
       change1m: null,
       change3m: null,
       avgVolume20d: null,
+      macdLine: null,
+      macdSignal: null,
+      macdHistogram: null,
+      macdSignalType: null,
+      bollingerUpper: null,
+      bollingerMiddle: null,
+      bollingerLower: null,
+      bollingerPosition: null,
       dataPoints: 0
     };
   }
@@ -89,6 +213,8 @@ export function computeTechnicals(history: OHLCV[]): TechnicalSummary {
   const s50 = sma(closes, 50);
   const s200 = sma(closes, 200);
   const r14 = rsi(closes, 14);
+  const macd = computeMACD(closes);
+  const bollinger = computeBollinger(closes);
 
   let trendDirection: TechnicalSummary["trendDirection"] = "sideways";
   if (s20 && s50) {
@@ -128,6 +254,8 @@ export function computeTechnicals(history: OHLCV[]): TechnicalSummary {
     change1m: n > 21 ? pctChange(closes[n - 22], current) : null,
     change3m: n > 63 ? pctChange(closes[n - 64], current) : null,
     avgVolume20d,
+    ...macd,
+    ...bollinger,
     dataPoints: n
   };
 }

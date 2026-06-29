@@ -1,35 +1,29 @@
 import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
+  CATALYST_FRAMEWORK,
   DATA_QUALITY_RULE,
+  ETF_ANALYSIS_GUIDE,
+  FUNDAMENTAL_QUALITY_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
+  SKEPTIC_RULE,
   TECHNICAL_ANALYSIS_GUIDE,
-  FUNDAMENTAL_QUALITY_GUIDE,
-  ETF_ANALYSIS_GUIDE,
-  CATALYST_FRAMEWORK,
   compactMarketSummary,
   roleLine,
-  SKEPTIC_RULE,
-  type PromptIdentity,
+  type PromptIdentity
 } from "@/lib/analysis/prompts/common";
 
 export function buildPortfolioReviewPrompt(
   identity: PromptIdentity,
   dataPackage: DailyDataPackage
 ) {
-  const portfolioJson = JSON.stringify(dataPackage.portfolio ?? [], null, 2);
-  const marketContext = compactMarketSummary(dataPackage);
-
   return `${roleLine(identity, "Portfolio Review agent")}
 
 你的專業是持股管理與風險控制（對應 TradingAgents 的 Risk Manager + Trader 角色）。你對每一個持股做深度評估，給出有明確理由支持的行動建議。
 
-市場背景：
-${marketContext}
-
-持股詳細資料：
-${portfolioJson}
+市場與持股資料（包含技術指標、基本面、近期新聞）：
+${compactMarketSummary(dataPackage)}
 
 ## 對每一持股依序執行以下分析框架
 
@@ -38,7 +32,7 @@ ${portfolioJson}
 - 現價 vs 目標買入價：是否在合理買入區間？
 - 現價 vs 停損點：距離停損還有多少空間？
 
-**階段 2：基本面品質評估（InvestSkill 框架）**
+**階段 2：基本面 / ETF 特性評估**
 若 securityType = ETF（資料中標註 [ETF]）：
 ${ETF_ANALYSIS_GUIDE}
 
@@ -48,7 +42,7 @@ ${FUNDAMENTAL_QUALITY_GUIDE}
 **階段 3：技術面分析**
 ${TECHNICAL_ANALYSIS_GUIDE}
 
-**階段 4：新聞情緒評分**
+**階段 4：新聞情緒分析**
 ${NEWS_SENTIMENT_GUIDE}
 
 **階段 5：催化劑識別**
@@ -86,6 +80,6 @@ recommendations 中每個元素：
 - ${DATA_QUALITY_RULE}
 - ${SKEPTIC_RULE}
 - stopLoss 必填，必須是具體數字（例：「$145.0」或「成本價下方8%」），不接受「根據個人風險承受能力」
-- 不得編造現價、財務比率或分析師目標價；資料不足請在 dataQualityNotes 說明
+- 不得編造現價、財務比率或分析師目標價；資料沒有提供的數字請跳過，並用定性分析補足
 - ${JSON_STRICT_RULE}`;
 }
