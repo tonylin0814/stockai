@@ -14,6 +14,13 @@ export interface Quote {
   change: number;
   changePct: number;
   volume?: number;
+  bid?: number;
+  ask?: number;
+  bidSize?: number;
+  askSize?: number;
+  dayHigh?: number;
+  dayLow?: number;
+  dayOpen?: number;
   source: string;
   qualityState: DataQualityState;
   sourceUpdatedAt: string;

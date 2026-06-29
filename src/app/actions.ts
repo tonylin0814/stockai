@@ -627,3 +627,8 @@ export async function updateUserSettings(_prev: unknown, formData: FormData) {
   revalidatePath("/settings");
   return { success: true };
 }
+
+export async function refreshStockMarketData(holdingId: string) {
+  revalidatePath(`/portfolio/${holdingId}`);
+  redirect(`/portfolio/${holdingId}`);
+}

@@ -30,6 +30,9 @@ export class FinnhubProvider {
         d?: number;
         dp?: number;
         pc?: number;
+        h?: number;
+        l?: number;
+        o?: number;
         t?: number;
       };
       const price = toNumber(data.c) || toNumber(data.pc);
@@ -46,6 +49,9 @@ export class FinnhubProvider {
         price,
         change: toNumber(data.d),
         changePct: toNumber(data.dp),
+        dayHigh: toNumber(data.h) || undefined,
+        dayLow: toNumber(data.l) || undefined,
+        dayOpen: toNumber(data.o) || undefined,
         source: "Finnhub",
         qualityState: usQuoteQuality(sourceUpdatedAt),
         sourceUpdatedAt

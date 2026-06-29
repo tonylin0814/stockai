@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { softDeleteHolding } from "@/app/actions";
 import { AddHoldingDialog, EditHoldingDialog } from "@/app/portfolio/holding-dialogs";
@@ -35,6 +36,19 @@ type HoldingWithQuote = Holding & {
   quote: Quote | null;
 };
 
+function formatMarketRef(quote: Quote): string | null {
+  const parts: string[] = [];
+
+  if (quote.dayHigh && quote.dayLow) {
+    parts.push(`H ${formatNumber(quote.dayHigh, 2)} / L ${formatNumber(quote.dayLow, 2)}`);
+  }
+
+  if (quote.bid && quote.ask) {
+    parts.push(`買 ${formatNumber(quote.bid, 2)} / 賣 ${formatNumber(quote.ask, 2)}`);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 export default async function PortfolioPage() {
   const supabase = createSupabaseServerClient();
@@ -144,6 +158,7 @@ export default async function PortfolioPage() {
             rowsWithQuotes.map((holding) => {
               const quote = holding.quote;
               const hasPrice = quote && quote.qualityState !== "missing";
+              const marketRef = hasPrice ? formatMarketRef(quote) : null;
               const marketValue = hasPrice ? holding.shares * quote.price : null;
               const pnl = hasPrice
                 ? (quote.price - holding.average_cost) * holding.shares
@@ -157,8 +172,19 @@ export default async function PortfolioPage() {
 
               return (
                 <tr key={holding.id}>
-                  <Td>{holding.securities?.symbol}</Td>
-                  <Td>{holding.securities?.name}</Td>
+                  <Td>
+                    <Link
+                      href={`/portfolio/${holding.id}`}
+                      className="font-medium text-blue-700 hover:underline"
+                    >
+                      {holding.securities?.symbol}
+                    </Link>
+                  </Td>
+                  <Td>
+                    <Link href={`/portfolio/${holding.id}`} className="hover:text-blue-700">
+                      {holding.securities?.name}
+                    </Link>
+                  </Td>
                   <Td>{holding.securities?.market}</Td>
                   <Td>{formatNumber(holding.shares, 4)}</Td>
                   <Td>{formatNumber(holding.average_cost, 2)}</Td>
@@ -167,6 +193,9 @@ export default async function PortfolioPage() {
                   <Td>
                     <div className="flex flex-col gap-1">
                       <span>{hasPrice ? formatNumber(quote.price, 2) : "—"}</span>
+                      {marketRef ? (
+                        <span className="text-xs text-slate-400">{marketRef}</span>
+                      ) : null}
                       <QualityBadge state={quote?.qualityState ?? "missing"} />
                     </div>
                   </Td>
