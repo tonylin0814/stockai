@@ -1,14 +1,9 @@
-import { Edit, Plus, Trash2 } from "lucide-react";
-import {
-  createHolding,
-  softDeleteHolding,
-  updateHolding
-} from "@/app/actions";
-import { HoldingForm } from "@/app/portfolio/holding-form";
+import { Trash2 } from "lucide-react";
+import { softDeleteHolding } from "@/app/actions";
+import { AddHoldingDialog, EditHoldingDialog } from "@/app/portfolio/holding-dialogs";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
 import { Table, Td, Th } from "@/components/ui/table";
 import {
   formatCurrency,
@@ -102,17 +97,7 @@ export default async function PortfolioPage() {
         </div>
         <div className="flex items-center gap-2">
           <RunAnalysisButton redirectTo="/analysis/daily" />
-          <Dialog
-            title="新增持股"
-            trigger={
-              <Button type="button">
-                <Plus className="h-4 w-4" />
-                新增持股
-              </Button>
-            }
-          >
-            {(close) => <HoldingForm action={createHolding} onSuccess={close} />}
-          </Dialog>
+          <AddHoldingDialog />
         </div>
       </div>
 
@@ -198,28 +183,7 @@ export default async function PortfolioPage() {
                   <Td>{holding.notes || "—"}</Td>
                   <Td>
                     <div className="flex items-center gap-2">
-                      <Dialog
-                        title="編輯持股"
-                        trigger={
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="icon"
-                            aria-label="Edit"
-                            title="Edit"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        }
-                      >
-                        {(close) => (
-                          <HoldingForm
-                            action={updateHolding}
-                            holding={holding}
-                            onSuccess={close}
-                          />
-                        )}
-                      </Dialog>
+                      <EditHoldingDialog holding={holding} />
                       <form action={softDeleteHolding}>
                         <input type="hidden" name="id" value={holding.id} />
                         <Button
