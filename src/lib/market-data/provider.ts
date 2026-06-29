@@ -33,15 +33,18 @@ class CompositeProvider implements MarketDataProvider {
         : yahooQuote;
     }
 
-    const [finnhubQuote, yahooQuote] = await Promise.all([
+    const [finnhubQuote, yahooQuote, yahooChartQuote] = await Promise.all([
       this.finnhub.getQuote(symbol),
-      this.yahoo.getQuote(symbol, "US")
+      this.yahoo.getQuote(symbol, "US"),
+      this.yahoo.getQuoteFromChart(symbol, "US")
     ]);
+    const yahooBestQuote =
+      yahooQuote.qualityState === "missing" ? yahooChartQuote : yahooQuote;
 
     if (
       finnhubQuote.qualityState !== "missing" &&
-      yahooQuote.qualityState !== "missing" &&
-      pctDifference(finnhubQuote.price, yahooQuote.price) > 0.01
+      yahooBestQuote.qualityState !== "missing" &&
+      pctDifference(finnhubQuote.price, yahooBestQuote.price) > 0.01
     ) {
       return {
         ...finnhubQuote,
@@ -50,7 +53,7 @@ class CompositeProvider implements MarketDataProvider {
       };
     }
 
-    return finnhubQuote.qualityState === "missing" ? yahooQuote : finnhubQuote;
+    return finnhubQuote.qualityState === "missing" ? yahooBestQuote : finnhubQuote;
   }
 
   async getHistory(symbol: string, market: "US" | "TW", days: number): Promise<OHLCV[]> {

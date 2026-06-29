@@ -63,9 +63,13 @@ function quoteRows(dataPackage: unknown) {
   return rows;
 }
 
-function priceText(value: unknown) {
+function priceText(value: unknown, qualityState?: unknown) {
+  if (qualityState === "missing") {
+    return "—";
+  }
+
   const numberValue = asNumber(value);
-  return numberValue === null ? "—" : formatNumber(numberValue, 2);
+  return numberValue === null || numberValue === 0 ? "—" : formatNumber(numberValue, 2);
 }
 
 function signedText(value: unknown) {
@@ -153,7 +157,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
           {sourceRows.map((row) => (
             <tr key={row.label}>
               <Td>{row.label}</Td>
-              <Td>{priceText(row.quote.price)}</Td>
+              <Td>{priceText(row.quote.price, row.quote.qualityState)}</Td>
               <Td>{signedText(row.quote.change)}</Td>
               <Td>{percentText(row.quote.changePct)}</Td>
               <Td>{String(row.quote.source ?? "—")}</Td>
