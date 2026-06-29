@@ -30,6 +30,10 @@ function isMarket(value: string): value is "US" | "TW" {
   return value === "US" || value === "TW";
 }
 
+function alertKey(alert: { recommendation_id: string | null; alert_type: string }) {
+  return `${alert.recommendation_id ?? "global"}:${alert.alert_type}`;
+}
+
 export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
   const supabase = createSupabaseServiceClient();
   const provider = getMarketDataProvider();
@@ -49,9 +53,9 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
     .eq("user_id", userId)
     .eq("alert_date", today);
   const alreadyAlerted = new Set(
-    ((existing ?? []) as Array<{ recommendation_id: string | null; alert_type: string }>)
-      .filter((alert) => alert.recommendation_id)
-      .map((alert) => `${alert.recommendation_id}:${alert.alert_type}`)
+    ((existing ?? []) as Array<{ recommendation_id: string | null; alert_type: string }>).map(
+      alertKey
+    )
   );
 
   for (const rec of openRecs) {
@@ -123,7 +127,7 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
     }
 
     for (const alert of newAlerts) {
-      const key = `${rec.id}:${alert.alert_type}`;
+      const key = alertKey({ recommendation_id: rec.id, alert_type: alert.alert_type });
       if (alreadyAlerted.has(key)) continue;
 
       await supabase.from("alerts").insert({
@@ -149,7 +153,7 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
     .order("completed_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const staleKey = "null:data_stale";
+  const staleKey = alertKey({ recommendation_id: null, alert_type: "data_stale" });
 
   if (!recentRun) {
     if (!alreadyAlerted.has(staleKey)) {
