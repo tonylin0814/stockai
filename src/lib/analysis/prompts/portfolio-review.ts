@@ -8,6 +8,7 @@ import {
   FUNDAMENTAL_QUALITY_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
+  SCENARIO_ANALYSIS_GUIDE,
   SKEPTIC_RULE,
   TAIWAN_FUNDAMENTAL_GUIDE,
   TECHNICAL_ANALYSIS_GUIDE,
@@ -78,10 +79,12 @@ ${EARNINGS_RISK_GUIDE}
 
 ## 輸出格式
 
+${SCENARIO_ANALYSIS_GUIDE}
+
 ${AGENT_OUTPUT_JSON_SCHEMA}
 
 recommendations 中每個元素：
-{ symbol, market, name, action, reason, marketImpact, buyZone, targetPrice, stopLoss, keyRisks, whatCouldChangeOurMind, confidence }
+{ symbol, market, name, action, reason, marketImpact, buyZone, targetPrice, stopLoss, keyRisks, whatCouldChangeOurMind, confidence, scenarios }
 
 欄位說明：
 - summary：今日持股組合整體健康評估

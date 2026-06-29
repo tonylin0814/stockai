@@ -419,6 +419,7 @@ export async function runSingleStockMission(params: {
       decision_summary: consensus.reason,
       agreement_summary: consensus.agreements.join("\n"),
       disagreement_summary: consensus.disagreements.join("\n"),
+      final_scenarios: consensus.finalScenarios ?? null,
       final_recommendations: consensus.finalRecommendations,
       division_inputs: savedDivisionDecisions.map((result) => result.decision),
       is_action_allowed: consensus.isActionAllowed

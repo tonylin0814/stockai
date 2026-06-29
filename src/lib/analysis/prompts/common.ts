@@ -155,6 +155,37 @@ export const ETF_ANALYSIS_GUIDE = `ETF 分析框架（適用於 securityType=etf
 6. 股息：配息率與頻率是否符合持有目的？
 注意：ETF 不適用 Moat、ROIC、Piotroski、EPS 等股票基本面指標，請跳過。`;
 
+export const SCENARIO_ANALYSIS_GUIDE = `## Bull / Bear / Base scenario analysis
+
+For every holding or recommendation you analyze, provide all three scenarios. The three probabilities must add up to 100.
+
+Bull case:
+- trigger: specific technical, fundamental, news, or catalyst condition that confirms upside.
+- target: upside target price, range, or percentage outcome.
+- probability: probability from 0 to 100.
+- timeframe: estimated time to play out.
+- action: what to do if the bull case triggers.
+
+Bear case:
+- trigger: specific condition that confirms downside or requires defense.
+- target: downside target, support level, or expected drawdown.
+- probability: probability from 0 to 100.
+- timeframe: estimated time to play out.
+- action: stop-loss, reduce, hedge, or avoid action if the bear case triggers.
+
+Base case:
+- trigger: condition that means no clear direction or range-bound trading.
+- target: consolidation range or neutral outcome.
+- probability: probability from 0 to 100.
+- timeframe: estimated duration.
+- action: what to do while the base case holds.
+
+Rules:
+- bull + bear + base probability must equal 100.
+- Triggers must be concrete and observable, not vague.
+- If exact price data is insufficient, describe targets by percentage.
+- For ETFs, use benchmark-relative logic instead of single-company target-price logic.`;
+
 export const EARNINGS_RISK_GUIDE = `財報風險管理原則：
 若「即將到來的財報」欄位顯示有標的在 14 天內公布財報：
 - 7 天內：高度謹慎。不建議在財報前建立新倉位。若已持有，考慮降低至核心部位或設定保護性停損。

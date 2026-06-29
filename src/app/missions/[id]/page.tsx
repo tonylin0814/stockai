@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Fragment } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RunMissionButton } from "@/components/run-mission-button";
 import { TeamReportTabs } from "@/components/team-report-tabs";
@@ -86,6 +87,41 @@ function stringList(value: unknown) {
   return Array.isArray(value)
     ? value.map((item) => String(item)).filter(Boolean).join("；")
     : "—";
+}
+
+function ScenarioSummary({ scenarios }: { scenarios: Record<string, unknown> }) {
+  const bull = asRecord(scenarios.bull);
+  const bear = asRecord(scenarios.bear);
+  const base = asRecord(scenarios.base);
+
+  if (!bull.trigger && !bear.trigger && !base.trigger) return null;
+
+  const items = [
+    { label: "做多", color: "bg-green-500", text: "text-green-700", data: bull },
+    { label: "做空/防守", color: "bg-red-500", text: "text-red-700", data: bear },
+    { label: "盤整", color: "bg-slate-400", text: "text-slate-700", data: base }
+  ];
+
+  return (
+    <div className="space-y-2 text-xs">
+      {items.map((item) => (
+        <div key={item.label} className="flex gap-2">
+          <span className={`mt-1 h-2 w-2 flex-shrink-0 rounded-full ${item.color}`} />
+          <div>
+            <span className={`font-medium ${item.text}`}>
+              {item.label} {String(item.data.probability ?? "?")}%
+            </span>
+            <span className="ml-2 text-slate-600">
+              {String(item.data.trigger ?? "—")} → {String(item.data.target ?? "—")}
+            </span>
+            {item.data.action ? (
+              <span className="ml-2 text-slate-500">{String(item.data.action)}</span>
+            ) : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default async function MissionResultPage({ params }: { params: { id: string } }) {
@@ -281,6 +317,17 @@ export default async function MissionResultPage({ params }: { params: { id: stri
           <p>信心分數：{String(committee?.confidence ?? "—")}</p>
         </div>
         <p className="mt-4 text-sm text-slate-700">{String(committee?.decision_summary ?? "—")}</p>
+        {(() => {
+          const finalScenarios = asRecord(committee?.final_scenarios ?? committee?.finalScenarios);
+          if (!Object.keys(finalScenarios).length) return null;
+
+          return (
+            <div className="mt-4 rounded-md border border-slate-100 bg-slate-50 p-4">
+              <p className="mb-2 text-sm font-semibold text-slate-700">委員會情境評估</p>
+              <ScenarioSummary scenarios={finalScenarios} />
+            </div>
+          );
+        })()}
       </section>
 
       <section className="space-y-3">
@@ -328,17 +375,30 @@ export default async function MissionResultPage({ params }: { params: { id: stri
           <tbody>
             {divisions.map((division) => {
               const missionDecision = asRecord(division.mission_decision);
+              const scenarios = asRecord(missionDecision.scenarios);
 
               return (
-                <tr key={`analysis-${String(division.id)}`}>
-                  <Td>{String(division.division ?? "—")}</Td>
-                  <Td>{String(division.decision_action ?? "—")}</Td>
-                  <Td>{String(division.confidence ?? "—")}</Td>
-                  <Td>{String(missionDecision.summary ?? division.market_summary ?? "—")}</Td>
-                  <Td>{String(missionDecision.reason ?? "—")}</Td>
-                  <Td>{stringList(missionDecision.keyRisks)}</Td>
-                  <Td>{stringList(missionDecision.conditionsToAct)}</Td>
-                </tr>
+                <Fragment key={`analysis-${String(division.id)}`}>
+                  <tr>
+                    <Td>{String(division.division ?? "—")}</Td>
+                    <Td>{String(division.decision_action ?? "—")}</Td>
+                    <Td>{String(division.confidence ?? "—")}</Td>
+                    <Td>{String(missionDecision.summary ?? division.market_summary ?? "—")}</Td>
+                    <Td>{String(missionDecision.reason ?? "—")}</Td>
+                    <Td>{stringList(missionDecision.keyRisks)}</Td>
+                    <Td>{stringList(missionDecision.conditionsToAct)}</Td>
+                  </tr>
+                  {Object.keys(scenarios).length ? (
+                    <tr className="bg-slate-50">
+                      <Td className="text-xs font-medium text-slate-500">
+                        {String(division.division ?? "—")} 情境
+                      </Td>
+                      <Td colSpan={6}>
+                        <ScenarioSummary scenarios={scenarios} />
+                      </Td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               );
             })}
           </tbody>

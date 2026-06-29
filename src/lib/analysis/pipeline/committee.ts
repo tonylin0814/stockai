@@ -124,6 +124,7 @@ export async function runCommitteePipeline(params: {
         decision_summary: safeguardedDecision.reason,
         agreement_summary: safeguardedDecision.agreements.join("\n"),
         disagreement_summary: safeguardedDecision.disagreements.join("\n"),
+        final_scenarios: safeguardedDecision.finalScenarios ?? null,
         final_recommendations: safeguardedDecision.finalRecommendations,
         division_inputs: completed.map((result) => result.decision),
         is_action_allowed: safeguardedDecision.isActionAllowed

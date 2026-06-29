@@ -6,6 +6,7 @@ import {
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
   CATALYST_FRAMEWORK,
+  SCENARIO_ANALYSIS_GUIDE,
   compactMarketSummary,
   getRoleGuidance,
   roleLine,
@@ -62,10 +63,12 @@ ${EARNINGS_RISK_GUIDE}
 
 ## 輸出格式
 
+${SCENARIO_ANALYSIS_GUIDE}
+
 ${AGENT_OUTPUT_JSON_SCHEMA}
 
 recommendations 應包含今日最值得關注的 1-2 個行動項目：
-{ symbol, action, reason, priority: "high|medium|low", conditionsToAct }
+{ symbol, action, reason, priority: "high|medium|low", conditionsToAct, scenarios }
 
 欄位說明：
 - summary：開頭必須是「每日例行分析 - [日期]」，然後描述今日最重要的發現

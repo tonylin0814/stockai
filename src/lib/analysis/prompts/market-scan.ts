@@ -8,6 +8,7 @@ import {
   FUNDAMENTAL_QUALITY_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
+  SCENARIO_ANALYSIS_GUIDE,
   SKEPTIC_RULE,
   TAIWAN_FUNDAMENTAL_GUIDE,
   TECHNICAL_ANALYSIS_GUIDE,
@@ -82,10 +83,12 @@ ${EARNINGS_RISK_GUIDE}
 
 ## 輸出格式
 
+${SCENARIO_ANALYSIS_GUIDE}
+
 ${AGENT_OUTPUT_JSON_SCHEMA}
 
 recommendations 每個元素：
-{ symbol, market, name, reason, buyZone, targetPrice, stopLoss, timeHorizon, confidence, keyRisks, compositeScore, catalystSummary }
+{ symbol, market, name, reason, buyZone, targetPrice, stopLoss, timeHorizon, confidence, keyRisks, compositeScore, catalystSummary, scenarios }
 
 欄位說明：
 - summary：今日掃描結論，說明篩選了幾個候選、通過幾個

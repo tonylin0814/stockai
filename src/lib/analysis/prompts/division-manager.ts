@@ -90,6 +90,7 @@ ${params.decisionMemory}
 - confidence：0-100
 - keyRisks：列出 2-4 個最主要的下行風險
 - conditionsToAct：列出 2-3 個需要成立才採取行動的具體條件
+- scenarios：整合各 team 的 bull / bear / base 情境。bull.probability 取各 team bull 機率的加權平均，bear.probability 取各 team bear 機率的加權平均，base.probability = 100 - bull - bear。trigger 和 target 取各 team 中最有共識、最具體、最可觀察的條件。
 
 ## 輸出格式
 

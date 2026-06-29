@@ -51,6 +51,20 @@ export const MarketViewSchema = z.object({
   confidence: z.number().min(0).max(100)
 });
 
+export const ScenarioSchema = z.object({
+  trigger: z.string(),
+  target: z.string(),
+  probability: z.number().min(0).max(100),
+  timeframe: z.string(),
+  action: z.string()
+});
+
+export const ScenariosSchema = z.object({
+  bull: ScenarioSchema,
+  bear: ScenarioSchema,
+  base: ScenarioSchema
+});
+
 export const PortfolioReviewItemSchema = z.object({
   symbol: z.string(),
   market: z.enum(["US", "TW"]),
@@ -63,7 +77,8 @@ export const PortfolioReviewItemSchema = z.object({
   stopLoss: z.string(),
   keyRisks: z.array(z.string()),
   whatCouldChangeOurMind: z.array(z.string()),
-  confidence: z.number().min(0).max(100)
+  confidence: z.number().min(0).max(100),
+  scenarios: ScenariosSchema.optional()
 });
 
 export const MissionAnalysisSchema = z.object({
@@ -79,7 +94,8 @@ export const MissionAnalysisSchema = z.object({
   confidence: z.number().min(0).max(100),
   reason: z.string(),
   keyRisks: z.array(z.string()),
-  conditionsToAct: z.array(z.string())
+  conditionsToAct: z.array(z.string()),
+  scenarios: ScenariosSchema.optional()
 });
 
 export const MarketScanRecommendationSchema = z.object({
@@ -92,7 +108,8 @@ export const MarketScanRecommendationSchema = z.object({
   stopLoss: z.string(),
   timeHorizon: z.enum(["short", "swing", "long"]),
   confidence: z.number().min(0).max(100),
-  keyRisks: z.array(z.string())
+  keyRisks: z.array(z.string()),
+  scenarios: ScenariosSchema.optional()
 });
 
 export const FinalTeamViewSchema = z.object({
@@ -138,6 +155,7 @@ export const CommitteeDecisionSchema = z.object({
   finalBuyZone: z.string(),
   finalTargetPrice: z.string(),
   finalStopLoss: z.string(),
+  finalScenarios: ScenariosSchema.optional(),
   finalPositionSize: z.string(),
   finalRecommendations: FlexibleRecordArraySchema,
   confidence: z.number().min(0).max(100),
@@ -149,10 +167,36 @@ export const CommitteeDecisionSchema = z.object({
 });
 
 export type AgentOutput = z.infer<typeof AgentOutputSchema>;
+export type Scenario = z.infer<typeof ScenarioSchema>;
+export type Scenarios = z.infer<typeof ScenariosSchema>;
 export type MissionAnalysis = z.infer<typeof MissionAnalysisSchema>;
 export type TeamReport = z.infer<typeof TeamReportSchema>;
 export type DivisionDecision = z.infer<typeof DivisionDecisionSchema>;
 export type CommitteeDecision = z.infer<typeof CommitteeDecisionSchema>;
+
+const SCENARIOS_JSON_EXAMPLE = `{
+        "bull": {
+          "trigger": "breaks above resistance with volume confirmation",
+          "target": "upside target or range",
+          "probability": 35,
+          "timeframe": "4-8 weeks",
+          "action": "recommended action if bull case triggers"
+        },
+        "bear": {
+          "trigger": "breaks below support or risk event appears",
+          "target": "downside target or risk level",
+          "probability": 40,
+          "timeframe": "2-4 weeks",
+          "action": "recommended defensive action if bear case triggers"
+        },
+        "base": {
+          "trigger": "range-bound or no clear direction",
+          "target": "consolidation range",
+          "probability": 25,
+          "timeframe": "2-3 weeks",
+          "action": "recommended action while base case holds"
+        }
+      }`;
 
 export const TEAM_REPORT_JSON_SCHEMA = `{
   "teamName": "基本面品質團隊",
@@ -179,7 +223,8 @@ export const TEAM_REPORT_JSON_SCHEMA = `{
       "stopLoss": "停損點",
       "keyRisks": ["主要風險"],
       "whatCouldChangeOurMind": ["改變判斷的條件"],
-      "confidence": 0
+      "confidence": 0,
+      "scenarios": ${SCENARIOS_JSON_EXAMPLE}
     }
   ],
   "missionAnalysis": {
@@ -195,7 +240,8 @@ export const TEAM_REPORT_JSON_SCHEMA = `{
     "confidence": 0,
     "reason": "原因",
     "keyRisks": ["主要風險"],
-    "conditionsToAct": ["需要等待的條件"]
+    "conditionsToAct": ["需要等待的條件"],
+    "scenarios": ${SCENARIOS_JSON_EXAMPLE}
   },
   "marketScanRecommendations": [
     {
@@ -208,7 +254,8 @@ export const TEAM_REPORT_JSON_SCHEMA = `{
       "stopLoss": "停損點",
       "timeHorizon": "short | swing | long",
       "confidence": 0,
-      "keyRisks": ["主要風險"]
+      "keyRisks": ["主要風險"],
+      "scenarios": ${SCENARIOS_JSON_EXAMPLE}
     }
   ],
   "finalTeamView": {
@@ -243,7 +290,8 @@ export const DIVISION_DECISION_JSON_SCHEMA = `{
     "timeHorizon": "short | swing | long",
     "confidence": 0,
     "keyRisks": ["主要風險"],
-    "conditionsToAct": ["需要成立的條件才採取行動"]
+    "conditionsToAct": ["需要成立的條件才採取行動"],
+    "scenarios": ${SCENARIOS_JSON_EXAMPLE}
   },
   "topRecommendations": [],
   "confidence": 0,
@@ -265,6 +313,7 @@ export const COMMITTEE_DECISION_JSON_SCHEMA = `{
   "finalBuyZone": "最終買進區間",
   "finalTargetPrice": "最終目標價",
   "finalStopLoss": "最終停損點",
+  "finalScenarios": ${SCENARIOS_JSON_EXAMPLE},
   "finalPositionSize": "最終建議部位大小",
   "finalRecommendations": [],
   "confidence": 0,

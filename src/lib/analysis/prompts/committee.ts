@@ -42,6 +42,14 @@ ${JSON.stringify(params.divisionDecisions, null, 2)}
 - mostConservativeDivision：哪個 division 更保守？為什麼？
 - mostAggressiveDivision：哪個 division 更積極？為什麼？
 
+**5. 情境整合（finalScenarios）**
+
+整合兩個 Division 的 scenarios：
+- 若兩個 Division 的 bull trigger 相似，取共識描述。
+- 若兩個 Division 的機率差距 > 20%，取保守值：較低的 bull 機率、較高的 bear 機率。
+- finalScenarios.bull + finalScenarios.bear + finalScenarios.base probability 合計必須 = 100。
+- finalScenarios 的 action 必須對應最終委員會立場，不能和 finalAction / actionType 矛盾。
+
 ## 輸出格式
 
 ${COMMITTEE_DECISION_JSON_SCHEMA}
