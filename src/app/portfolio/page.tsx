@@ -197,9 +197,14 @@ export default async function PortfolioPage() {
                       <Dialog
                         title="編輯持股"
                         trigger={
-                          <Button type="button" variant="secondary" size="sm">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="icon"
+                            aria-label="Edit"
+                            title="Edit"
+                          >
                             <Edit className="h-4 w-4" />
-                            編輯
                           </Button>
                         }
                       >
@@ -213,9 +218,14 @@ export default async function PortfolioPage() {
                       </Dialog>
                       <form action={softDeleteHolding}>
                         <input type="hidden" name="id" value={holding.id} />
-                        <Button type="submit" variant="danger" size="sm">
+                        <Button
+                          type="submit"
+                          variant="danger"
+                          size="icon"
+                          aria-label="Delete"
+                          title="Delete"
+                        >
                           <Trash2 className="h-4 w-4" />
-                          刪除
                         </Button>
                       </form>
                     </div>
