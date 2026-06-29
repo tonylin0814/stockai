@@ -2,6 +2,7 @@ import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
   DATA_QUALITY_RULE,
+  EARNINGS_RISK_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
   CATALYST_FRAMEWORK,
@@ -48,6 +49,11 @@ ${CATALYST_FRAMEWORK}
 
 **掃描 5：新聞情緒評分（針對最重要標的）**
 ${NEWS_SENTIMENT_GUIDE}
+
+${dataPackage.upcomingEarnings?.length ? `**掃描 6：財報風險評估**
+${EARNINGS_RISK_GUIDE}
+特別注意：若投資組合中有標的在 7 天內公布財報，這必須成為今日最優先的警示事項。
+` : ""}
 
 **今日最優先任務**
 - missionTitle：30 字以內描述今日最重要的分析任務

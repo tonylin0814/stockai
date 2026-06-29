@@ -3,6 +3,7 @@ import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
   CATALYST_FRAMEWORK,
   DATA_QUALITY_RULE,
+  EARNINGS_RISK_GUIDE,
   ETF_ANALYSIS_GUIDE,
   FUNDAMENTAL_QUALITY_GUIDE,
   JSON_STRICT_RULE,
@@ -53,6 +54,11 @@ ${NEWS_SENTIMENT_GUIDE}
 
 **Step 5：催化劑評估**
 ${CATALYST_FRAMEWORK}
+
+${dataPackage.upcomingEarnings?.length ? `## 財報日曆注意事項
+掃描關注清單時，若標的有即將到來的財報，推薦中必須標註財報日期並說明是否建議財報前或財報後進場。
+${EARNINGS_RISK_GUIDE}
+` : ""}
 
 **Step 6：競爭/板塊脈絡（FinRobot 框架）**
 - 該標的在其所屬板塊中排名如何？（龍頭/跟隨者/落後者）

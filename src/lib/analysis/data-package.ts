@@ -1,6 +1,10 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { buildDecisionMemory } from "@/lib/analysis/decision-memory";
 import { computeTechnicals } from "@/lib/market-data/indicators";
+import {
+  getUpcomingEarnings,
+  type EarningsEvent
+} from "@/lib/market-data/earnings-calendar";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { TechnicalSummary } from "@/lib/market-data/indicators";
 import type {
@@ -68,6 +72,7 @@ export type DailyDataPackage = {
     missingItems: string[];
   };
   decisionMemory: string;
+  upcomingEarnings: EarningsEvent[];
 };
 
 type HoldingRow = {
@@ -359,7 +364,14 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     ...portfolio.map((item) => item.symbol),
     ...watchlist.map((item) => item.symbol)
   ];
-  const decisionMemory = await buildDecisionMemory(userId, allSymbols);
+  const allSymbolsWithMarket = [
+    ...portfolio.map((item) => ({ symbol: item.symbol, market: item.market })),
+    ...watchlist.map((item) => ({ symbol: item.symbol, market: item.market }))
+  ];
+  const [decisionMemory, upcomingEarnings] = await Promise.all([
+    buildDecisionMemory(userId, allSymbols),
+    getUpcomingEarnings(allSymbolsWithMarket)
+  ]);
 
   await logQualityIssues(userId, quoteItems);
 
@@ -378,6 +390,7 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
       tenYearYield: dgs10[0] ?? null
     },
     dataQualitySummary,
-    decisionMemory
+    decisionMemory,
+    upcomingEarnings
   };
 }

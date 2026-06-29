@@ -1,4 +1,5 @@
 import type { DailyDataPackage } from "@/lib/analysis/data-package";
+import type { EarningsEvent } from "@/lib/market-data/earnings-calendar";
 import type { TechnicalSummary } from "@/lib/market-data/indicators";
 import type { Fundamentals, NewsItem } from "@/lib/market-data/types";
 
@@ -146,6 +147,13 @@ export const ETF_ANALYSIS_GUIDE = `ETF 分析框架（適用於 securityType=etf
 6. 股息：配息率與頻率是否符合持有目的？
 注意：ETF 不適用 Moat、ROIC、Piotroski、EPS 等股票基本面指標，請跳過。`;
 
+export const EARNINGS_RISK_GUIDE = `財報風險管理原則：
+若「即將到來的財報」欄位顯示有標的在 14 天內公布財報：
+- 7 天內：高度謹慎。不建議在財報前建立新倉位。若已持有，考慮降低至核心部位或設定保護性停損。
+- 8-14 天內：中度謹慎。可持有但不宜追高；若要買進，先用小部位試探。
+- 15-45 天內：低度提醒。正常分析，但在 conditionsToAct 中加入「等待財報確認方向後再加碼」。
+財報是二元事件，即使方向看對，也可能因預期過高而下跌。若是上市後首次財報，不確定性更高，謹慎程度應提高一級。`;
+
 export function compactMarketSummary(dataPackage: DailyDataPackage): string {
   const snap = dataPackage.marketSnapshot;
 
@@ -232,6 +240,40 @@ export function compactMarketSummary(dataPackage: DailyDataPackage): string {
       .join(" | ");
   }
 
+  function formatEarningsCalendar(events: EarningsEvent[]): string {
+    if (!events.length) return "";
+
+    const lines = ["## 即將到來的財報（45天內）"];
+    for (const event of events) {
+      const urgency =
+        event.daysUntil <= 7
+          ? "本週"
+          : event.daysUntil <= 14
+            ? "兩週內"
+            : `${event.daysUntil}天後`;
+      const timing =
+        event.hour === "bmo"
+          ? "盤前公布"
+          : event.hour === "amc"
+            ? "盤後公布"
+            : event.hour === "dmh"
+              ? "盤中公布"
+              : "";
+      const eps =
+        event.epsEstimate !== null
+          ? ` | EPS預估 $${event.epsEstimate.toFixed(2)}`
+          : "";
+
+      lines.push(
+        `- ${urgency} ${event.symbol}：Q${event.quarter} ${event.year} 財報 ${event.date}${
+          timing ? `（${timing}）` : ""
+        }${eps}`
+      );
+    }
+
+    return lines.join("\n");
+  }
+
   const portfolio = (dataPackage.portfolio ?? [])
     .map((holding) => {
       const isEtf = holding.securityType?.toLowerCase() === "etf";
@@ -254,9 +296,11 @@ export function compactMarketSummary(dataPackage: DailyDataPackage): string {
       return `${item.symbol}(${item.market}) [${label}] 目標買入${item.targetBuyPrice ?? "N/A"} 現價${item.currentPrice ?? "N/A"}\n  技術：${formatTechnicals(item.technicals)}\n  ${fundamentalLine}\n  新聞：${formatNews(item.news)}`;
     })
     .join("\n");
+  const earningsSection = formatEarningsCalendar(dataPackage.upcomingEarnings ?? []);
 
   return `日期：${dataPackage.packageDate}
 市場指標：TAIEX ${snap?.taiex?.price ?? "N/A"} | S&P500 ${snap?.sp500?.price ?? "N/A"} | VIX ${snap?.vix?.price ?? "N/A"} | USD/TWD ${snap?.usdTwd ?? "N/A"} | 10Y美債 ${snap?.tenYearYield?.value ?? "N/A"}%
+${earningsSection ? `\n${earningsSection}\n` : ""}
 持股：
 ${portfolio || "無"}
 關注清單：

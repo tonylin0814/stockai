@@ -3,6 +3,7 @@ import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
   CATALYST_FRAMEWORK,
   DATA_QUALITY_RULE,
+  EARNINGS_RISK_GUIDE,
   ETF_ANALYSIS_GUIDE,
   FUNDAMENTAL_QUALITY_GUIDE,
   JSON_STRICT_RULE,
@@ -52,6 +53,10 @@ ${NEWS_SENTIMENT_GUIDE}
 
 **階段 5：催化劑識別**
 ${CATALYST_FRAMEWORK}
+
+${dataPackage.upcomingEarnings?.length ? `## 財報風險
+${EARNINGS_RISK_GUIDE}
+` : ""}
 
 **階段 6：多空辯論（Bull vs Bear Debate）**
 多頭論點（至少 2 點，具體事實支撐）：
