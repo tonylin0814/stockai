@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
 import { softDeleteHolding } from "@/app/actions";
 import { AddHoldingDialog, EditHoldingDialog } from "@/app/portfolio/holding-dialogs";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { MarketStatusDot } from "@/components/market-status-dot";
 import { PortfolioStatusBar } from "@/components/portfolio-status-bar";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
@@ -226,15 +226,7 @@ export default async function PortfolioPage() {
                       <EditHoldingDialog holding={holding} />
                       <form action={softDeleteHolding}>
                         <input type="hidden" name="id" value={holding.id} />
-                        <Button
-                          type="submit"
-                          variant="danger"
-                          size="icon"
-                          aria-label="Delete"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <ConfirmSubmitButton idleLabel="刪除" confirmLabel="再次點擊確認刪除" />
                       </form>
                     </div>
                   </Td>

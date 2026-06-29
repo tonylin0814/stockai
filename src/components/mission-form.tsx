@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Loader2 } from "lucide-react";
 import { createMission } from "@/app/actions";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -37,12 +38,12 @@ export function MissionForm({ onSaved }: { onSaved: () => void }) {
       </FormField>
       <FormField label="任務類型" htmlFor="mission_type">
         <Select id="mission_type" name="mission_type" required defaultValue="single_stock">
-          <option value="single_stock">single_stock</option>
-          <option value="multi_stock">multi_stock</option>
-          <option value="portfolio_review">portfolio_review</option>
-          <option value="watchlist_review">watchlist_review</option>
-          <option value="theme">theme</option>
-          <option value="event">event</option>
+          <option value="single_stock">單一股票分析</option>
+          <option value="multi_stock">多股票比較</option>
+          <option value="portfolio_review">投資組合檢視</option>
+          <option value="watchlist_review">關注清單檢視</option>
+          <option value="theme">主題研究</option>
+          <option value="event">事件分析</option>
         </Select>
       </FormField>
       <div className="md:col-span-2">
@@ -64,6 +65,7 @@ export function MissionForm({ onSaved }: { onSaved: () => void }) {
       {error ? <p className="text-sm text-red-700 md:col-span-2">{error}</p> : null}
       <div className="flex justify-end md:col-span-2">
         <Button type="submit" disabled={isPending}>
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {isPending ? "建立中..." : "建立任務"}
         </Button>
       </div>

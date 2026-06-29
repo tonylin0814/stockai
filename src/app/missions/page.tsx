@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { XCircle } from "lucide-react";
 import { cancelMission } from "@/app/actions";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { MissionDialog } from "@/components/mission-dialog";
-import { Button } from "@/components/ui/button";
 import { Table, Td, Th } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -22,6 +21,16 @@ function statusLabel(status: string) {
   if (status === "cancelled") return "已取消";
   if (status === "failed") return "失敗";
   return "待執行";
+}
+
+function missionTypeLabel(type: string) {
+  if (type === "single_stock") return "單一股票分析";
+  if (type === "multi_stock") return "多股票比較";
+  if (type === "portfolio_review") return "投資組合檢視";
+  if (type === "watchlist_review") return "關注清單檢視";
+  if (type === "theme") return "主題研究";
+  if (type === "event") return "事件分析";
+  return type;
 }
 
 export default async function MissionsPage() {
@@ -62,7 +71,7 @@ export default async function MissionsPage() {
           {(missions ?? []).map((mission) => (
             <tr key={mission.id}>
               <Td>{mission.title}</Td>
-              <Td>{mission.mission_type}</Td>
+              <Td>{missionTypeLabel(mission.mission_type)}</Td>
               <Td>
                 <span className={cn("rounded-md border px-2 py-1 text-xs font-medium", statusClass(mission.status))}>
                   {statusLabel(mission.status)}
@@ -80,10 +89,12 @@ export default async function MissionsPage() {
                   {mission.status === "pending" ? (
                     <form action={cancelMission}>
                       <input type="hidden" name="id" value={mission.id} />
-                      <Button type="submit" variant="ghost" size="sm">
-                        <XCircle className="h-4 w-4" />
-                        取消
-                      </Button>
+                      <ConfirmSubmitButton
+                        idleLabel="取消任務"
+                        confirmLabel="再次點擊確認取消"
+                        icon="x"
+                        variant="ghost"
+                      />
                     </form>
                   ) : null}
                 </div>

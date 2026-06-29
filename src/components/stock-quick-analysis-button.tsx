@@ -6,10 +6,11 @@ import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 async function readResponse(response: Response, setError: (message: string) => void) {
+  const text = await response.text().catch(() => "");
+
   try {
-    return (await response.json()) as { missionId?: string; error?: string };
+    return text ? (JSON.parse(text) as { missionId?: string; error?: string }) : {};
   } catch {
-    const text = await response.text().catch(() => "");
     setError(text.slice(0, 200) || `伺服器錯誤 (HTTP ${response.status})`);
     return null;
   }
@@ -82,7 +83,7 @@ export function StockQuickAnalysisButton({
       </Button>
       {status === "error" && error ? <p className="text-xs text-red-600">{error}</p> : null}
       {status === "done" ? (
-        <p className="text-xs text-green-600">分析完成，頁面更新中...</p>
+        <p className="text-xs text-green-600">分析完成，頁面已更新。</p>
       ) : null}
     </div>
   );

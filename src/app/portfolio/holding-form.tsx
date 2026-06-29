@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -174,6 +175,7 @@ export function HoldingForm({
       ) : null}
       <div className="flex justify-end md:col-span-2">
         <Button type="submit" disabled={isPending}>
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {isPending ? "儲存中..." : holding ? "儲存變更" : "新增持股"}
         </Button>
       </div>

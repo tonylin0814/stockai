@@ -27,7 +27,7 @@ export function EditHoldingDialog({ holding }: { holding: HoldingFormValue }) {
     <Dialog
       title="編輯持股"
       trigger={
-        <Button type="button" variant="secondary" size="icon" aria-label="Edit" title="Edit">
+        <Button type="button" variant="secondary" size="icon" aria-label="編輯" title="編輯">
           <Edit className="h-4 w-4" />
         </Button>
       }

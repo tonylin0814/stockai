@@ -247,13 +247,14 @@ export async function updateHolding(formData: FormData) {
 }
 
 export async function softDeleteHolding(formData: FormData) {
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
   const id = requiredText.parse(getString(formData, "id"));
 
   const { error } = await supabase
     .from("portfolio_holdings")
     .update({ is_active: false, updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("user_id", user.id);
 
   if (error) {
     throw new Error(error.message);
@@ -354,10 +355,14 @@ export async function updateWatchlistItem(formData: FormData) {
 }
 
 export async function deleteWatchlistItem(formData: FormData) {
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
   const id = requiredText.parse(getString(formData, "id"));
 
-  const { error } = await supabase.from("watchlist_items").delete().eq("id", id);
+  const { error } = await supabase
+    .from("watchlist_items")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
 
   if (error) {
     throw new Error(error.message);

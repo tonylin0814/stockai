@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 export default function DismissAlertButton({
   alertId,
@@ -16,10 +16,14 @@ export default function DismissAlertButton({
     if (loading) return;
     setLoading(true);
 
-    const response = await fetch(`/api/alerts/${alertId}/read`, { method: "POST" });
-    if (response.ok) {
-      onDismiss(alertId);
-    } else {
+    try {
+      const response = await fetch(`/api/alerts/${alertId}/read`, { method: "POST" });
+      if (response.ok) {
+        onDismiss(alertId);
+      } else {
+        setLoading(false);
+      }
+    } catch {
       setLoading(false);
     }
   }
@@ -30,9 +34,10 @@ export default function DismissAlertButton({
       onClick={dismiss}
       disabled={loading}
       className="shrink-0 text-slate-400 hover:text-slate-600 disabled:opacity-50"
-      aria-label="關閉提醒"
+      aria-label={loading ? "關閉提醒中" : "關閉提醒"}
+      title={loading ? "關閉提醒中" : "關閉提醒"}
     >
-      <X className="h-4 w-4" />
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
     </button>
   );
 }

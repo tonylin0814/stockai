@@ -6,10 +6,11 @@ import { Play, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 async function readResponse(response: Response, setError: (message: string) => void) {
+  const text = await response.text().catch(() => "");
+
   try {
-    return (await response.json()) as Record<string, unknown>;
+    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
   } catch {
-    const text = await response.text().catch(() => "");
     setError(text.slice(0, 200) || `伺服器錯誤 (HTTP ${response.status})`);
     return null;
   }
@@ -34,7 +35,9 @@ export function RunAnalysisButton({
       const response = await fetch("/api/analysis/daily", { method: "POST" });
       const data = await readResponse(response, setError);
 
-      if (!data) return;
+      if (!data) {
+        return;
+      }
 
       if (!response.ok) {
         setError((data.error as string) || `伺服器錯誤 (HTTP ${response.status})`);
