@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Plus, XCircle } from "lucide-react";
+import { XCircle } from "lucide-react";
 import { cancelMission } from "@/app/actions";
-import { MissionForm } from "@/components/mission-form";
+import { MissionDialog } from "@/components/mission-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
 import { Table, Td, Th } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -46,17 +45,7 @@ export default async function MissionsPage() {
           <h1 className="text-2xl font-semibold text-slate-950">任務中心</h1>
           <p className="mt-1 text-sm text-slate-600">建立並追蹤指定投資分析任務。</p>
         </div>
-        <Dialog
-          title="新增任務"
-          trigger={
-            <Button type="button">
-              <Plus className="h-4 w-4" />
-              新增任務
-            </Button>
-          }
-        >
-          {(close) => <MissionForm onSaved={close} />}
-        </Dialog>
+        <MissionDialog />
       </div>
 
       <Table>
