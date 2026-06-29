@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Table, Td, Th } from "@/components/ui/table";
+import { getAnalysisCostLimits } from "@/lib/analysis/cost-guard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type AgentRunRow = {
@@ -140,6 +141,7 @@ export default async function ApiUsagePage({ searchParams }: PageProps) {
   const showFailedOnly = searchParams?.filter === "failed";
   const visibleRows = showFailedOnly ? rows.filter((row) => row.status === "failed") : rows;
   const userLabel = user.email?.split("@")[0] ?? "—";
+  const costLimits = getAnalysisCostLimits();
 
   return (
     <div className="space-y-6">
@@ -170,6 +172,9 @@ export default async function ApiUsagePage({ searchParams }: PageProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-600">
           失敗：{failedCount} 筆　｜　總費用：{formatUsd(totalCost)}
+        </p>
+        <p className="text-xs text-slate-400">
+          成本保護：單次 {formatUsd(costLimits.run)}，每日 {formatUsd(costLimits.daily)}
         </p>
         <div className="flex items-center gap-2">
           <Link

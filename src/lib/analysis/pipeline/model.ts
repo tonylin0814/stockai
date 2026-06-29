@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import type { z } from "zod";
+import { assertAnalysisBudget } from "@/lib/analysis/cost-guard";
 
 const MODEL_COST_PER_1M: Record<string, { input: number; output: number }> = {
   "gpt-5": { input: 10, output: 40 },
@@ -50,7 +51,16 @@ export async function callModel(params: {
   provider: string;
   model: string;
   prompt: string;
+  budget?: {
+    userId: string;
+    dailyRunId?: string | null;
+    missionId?: string | null;
+  };
 }): Promise<ModelCallResult> {
+  if (params.budget) {
+    await assertAnalysisBudget(params.budget);
+  }
+
   if (params.provider === "OpenAI") {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await client.chat.completions.create({
@@ -102,6 +112,11 @@ export async function validateOrRepair<T>(params: {
   schemaDescription: string;
   provider: string;
   model: string;
+  budget?: {
+    userId: string;
+    dailyRunId?: string | null;
+    missionId?: string | null;
+  };
 }) {
   try {
     return {
@@ -117,7 +132,8 @@ export async function validateOrRepair<T>(params: {
     const repairResult = await callModel({
       provider: params.provider,
       model: params.model,
-      prompt: repairPrompt
+      prompt: repairPrompt,
+      budget: params.budget
     });
 
     return {

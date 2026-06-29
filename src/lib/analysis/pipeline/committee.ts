@@ -87,7 +87,12 @@ export async function runCommitteePipeline(params: {
     const modelResult = await callModel({
       provider: model.model_provider,
       model: model.model_name,
-      prompt
+      prompt,
+      budget: {
+        userId: params.userId,
+        dailyRunId: params.dailyRunId,
+        missionId: params.missionId
+      }
     });
     tokenCount += modelResult.tokenCount;
     promptTokens += modelResult.promptTokens;
@@ -98,7 +103,12 @@ export async function runCommitteePipeline(params: {
       schema: CommitteeDecisionSchema,
       schemaDescription: COMMITTEE_DECISION_JSON_SCHEMA,
       provider: model.model_provider,
-      model: getRepairModel(model.model_provider)
+      model: getRepairModel(model.model_provider),
+      budget: {
+        userId: params.userId,
+        dailyRunId: params.dailyRunId,
+        missionId: params.missionId
+      }
     });
     tokenCount += validation.tokenCount;
     promptTokens += validation.promptTokens;

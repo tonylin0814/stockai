@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { assertAnalysisBudget } from "@/lib/analysis/cost-guard";
 import { buildMissionDataPackage } from "@/lib/analysis/mission-package";
 import { runSingleStockMission } from "@/lib/analysis/pipeline/single-stock";
 import { runWebResearch } from "@/lib/analysis/web-research";
@@ -25,6 +26,8 @@ export async function POST(
   }
 
   const supabase = createSupabaseServiceClient();
+  await assertAnalysisBudget({ userId: user.id });
+
   const { data: holding, error: holdingError } = await supabase
     .from("portfolio_holdings")
     .select("id, shares, securities(symbol, market, name)")

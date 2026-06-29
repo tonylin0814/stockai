@@ -17,6 +17,7 @@ import { buildMarketScanPrompt } from "@/lib/analysis/prompts/market-scan";
 import { buildTeamLeaderPrompt } from "@/lib/analysis/prompts/team-leader";
 import { PROMPT_VERSIONS } from "@/lib/analysis/prompts/versions";
 import type { PromptIdentity } from "@/lib/analysis/prompts/common";
+import { assertAnalysisBudget } from "@/lib/analysis/cost-guard";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 export type DivisionTeam = {
@@ -166,7 +167,16 @@ async function callModel(params: {
   provider: string;
   model: string;
   prompt: string;
+  budget?: {
+    userId: string;
+    dailyRunId?: string | null;
+    missionId?: string | null;
+  };
 }): Promise<ModelCallResult> {
+  if (params.budget) {
+    await assertAnalysisBudget(params.budget);
+  }
+
   if (params.provider === "OpenAI") {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await client.chat.completions.create({
@@ -220,6 +230,11 @@ async function validateOrRepair<T>(params: {
   schemaDescription: string;
   provider: string;
   model: string;
+  budget?: {
+    userId: string;
+    dailyRunId?: string | null;
+    missionId?: string | null;
+  };
 }) {
   try {
     return {
@@ -235,7 +250,8 @@ async function validateOrRepair<T>(params: {
     const repairResult = await callModel({
       provider: params.provider,
       model: params.model,
-      prompt: repairPrompt
+      prompt: repairPrompt,
+      budget: params.budget
     });
 
     return {
@@ -352,7 +368,12 @@ export async function runTeamPipeline(params: {
       const modelResult = await callModel({
         provider: params.division.model_provider,
         model: leafModel,
-        prompt
+        prompt,
+        budget: {
+          userId: params.userId,
+          dailyRunId: params.dailyRunId,
+          missionId: params.missionId
+        }
       });
       tokenCount += modelResult.tokenCount;
       promptTokens += modelResult.promptTokens;
@@ -363,7 +384,12 @@ export async function runTeamPipeline(params: {
         schema: AgentOutputSchema,
         schemaDescription: AGENT_OUTPUT_JSON_SCHEMA,
         provider: params.division.model_provider,
-        model: getRepairModel(params.division.model_provider)
+        model: getRepairModel(params.division.model_provider),
+        budget: {
+          userId: params.userId,
+          dailyRunId: params.dailyRunId,
+          missionId: params.missionId
+        }
       });
       tokenCount += validation.tokenCount;
       promptTokens += validation.promptTokens;
@@ -432,7 +458,12 @@ export async function runTeamPipeline(params: {
     const modelResult = await callModel({
       provider: params.division.model_provider,
       model: leaderModel,
-      prompt: teamLeaderPrompt
+      prompt: teamLeaderPrompt,
+      budget: {
+        userId: params.userId,
+        dailyRunId: params.dailyRunId,
+        missionId: params.missionId
+      }
     });
     tokenCount += modelResult.tokenCount;
     promptTokens += modelResult.promptTokens;
@@ -443,7 +474,12 @@ export async function runTeamPipeline(params: {
       schema: TeamReportSchema,
       schemaDescription: TEAM_REPORT_JSON_SCHEMA,
       provider: params.division.model_provider,
-      model: getRepairModel(params.division.model_provider)
+      model: getRepairModel(params.division.model_provider),
+      budget: {
+        userId: params.userId,
+        dailyRunId: params.dailyRunId,
+        missionId: params.missionId
+      }
     });
     tokenCount += validation.tokenCount;
     promptTokens += validation.promptTokens;

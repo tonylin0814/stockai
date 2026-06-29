@@ -109,7 +109,12 @@ export async function runDivisionPipeline(params: {
     const modelResult = await callModel({
       provider: params.division.model_provider,
       model: params.division.model_name,
-      prompt
+      prompt,
+      budget: {
+        userId: params.userId,
+        dailyRunId: params.dailyRunId,
+        missionId: params.missionId
+      }
     });
     tokenCount += modelResult.tokenCount;
     promptTokens += modelResult.promptTokens;
@@ -120,7 +125,12 @@ export async function runDivisionPipeline(params: {
       schema: DivisionDecisionSchema,
       schemaDescription: DIVISION_DECISION_JSON_SCHEMA,
       provider: params.division.model_provider,
-      model: getRepairModel(params.division.model_provider)
+      model: getRepairModel(params.division.model_provider),
+      budget: {
+        userId: params.userId,
+        dailyRunId: params.dailyRunId,
+        missionId: params.missionId
+      }
     });
     tokenCount += validation.tokenCount;
     promptTokens += validation.promptTokens;

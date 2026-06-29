@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertAnalysisBudget } from "@/lib/analysis/cost-guard";
 import { buildDailyDataPackage } from "@/lib/analysis/data-package";
 import { runWebResearch } from "@/lib/analysis/web-research";
 import { getFamilyId } from "@/lib/analysis/pipeline/db";
@@ -26,6 +27,12 @@ function packageSummary(dataPackage: Awaited<ReturnType<typeof buildDailyDataPac
   };
 }
 
+function isStaleRunningRun(startedAt: unknown) {
+  if (!startedAt) return false;
+  const started = new Date(String(startedAt)).getTime();
+  return Number.isFinite(started) && Date.now() - started > 10 * 60 * 1000;
+}
+
 export async function POST() {
   const serverClient = createSupabaseServerClient();
   const {
@@ -41,19 +48,42 @@ export async function POST() {
   let dailyRunId: string | null = null;
 
   try {
+    await assertAnalysisBudget({ userId: user.id });
+
     const { data: existingRun } = await supabase
       .from("daily_runs")
-      .select("id")
+      .select("id, status, started_at")
       .eq("user_id", user.id)
       .eq("run_date", runDate)
       .in("status", ["running", "completed"])
       .maybeSingle();
 
     if (existingRun) {
-      return NextResponse.json(
-        { error: "今日分析已執行或正在執行中。" },
-        { status: 409 }
-      );
+      if (String(existingRun.status) === "completed") {
+        return NextResponse.json(
+          { error: "今日分析已執行或正在執行中。" },
+          { status: 409 }
+        );
+      }
+
+      if (!isStaleRunningRun((existingRun as { started_at?: string | null }).started_at)) {
+        return NextResponse.json(
+          { error: "今日分析已執行或正在執行中。" },
+          { status: 409 }
+        );
+      }
+
+      await supabase
+        .from("daily_runs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          data_package: {
+            recoveryReason: "先前每日分析逾時或中斷，已自動標記為失敗。"
+          }
+        })
+        .eq("id", existingRun.id)
+        .eq("user_id", user.id);
     }
 
     const familyId = await getFamilyId(user.id);
@@ -187,7 +217,10 @@ export async function POST() {
         .from("daily_runs")
         .update({
           status: "failed",
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          data_package: {
+            error: error instanceof Error ? error.message.slice(0, 500) : "每日分析執行失敗。"
+          }
         })
         .eq("id", dailyRunId);
     }

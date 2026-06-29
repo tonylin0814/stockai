@@ -186,7 +186,11 @@ async function runQuickModel(params: {
     const modelResult = await callModel({
       provider: params.model.model_provider,
       model: params.model.model_name,
-      prompt
+      prompt,
+      budget: {
+        userId: params.userId,
+        missionId: params.missionId
+      }
     });
     tokenCount += modelResult.tokenCount;
     promptTokens += modelResult.promptTokens;
@@ -198,7 +202,11 @@ async function runQuickModel(params: {
       schema: MissionAnalysisSchema,
       schemaDescription: QUICK_SINGLE_STOCK_SCHEMA,
       provider: params.model.model_provider,
-      model: params.model.model_name
+      model: params.model.model_name,
+      budget: {
+        userId: params.userId,
+        missionId: params.missionId
+      }
     });
     tokenCount += validation.tokenCount;
     promptTokens += validation.promptTokens;

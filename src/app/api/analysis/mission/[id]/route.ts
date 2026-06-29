@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { assertAnalysisBudget } from "@/lib/analysis/cost-guard";
 import { buildMissionDataPackage } from "@/lib/analysis/mission-package";
 import { runWebResearch } from "@/lib/analysis/web-research";
 import { getFamilyId } from "@/lib/analysis/pipeline/db";
@@ -51,6 +52,8 @@ export async function POST(
   const missionId = params.id;
 
   try {
+    await assertAnalysisBudget({ userId: user.id, missionId });
+
     const { data: mission } = await supabase
       .from("missions")
       .select("id, status, started_at")
