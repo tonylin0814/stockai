@@ -237,6 +237,16 @@ export class YahooProvider {
         pe: toNumber(quote.trailingPE, undefined as unknown as number),
         eps: toNumber(quote.epsTrailingTwelveMonths, undefined as unknown as number),
         marketCap: toNumber(quote.marketCap, undefined as unknown as number),
+        expenseRatio: toNumber(
+          quote.annualReportExpenseRatio,
+          undefined as unknown as number
+        ),
+        yield: toNumber(quote.yield, undefined as unknown as number),
+        ytdReturn: toNumber(quote.ytdReturn, undefined as unknown as number),
+        threeYearAverageReturn: toNumber(
+          quote.threeYearAverageReturn,
+          undefined as unknown as number
+        ),
         source: "Yahoo Finance",
         qualityState: "delayed"
       };

@@ -22,6 +22,8 @@ export function buildMissionAnalysisPrompt(
 市場資料摘要：
 ${compactMarketSummary(dataPackage)}
 
+注意：資料中標註 [ETF] 的標的請使用 ETF 分析框架（費用率、流動性、基準比較），不適用股票基本面分析。
+
 ## 每日掃描框架（Daily Intelligence Scan）
 
 **掃描 1：緊急警示（需要立即行動）**

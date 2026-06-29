@@ -6,6 +6,7 @@ import {
   NEWS_SENTIMENT_GUIDE,
   TECHNICAL_ANALYSIS_GUIDE,
   FUNDAMENTAL_QUALITY_GUIDE,
+  ETF_ANALYSIS_GUIDE,
   CATALYST_FRAMEWORK,
   compactMarketSummary,
   roleLine,
@@ -33,6 +34,10 @@ ${compactMarketSummary(dataPackage)}
 - 當前市場環境（VIX、板塊趨勢）是否支持該標的
 
 **Step 2：基本面品質評估（InvestSkill 框架）**
+若候選標的是 ETF（標註 [ETF]）：
+${ETF_ANALYSIS_GUIDE}
+
+若候選標的是股票（標註 [股票]）：
 ${FUNDAMENTAL_QUALITY_GUIDE}
 
 **Step 3：技術面確認**

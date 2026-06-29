@@ -6,6 +6,7 @@ import {
   NEWS_SENTIMENT_GUIDE,
   TECHNICAL_ANALYSIS_GUIDE,
   FUNDAMENTAL_QUALITY_GUIDE,
+  ETF_ANALYSIS_GUIDE,
   CATALYST_FRAMEWORK,
   compactMarketSummary,
   roleLine,
@@ -38,6 +39,10 @@ ${portfolioJson}
 - 現價 vs 停損點：距離停損還有多少空間？
 
 **階段 2：基本面品質評估（InvestSkill 框架）**
+若 securityType = ETF（資料中標註 [ETF]）：
+${ETF_ANALYSIS_GUIDE}
+
+若 securityType = 股票（資料中標註 [股票]）：
 ${FUNDAMENTAL_QUALITY_GUIDE}
 
 **階段 3：技術面分析**

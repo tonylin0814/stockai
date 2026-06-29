@@ -43,6 +43,10 @@ export interface Fundamentals {
   marketCap?: number;
   revenueGrowth?: number;
   grossMargin?: number;
+  expenseRatio?: number;
+  yield?: number;
+  ytdReturn?: number;
+  threeYearAverageReturn?: number;
   source: string;
   qualityState: DataQualityState;
 }
