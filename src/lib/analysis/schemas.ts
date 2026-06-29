@@ -1,5 +1,24 @@
 import { z } from "zod";
 
+const FlexibleRecordSchema = z.preprocess((value) => {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+
+  return { value: value == null ? "" : String(value) };
+}, z.record(z.string(), z.unknown()));
+
+const FlexibleRecordArraySchema = z
+  .preprocess((value) => (Array.isArray(value) ? value : []), z.array(FlexibleRecordSchema))
+  .default([]);
+
+const FlexibleTopRecommendationsSchema = z
+  .preprocess(
+    (value) => (Array.isArray(value) ? value.slice(0, 3) : []),
+    z.array(FlexibleRecordSchema)
+  )
+  .default([]);
+
 export const ActionSchema = z.enum([
   "buy",
   "small_buy",
@@ -17,7 +36,7 @@ export const ActionSchema = z.enum([
 export const AgentOutputSchema = z.object({
   summary: z.string(),
   observations: z.array(z.string()).default([]),
-  recommendations: z.array(z.record(z.string(), z.unknown())).default([]),
+  recommendations: FlexibleRecordArraySchema,
   risks: z.array(z.string()).default([]),
   dataQualityNotes: z.array(z.string()).default([]),
   confidence: z.number().min(0).max(100)
@@ -97,9 +116,9 @@ export const DivisionDecisionSchema = z.object({
   division: z.string(),
   divisionManager: z.string(),
   marketSummary: z.string(),
-  portfolioActions: z.array(z.record(z.string(), z.unknown())),
-  missionDecision: z.record(z.string(), z.unknown()),
-  topRecommendations: z.array(z.record(z.string(), z.unknown())).max(3),
+  portfolioActions: FlexibleRecordArraySchema,
+  missionDecision: FlexibleRecordSchema,
+  topRecommendations: FlexibleTopRecommendationsSchema,
   confidence: z.number().min(0).max(100),
   supportingReasons: z.array(z.string()),
   opposingReasons: z.array(z.string()),
@@ -113,14 +132,14 @@ export const CommitteeDecisionSchema = z.object({
   finalAction: z.enum(["act", "no_action"]),
   actionType: z.enum(["buy", "small_buy", "hold", "wait", "reduce", "sell", "avoid"]),
   consensusLevel: z.enum(["strong", "weak", "none"]),
-  divisionConclusions: z.record(z.string(), z.unknown()),
+  divisionConclusions: FlexibleRecordSchema,
   agreements: z.array(z.string()),
   disagreements: z.array(z.string()),
   finalBuyZone: z.string(),
   finalTargetPrice: z.string(),
   finalStopLoss: z.string(),
   finalPositionSize: z.string(),
-  finalRecommendations: z.array(z.record(z.string(), z.unknown())).default([]),
+  finalRecommendations: FlexibleRecordArraySchema,
   confidence: z.number().min(0).max(100),
   isActionAllowed: z.boolean(),
   reason: z.string(),

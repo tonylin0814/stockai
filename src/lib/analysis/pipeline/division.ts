@@ -90,6 +90,10 @@ export async function runDivisionPipeline(params: {
     dataPackageSummary: dataPackageSummary(params.dataPackage)
   });
   const startedAt = new Date().toISOString();
+  let tokenCount = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let estimatedCostUsd = 0;
 
   try {
     const modelResult = await callModel({
@@ -97,6 +101,10 @@ export async function runDivisionPipeline(params: {
       model: params.division.model_name,
       prompt
     });
+    tokenCount += modelResult.tokenCount;
+    promptTokens += modelResult.promptTokens;
+    completionTokens += modelResult.completionTokens;
+    estimatedCostUsd += modelResult.estimatedCostUsd;
     const validation = await validateOrRepair({
       rawText: modelResult.text,
       schema: DivisionDecisionSchema,
@@ -104,6 +112,10 @@ export async function runDivisionPipeline(params: {
       provider: params.division.model_provider,
       model: params.division.model_name
     });
+    tokenCount += validation.tokenCount;
+    promptTokens += validation.promptTokens;
+    completionTokens += validation.completionTokens;
+    estimatedCostUsd += validation.estimatedCostUsd;
     const decision = validation.parsed;
     const familyId = await getFamilyId(params.userId);
     const { data, error } = await supabase
@@ -144,10 +156,10 @@ export async function runDivisionPipeline(params: {
       inputSummary: inputSummary(prompt),
       output: decision,
       confidence: decision.confidence,
-      tokenCount: modelResult.tokenCount + validation.tokenCount,
-      promptTokens: modelResult.promptTokens + validation.promptTokens,
-      completionTokens: modelResult.completionTokens + validation.completionTokens,
-      estimatedCostUsd: modelResult.estimatedCostUsd + validation.estimatedCostUsd,
+      tokenCount,
+      promptTokens,
+      completionTokens,
+      estimatedCostUsd,
       startedAt,
       completedAt: new Date().toISOString(),
       status: "completed"
@@ -172,10 +184,10 @@ export async function runDivisionPipeline(params: {
         error: error instanceof Error ? error.message : "Unknown division failure"
       },
       confidence: null,
-      tokenCount: 0,
-      promptTokens: 0,
-      completionTokens: 0,
-      estimatedCostUsd: 0,
+      tokenCount,
+      promptTokens,
+      completionTokens,
+      estimatedCostUsd,
       startedAt,
       completedAt: new Date().toISOString(),
       status: "failed",

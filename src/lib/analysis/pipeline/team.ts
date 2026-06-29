@@ -366,9 +366,9 @@ export async function runTeamPipeline(params: {
         },
         confidence: null,
         tokenCount,
-        promptTokens: 0,
-        completionTokens: 0,
-        estimatedCostUsd: 0,
+        promptTokens,
+        completionTokens,
+        estimatedCostUsd,
         startedAt,
         completedAt: new Date().toISOString(),
         status: "failed",
@@ -383,6 +383,10 @@ export async function runTeamPipeline(params: {
     agentOutputs
   });
   const startedAt = new Date().toISOString();
+  let tokenCount = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let estimatedCostUsd = 0;
 
   try {
     const modelResult = await callModel({
@@ -390,6 +394,10 @@ export async function runTeamPipeline(params: {
       model: params.division.model_name,
       prompt: teamLeaderPrompt
     });
+    tokenCount += modelResult.tokenCount;
+    promptTokens += modelResult.promptTokens;
+    completionTokens += modelResult.completionTokens;
+    estimatedCostUsd += modelResult.estimatedCostUsd;
     const validation = await validateOrRepair({
       rawText: modelResult.text,
       schema: TeamReportSchema,
@@ -397,6 +405,10 @@ export async function runTeamPipeline(params: {
       provider: params.division.model_provider,
       model: params.division.model_name
     });
+    tokenCount += validation.tokenCount;
+    promptTokens += validation.promptTokens;
+    completionTokens += validation.completionTokens;
+    estimatedCostUsd += validation.estimatedCostUsd;
     const report = validation.parsed;
     const familyId = await getFamilyId(params.userId);
     const { data, error } = await supabase
@@ -437,10 +449,10 @@ export async function runTeamPipeline(params: {
       inputSummary: inputSummary(teamLeaderPrompt),
       output: report,
       confidence: report.finalTeamView.confidence,
-      tokenCount: modelResult.tokenCount + validation.tokenCount,
-      promptTokens: modelResult.promptTokens + validation.promptTokens,
-      completionTokens: modelResult.completionTokens + validation.completionTokens,
-      estimatedCostUsd: modelResult.estimatedCostUsd + validation.estimatedCostUsd,
+      tokenCount,
+      promptTokens,
+      completionTokens,
+      estimatedCostUsd,
       startedAt,
       completedAt: new Date().toISOString(),
       status: "completed"
@@ -465,10 +477,10 @@ export async function runTeamPipeline(params: {
         error: error instanceof Error ? error.message : "Unknown team leader failure"
       },
       confidence: null,
-      tokenCount: 0,
-      promptTokens: 0,
-      completionTokens: 0,
-      estimatedCostUsd: 0,
+      tokenCount,
+      promptTokens,
+      completionTokens,
+      estimatedCostUsd,
       startedAt,
       completedAt: new Date().toISOString(),
       status: "failed",

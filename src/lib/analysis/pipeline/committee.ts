@@ -97,6 +97,10 @@ export async function runCommitteePipeline(params: {
   });
   const startedAt = new Date().toISOString();
   const supabase = createSupabaseServiceClient();
+  let tokenCount = 0;
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let estimatedCostUsd = 0;
 
   try {
     const modelResult = await callModel({
@@ -104,6 +108,10 @@ export async function runCommitteePipeline(params: {
       model: model.model_name,
       prompt
     });
+    tokenCount += modelResult.tokenCount;
+    promptTokens += modelResult.promptTokens;
+    completionTokens += modelResult.completionTokens;
+    estimatedCostUsd += modelResult.estimatedCostUsd;
     const validation = await validateOrRepair({
       rawText: modelResult.text,
       schema: CommitteeDecisionSchema,
@@ -111,6 +119,10 @@ export async function runCommitteePipeline(params: {
       provider: model.model_provider,
       model: model.model_name
     });
+    tokenCount += validation.tokenCount;
+    promptTokens += validation.promptTokens;
+    completionTokens += validation.completionTokens;
+    estimatedCostUsd += validation.estimatedCostUsd;
     const decision: CommitteeDecision = {
       ...validation.parsed,
       consensusLevel: consensus.consensusLevel,
@@ -153,10 +165,10 @@ export async function runCommitteePipeline(params: {
       inputSummary: inputSummary(prompt),
       output: decision,
       confidence: decision.confidence,
-      tokenCount: modelResult.tokenCount + validation.tokenCount,
-      promptTokens: modelResult.promptTokens + validation.promptTokens,
-      completionTokens: modelResult.completionTokens + validation.completionTokens,
-      estimatedCostUsd: modelResult.estimatedCostUsd + validation.estimatedCostUsd,
+      tokenCount,
+      promptTokens,
+      completionTokens,
+      estimatedCostUsd,
       startedAt,
       completedAt: new Date().toISOString(),
       status: "completed"
@@ -180,10 +192,10 @@ export async function runCommitteePipeline(params: {
         error: error instanceof Error ? error.message : "Unknown committee failure"
       },
       confidence: null,
-      tokenCount: 0,
-      promptTokens: 0,
-      completionTokens: 0,
-      estimatedCostUsd: 0,
+      tokenCount,
+      promptTokens,
+      completionTokens,
+      estimatedCostUsd,
       startedAt,
       completedAt: new Date().toISOString(),
       status: "failed",
