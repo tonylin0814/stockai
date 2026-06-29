@@ -22,7 +22,10 @@ class CompositeProvider implements MarketDataProvider {
 
   async getQuote(symbol: string, market: "US" | "TW"): Promise<Quote> {
     if (market === "TW") {
-      return this.yahoo.getQuote(symbol, market);
+      const yahooQuote = await this.yahoo.getQuote(symbol, market);
+      return yahooQuote.qualityState === "missing"
+        ? this.twse.getStockQuote(symbol)
+        : yahooQuote;
     }
 
     const [finnhubQuote, yahooQuote] = await Promise.all([
