@@ -47,6 +47,10 @@ async function getCommitteeModelProvider(divisionName: string) {
   return data as { model_provider: string; model_name: string };
 }
 
+function isFinalScenariosColumnMissing(error: { message?: string } | null) {
+  return Boolean(error?.message?.includes("final_scenarios"));
+}
+
 export async function runCommitteePipeline(params: {
   divisionResults: DivisionPipelineResult[];
   dataPackage: DailyDataPackage;
@@ -109,28 +113,38 @@ export async function runCommitteePipeline(params: {
       completed.reduce((sum, result) => sum + result.decision.confidence, 0) /
       completed.length;
     const familyId = await getFamilyId(params.userId);
-    const { data, error } = await supabase
+    const committeePayload: Record<string, unknown> = {
+      user_id: params.userId,
+      family_id: familyId,
+      daily_run_id: params.dailyRunId ?? null,
+      mission_id: params.missionId ?? null,
+      final_action: safeguardedDecision.finalAction,
+      action_type: safeguardedDecision.actionType,
+      consensus_level: safeguardedDecision.consensusLevel,
+      confidence: safeguardedDecision.confidence,
+      weighted_confidence: averageConfidence,
+      decision_summary: safeguardedDecision.reason,
+      agreement_summary: safeguardedDecision.agreements.join("\n"),
+      disagreement_summary: safeguardedDecision.disagreements.join("\n"),
+      final_scenarios: safeguardedDecision.finalScenarios ?? null,
+      final_recommendations: safeguardedDecision.finalRecommendations,
+      division_inputs: completed.map((result) => result.decision),
+      is_action_allowed: safeguardedDecision.isActionAllowed
+    };
+    let { data, error } = await supabase
       .from("committee_decisions")
-      .insert({
-        user_id: params.userId,
-        family_id: familyId,
-        daily_run_id: params.dailyRunId ?? null,
-        mission_id: params.missionId ?? null,
-        final_action: safeguardedDecision.finalAction,
-        action_type: safeguardedDecision.actionType,
-        consensus_level: safeguardedDecision.consensusLevel,
-        confidence: safeguardedDecision.confidence,
-        weighted_confidence: averageConfidence,
-        decision_summary: safeguardedDecision.reason,
-        agreement_summary: safeguardedDecision.agreements.join("\n"),
-        disagreement_summary: safeguardedDecision.disagreements.join("\n"),
-        final_scenarios: safeguardedDecision.finalScenarios ?? null,
-        final_recommendations: safeguardedDecision.finalRecommendations,
-        division_inputs: completed.map((result) => result.decision),
-        is_action_allowed: safeguardedDecision.isActionAllowed
-      })
+      .insert(committeePayload)
       .select("id")
       .single();
+
+    if (isFinalScenariosColumnMissing(error)) {
+      delete committeePayload.final_scenarios;
+      ({ data, error } = await supabase
+        .from("committee_decisions")
+        .insert(committeePayload)
+        .select("id")
+        .single());
+    }
 
     if (error || !data) {
       throw new Error(error?.message ?? "Failed to save committee decision");

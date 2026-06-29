@@ -317,6 +317,7 @@ function buildConsensus(results: Array<Extract<QuickAnalysisResult, { status: "c
     finalBuyZone: conservativeAnalysis.buyZone,
     finalTargetPrice: conservativeAnalysis.targetPrice,
     finalStopLoss: conservativeAnalysis.stopLoss,
+    finalScenarios: conservativeAnalysis.scenarios,
     finalPositionSize: isActionAllowed ? "小部位" : "不適用",
     finalRecommendations: mostConservative.decision.topRecommendations,
     confidence: Math.round(Math.min(averageConfidence, mostConservative.decision.confidence)),
@@ -332,6 +333,10 @@ function buildConsensus(results: Array<Extract<QuickAnalysisResult, { status: "c
       )
     )
   });
+}
+
+function isFinalScenariosColumnMissing(error: { message?: string } | null) {
+  return Boolean(error?.message?.includes("final_scenarios"));
 }
 
 export async function runSingleStockMission(params: {
@@ -404,28 +409,38 @@ export async function runSingleStockMission(params: {
   }
 
   const consensus = buildConsensus(completed);
-  const { data: committeeData, error: committeeError } = await supabase
+  const committeePayload: Record<string, unknown> = {
+    user_id: params.userId,
+    family_id: familyId,
+    daily_run_id: null,
+    mission_id: params.missionId,
+    final_action: consensus.finalAction,
+    action_type: consensus.actionType,
+    consensus_level: consensus.consensusLevel,
+    confidence: consensus.confidence,
+    weighted_confidence: consensus.confidence,
+    decision_summary: consensus.reason,
+    agreement_summary: consensus.agreements.join("\n"),
+    disagreement_summary: consensus.disagreements.join("\n"),
+    final_scenarios: consensus.finalScenarios ?? null,
+    final_recommendations: consensus.finalRecommendations,
+    division_inputs: savedDivisionDecisions.map((result) => result.decision),
+    is_action_allowed: consensus.isActionAllowed
+  };
+  let { data: committeeData, error: committeeError } = await supabase
     .from("committee_decisions")
-    .insert({
-      user_id: params.userId,
-      family_id: familyId,
-      daily_run_id: null,
-      mission_id: params.missionId,
-      final_action: consensus.finalAction,
-      action_type: consensus.actionType,
-      consensus_level: consensus.consensusLevel,
-      confidence: consensus.confidence,
-      weighted_confidence: consensus.confidence,
-      decision_summary: consensus.reason,
-      agreement_summary: consensus.agreements.join("\n"),
-      disagreement_summary: consensus.disagreements.join("\n"),
-      final_scenarios: consensus.finalScenarios ?? null,
-      final_recommendations: consensus.finalRecommendations,
-      division_inputs: savedDivisionDecisions.map((result) => result.decision),
-      is_action_allowed: consensus.isActionAllowed
-    })
+    .insert(committeePayload)
     .select("id")
     .single();
+
+  if (isFinalScenariosColumnMissing(committeeError)) {
+    delete committeePayload.final_scenarios;
+    ({ data: committeeData, error: committeeError } = await supabase
+      .from("committee_decisions")
+      .insert(committeePayload)
+      .select("id")
+      .single());
+  }
 
   if (committeeError || !committeeData) {
     throw new Error(committeeError?.message ?? "快速委員會結果儲存失敗。");
