@@ -1,17 +1,17 @@
 import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
+  CATALYST_FRAMEWORK,
   DATA_QUALITY_RULE,
+  ETF_ANALYSIS_GUIDE,
+  FUNDAMENTAL_QUALITY_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
+  SKEPTIC_RULE,
   TECHNICAL_ANALYSIS_GUIDE,
-  FUNDAMENTAL_QUALITY_GUIDE,
-  ETF_ANALYSIS_GUIDE,
-  CATALYST_FRAMEWORK,
   compactMarketSummary,
   roleLine,
-  SKEPTIC_RULE,
-  type PromptIdentity,
+  type PromptIdentity
 } from "@/lib/analysis/prompts/common";
 
 export function buildMarketScanPrompt(
@@ -20,7 +20,7 @@ export function buildMarketScanPrompt(
 ) {
   return `${roleLine(identity, "Market Scan agent")}
 
-你的專業是市場機會發掘（對應 Agentic Financial Analyst 的 Recommendation Engine 角色）。你從關注清單和整體市場中篩選出今日最具投資價值的 1-3 個標的，給出有數據支撐的進場建議。
+你的專業是市場機會發掘（對應 Agentic Financial Analyst 的 Recommendation Engine 角色）。你從關注清單和整體市場中篩選出今日最具投資價值的 0-3 個標的，給出有數據支撐的進場建議。
 
 市場資料摘要：
 ${compactMarketSummary(dataPackage)}
@@ -29,11 +29,11 @@ ${compactMarketSummary(dataPackage)}
 
 **Step 1：初步篩選**
 對每個關注清單標的，確認：
-- 資料品質是否 OK（missing 的標的自動排除 buy/small_buy）
-- 現價是否在目標買入區間內（targetBuyPrice ± 5%）
-- 當前市場環境（VIX、板塊趨勢）是否支持該標的
+- 資料品質是否 OK（missing 的標的不得給出 buy/small_buy）
+- 現價是否在目標買入區間內或接近合理區間
+- 當前市場環境（VIX、趨勢、板塊環境）是否支持該標的
 
-**Step 2：基本面品質評估（InvestSkill 框架）**
+**Step 2：基本面 / ETF 特性評估**
 若候選標的是 ETF（標註 [ETF]）：
 ${ETF_ANALYSIS_GUIDE}
 
@@ -43,7 +43,7 @@ ${FUNDAMENTAL_QUALITY_GUIDE}
 **Step 3：技術面確認**
 ${TECHNICAL_ANALYSIS_GUIDE}
 
-**Step 4：新聞情緒評分**
+**Step 4：新聞情緒分析**
 ${NEWS_SENTIMENT_GUIDE}
 
 **Step 5：催化劑評估**
@@ -56,17 +56,16 @@ ${CATALYST_FRAMEWORK}
 
 **Step 7：綜合評分（0-100）**
 - 價格位置分（0-25）：現價是否在目標買入區間？
-- 市場環境分（0-25）：VIX + 板塊趨勢是否有利？
-- 技術面分（0-25）：技術指標有無明確買入訊號？
-- 基本面/新聞分（0-25）：品質評估 + 情緒評分加總
+- 市場環境分（0-25）：當前 VIX、趨勢、板塊環境是否有利？
+- 技術面分（0-25）：技術指標有無明確訊號？
+- 基本面/新聞分（0-25）：品質評估 + 情緒評分
 
-只有綜合評分 ≥ 60 的標的才能進入最終推薦。
-
-**Step 8：風險環境調整**
-- VIX > 25（高恐慌）：最多推薦 1 個，傾向 watch
-- VIX 15-25（中性）：最多推薦 2 個
-- VIX < 15（低波動）：最多推薦 3 個
-- 若無符合條件的標的，recommendations 為空陣列，summary 說明原因
+**Step 8：最終篩選**
+根據你的綜合評分和今日市場環境，決定推薦幾個標的（0-3 個）及推薦強度。
+考量因素：市場整體風險水準、每個候選的評分、你對今日操作信心。
+若市場風險高，你可以選擇推薦 0 個並說明原因。
+若市場平靜且有明確機會，最多推薦 3 個。
+由你判斷，不要按 VIX 數字自動計算推薦數量。
 
 ## 輸出格式
 

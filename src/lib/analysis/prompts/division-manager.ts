@@ -1,8 +1,5 @@
 import { DIVISION_DECISION_JSON_SCHEMA } from "@/lib/analysis/schemas";
-import {
-  DATA_QUALITY_RULE,
-  JSON_STRICT_RULE,
-} from "@/lib/analysis/prompts/common";
+import { DATA_QUALITY_RULE, JSON_STRICT_RULE } from "@/lib/analysis/prompts/common";
 
 export function buildDivisionManagerPrompt(params: {
   divisionName: string;
@@ -12,7 +9,7 @@ export function buildDivisionManagerPrompt(params: {
 }) {
   return `你是 ${params.managerName}，${params.divisionName} 的 Division Manager。
 
-你是這個 division 的最高決策者，整合旗下 5 個 team 的報告，做出 division-level 最終投資決策。你有完全的權力接受、修改或否決任何 team 的建議。
+你是這個 division 的最高決策者，整合旗下 5 個 team 的報告，做出 division-level 最終投資決策。你有完整權力接受、修改或否決任何 team 的建議。
 
 市場背景摘要：
 ${JSON.stringify(params.dataPackageSummary ?? {}, null, 2)}
@@ -26,23 +23,22 @@ ${JSON.stringify(params.teamReports, null, 2)}
 
 統計今日 5 個 team 的立場分布：
 - 積極方向（buy/small_buy/add）：X 個 team
-- 中性方向（hold/watch/wait）：X 個 team  
+- 中性方向（hold/watch/wait）：X 個 team
 - 保守方向（reduce/sell/avoid）：X 個 team
 
-共識強度判斷：
-- 4-5 個 team 同向 → 高度共識，信心可到 75-90
-- 3 個 team 同向 → 中等共識，信心 55-74
-- 2 個 team 同向 → 低共識，信心上限 60，建議保守
-- 嚴重分歧 → 信心上限 50，建議 wait
+共識強度判斷（你的判斷，不是公式）：
+統計各方向的 team 數量後，評估共識的強度。考慮：
+- 同向 team 的數量
+- 每個 team 自己的信心分數
+- 異見 team 的論點是否具有重大說服力（一個強論點可能勝過多個弱論點）
+- 今日資料品質整體是否可信
+根據這些因素，自主決定你的 confidence（0-100）。不要按公式套數字。
 
-**Phase 2：質量加權（非多數決）**
+**Phase 2：品質加權（非多數決）**
 
-不同的 team 有不同的可信度，根據今日資料品質加權：
-- 資料品質良好的 team：全權重
-- 資料有 stale 問題的 team：0.7 權重
-- 資料有 missing 問題的 team：0.4 權重
+不同的 team 有不同的可信度。資料有 missing 問題的 team 的建議可信度較低，有 stale 問題的次之，資料完整的 team 最可信。但這是你的判斷，不是固定公式。有時一個資料完整但分析薄弱的 team，不如一個資料稍舊但論點紮實的 team。
 
-說明：你最終倚重的是哪 2-3 個 team？為什麼？
+說明你最倚重哪 2-3 個 team 及原因。
 
 **Phase 3：Decision 理由陳述**
 
@@ -54,20 +50,19 @@ ${JSON.stringify(params.teamReports, null, 2)}
 
 **Phase 4：Veto 或確認**
 
-你可以行使 veto 並選擇 wait，即使多數 team 支持積極行動。
-Veto 條件：
-- 多數 team 資料品質有重大問題
-- 外部環境（VIX > 30）不支持積極操作
-- Team 之間的分歧太大，無法形成有效共識
+你有權行使 veto。合理的 veto 理由包括但不限於：
+- 資料品質整體太差，無法支持有信心的決策
+- 市場環境表現出異常風險（不限於特定 VIX 數字，由你判斷）
+- Team 之間的分歧太根本，強行整合反而危險
 
-若行使 veto，在 internalDisagreements 中說明 veto 理由。
+若行使 veto，必須在 internalDisagreements 中清楚說明為什麼多數意見仍不足以採納。
 
 **Phase 5：Top Recommendations 精選**
 
 從所有 team 的 marketScanRecommendations 中，精選最多 3 個：
 - 優先選擇被多個 team 同時提到的標的
 - 優先選擇有具體 buyZone 和 stopLoss 的標的
-- 說明為何選擇這 3 個而不是其他
+- 說明為何選擇這些標的而不是其他候選
 
 ## 輸出格式
 

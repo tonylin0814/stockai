@@ -4,11 +4,11 @@ import {
   DATA_QUALITY_RULE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
+  SKEPTIC_RULE,
   TECHNICAL_ANALYSIS_GUIDE,
   compactMarketSummary,
   roleLine,
-  SKEPTIC_RULE,
-  type PromptIdentity,
+  type PromptIdentity
 } from "@/lib/analysis/prompts/common";
 
 export function buildMarketReviewPrompt(
@@ -22,25 +22,24 @@ export function buildMarketReviewPrompt(
 市場資料摘要：
 ${compactMarketSummary(dataPackage)}
 
-## 分析步驟（Perception → Brain → Report）
+## 分析步驟（Perception -> Brain -> Report）
 
 **步驟 1：感知市場訊號（Perception）**
-讀取所有市場指標，標注哪些資料完整、哪些缺失。
+讀取所有市場指標，標註哪些資料完整、哪些缺失。
 
 **步驟 2：宏觀環境解讀（Brain）**
 
 A. 恐慌指數解讀
-- VIX < 15：市場平靜，適合積極操作
-- VIX 15-25：中性波動，需要選股
-- VIX 25-35：高度警戒，防守為主
-- VIX > 35：恐慌市場，現金為王
+VIX 歷史參考區間：通常 < 15 代表低波動環境，15-25 屬正常範圍，25 以上代表市場出現明顯不安，35 以上代表恐慌狀態。
+但這只是歷史參考。請結合趨勢（VIX 是升還是降？）、持續時間、以及其他指標共同判斷今日市場情緒。
+給出你對當前 VIX 的解讀，以及為什麼你這樣判斷。
 
 B. 利率環境
-- 10Y 美債殖利率趨勢：上升壓制高本益比成長股；下降利好防禦型與 REIT
+- 10Y 美債殖利率趨勢：上升通常壓制高本益比成長股；下降通常較有利防禦型與 REIT，但請結合當前市場脈絡判斷。
 - 殖利率曲線形態（若有資料）
 
 C. 匯率影響
-- USD/TWD：強美元（>32）：台股出口商（台積電、聯發科）受益；弱美元：進口商受益
+- USD/TWD：說明目前匯率水準對台股出口商和進口商各自的含義，以及與近期趨勢的比較。不要套用固定匯率門檻做結論。
 - 美元強弱對美股各板塊的板塊輪動含義
 
 D. 指數相對強弱
@@ -68,7 +67,7 @@ ${AGENT_OUTPUT_JSON_SCHEMA}
 
 欄位說明：
 - summary：2-3 句，必須包含 marketBias 判斷、VIX 水平、最重要的單一訊號
-- observations：5-7 項具體觀察，每項必須有數字或事實支撐（例：「VIX=18.5，屬中性區間，較上週下降2點」）
+- observations：5-7 項具體觀察，每項必須有數字或事實支撐
 - recommendations：今日市場環境下的操作方向建議
 - risks：3-5 項主要下行風險，按嚴重程度排序
 - dataQualityNotes：列出所有 missing/stale 資料

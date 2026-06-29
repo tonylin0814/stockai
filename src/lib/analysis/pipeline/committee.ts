@@ -23,36 +23,6 @@ export type CommitteePipelineResult =
       committeeDecisionId: null;
     };
 
-function computeConsensus(results: Array<Extract<DivisionPipelineResult, { status: "completed" }>>) {
-  const actions = results.map((result) => result.decision.decisionAction);
-  const averageConfidence =
-    results.reduce((total, result) => total + result.decision.confidence, 0) /
-    results.length;
-  const bothAgree = actions.every((action) => action === actions[0]);
-
-  if (bothAgree && averageConfidence >= 70) {
-    return {
-      consensusLevel: "strong" as const,
-      isActionAllowed: true,
-      averageConfidence
-    };
-  }
-
-  if (bothAgree) {
-    return {
-      consensusLevel: "weak" as const,
-      isActionAllowed: false,
-      averageConfidence
-    };
-  }
-
-  return {
-    consensusLevel: "none" as const,
-    isActionAllowed: false,
-    averageConfidence
-  };
-}
-
 async function getCommitteeModelProvider(divisionName: string) {
   const supabase = createSupabaseServiceClient();
   const { data, error } = await supabase
@@ -89,11 +59,9 @@ export async function runCommitteePipeline(params: {
     };
   }
 
-  const consensus = computeConsensus(completed);
   const model = await getCommitteeModelProvider(completed[0].decision.division);
   const prompt = buildCommitteePrompt({
-    divisionDecisions: completed.map((result) => result.decision),
-    consensus
+    divisionDecisions: completed.map((result) => result.decision)
   });
   const startedAt = new Date().toISOString();
   const supabase = createSupabaseServiceClient();
@@ -123,11 +91,14 @@ export async function runCommitteePipeline(params: {
     promptTokens += validation.promptTokens;
     completionTokens += validation.completionTokens;
     estimatedCostUsd += validation.estimatedCostUsd;
-    const decision: CommitteeDecision = {
-      ...validation.parsed,
-      consensusLevel: consensus.consensusLevel,
-      isActionAllowed: consensus.isActionAllowed
+    const decision: CommitteeDecision = validation.parsed;
+    const safeguardedDecision: CommitteeDecision = {
+      ...decision,
+      isActionAllowed: decision.consensusLevel === "strong" ? decision.isActionAllowed : false
     };
+    const averageConfidence =
+      completed.reduce((sum, result) => sum + result.decision.confidence, 0) /
+      completed.length;
     const familyId = await getFamilyId(params.userId);
     const { data, error } = await supabase
       .from("committee_decisions")
@@ -136,17 +107,17 @@ export async function runCommitteePipeline(params: {
         family_id: familyId,
         daily_run_id: params.dailyRunId ?? null,
         mission_id: params.missionId ?? null,
-        final_action: decision.finalAction,
-        action_type: decision.actionType,
-        consensus_level: decision.consensusLevel,
-        confidence: decision.confidence,
-        weighted_confidence: consensus.averageConfidence,
-        decision_summary: decision.reason,
-        agreement_summary: decision.agreements.join("\n"),
-        disagreement_summary: decision.disagreements.join("\n"),
-        final_recommendations: decision.finalRecommendations,
+        final_action: safeguardedDecision.finalAction,
+        action_type: safeguardedDecision.actionType,
+        consensus_level: safeguardedDecision.consensusLevel,
+        confidence: safeguardedDecision.confidence,
+        weighted_confidence: averageConfidence,
+        decision_summary: safeguardedDecision.reason,
+        agreement_summary: safeguardedDecision.agreements.join("\n"),
+        disagreement_summary: safeguardedDecision.disagreements.join("\n"),
+        final_recommendations: safeguardedDecision.finalRecommendations,
         division_inputs: completed.map((result) => result.decision),
-        is_action_allowed: decision.isActionAllowed
+        is_action_allowed: safeguardedDecision.isActionAllowed
       })
       .select("id")
       .single();
@@ -163,8 +134,8 @@ export async function runCommitteePipeline(params: {
       model: model.model_name,
       promptKey: "committee",
       inputSummary: inputSummary(prompt),
-      output: decision,
-      confidence: decision.confidence,
+      output: safeguardedDecision,
+      confidence: safeguardedDecision.confidence,
       tokenCount,
       promptTokens,
       completionTokens,
@@ -176,7 +147,7 @@ export async function runCommitteePipeline(params: {
 
     return {
       status: "completed",
-      decision,
+      decision: safeguardedDecision,
       committeeDecisionId: (data as { id: string }).id
     };
   } catch (error) {
