@@ -12,19 +12,36 @@ function JsonBlock({ value }: { value: unknown }) {
 
 export default async function CioDecisionPage() {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
 
   if (!user) return null;
 
-  const { data: decision } = await supabase
-    .from("committee_decisions")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let decision: Record<string, unknown> | null = null;
+
+  try {
+    const result = await supabase
+      .from("committee_decisions")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    decision = (result.data as Record<string, unknown> | null) ?? null;
+  } catch {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 p-6">
+        <h1 className="text-2xl font-semibold text-red-900">CIO 決策讀取失敗</h1>
+        <p className="mt-2 text-sm text-red-700">請稍後重新整理頁面。</p>
+      </div>
+    );
+  }
 
   if (!decision) {
     return (

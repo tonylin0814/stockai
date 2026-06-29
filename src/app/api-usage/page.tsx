@@ -102,9 +102,14 @@ function StatusCell({ status }: { status: string | null }) {
 
 export default async function ApiUsagePage({ searchParams }: PageProps) {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
 
   if (!user) return null;
 

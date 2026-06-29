@@ -16,21 +16,38 @@ function consensusClass(level: string | null) {
 
 export default async function DailyAnalysisPage() {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
 
   if (!user) return null;
 
   const today = todayIsoDate();
-  const { data: run } = await supabase
-    .from("daily_runs")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("run_date", today)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let run: Record<string, unknown> | null = null;
+
+  try {
+    const result = await supabase
+      .from("daily_runs")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("run_date", today)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    run = (result.data as Record<string, unknown> | null) ?? null;
+  } catch {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 p-6">
+        <h1 className="text-2xl font-semibold text-red-900">每日分析讀取失敗</h1>
+        <p className="mt-2 text-sm text-red-700">請稍後重新整理頁面或重新執行分析。</p>
+      </div>
+    );
+  }
 
   if (!run) {
     return (
@@ -68,31 +85,45 @@ export default async function DailyAnalysisPage() {
     );
   }
 
-  const [committeeResult, divisionResult, teamResult, recommendationResult] =
-    await Promise.all([
-      supabase
-        .from("committee_decisions")
-        .select("*")
-        .eq("daily_run_id", runId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("division_decisions")
-        .select("*")
-        .eq("daily_run_id", runId)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("team_reports")
-        .select("id, division, team_name, market_view, portfolio_review, final_team_view")
-        .eq("daily_run_id", runId)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("recommendations")
-        .select("id, source_type, source_name, action, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, securities(symbol, market)")
-        .eq("daily_run_id", runId)
-        .order("created_at", { ascending: true })
-    ]);
+  let committeeResult;
+  let divisionResult;
+  let teamResult;
+  let recommendationResult;
+
+  try {
+    [committeeResult, divisionResult, teamResult, recommendationResult] =
+      await Promise.all([
+        supabase
+          .from("committee_decisions")
+          .select("*")
+          .eq("daily_run_id", runId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("division_decisions")
+          .select("*")
+          .eq("daily_run_id", runId)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("team_reports")
+          .select("id, division, team_name, market_view, portfolio_review, final_team_view")
+          .eq("daily_run_id", runId)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("recommendations")
+          .select("id, source_type, source_name, action, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, securities(symbol, market)")
+          .eq("daily_run_id", runId)
+          .order("created_at", { ascending: true })
+      ]);
+  } catch {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 p-6">
+        <h1 className="text-2xl font-semibold text-red-900">每日分析結果讀取失敗</h1>
+        <p className="mt-2 text-sm text-red-700">資料庫暫時無法回傳完整結果，請稍後重新整理。</p>
+      </div>
+    );
+  }
   const committee = committeeResult.data as Record<string, unknown> | null;
   const divisions = (divisionResult.data ?? []) as Array<Record<string, unknown>>;
   const teams = (teamResult.data ?? []) as Parameters<typeof TeamReportTabs>[0]["reports"];
