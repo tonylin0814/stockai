@@ -87,6 +87,12 @@ export async function POST(
       .eq("id", missionId)
       .eq("user_id", user.id);
 
+    await Promise.all([
+      supabase.from("committee_decisions").delete().eq("mission_id", missionId).eq("user_id", user.id),
+      supabase.from("division_decisions").delete().eq("mission_id", missionId).eq("user_id", user.id),
+      supabase.from("team_reports").delete().eq("mission_id", missionId).eq("user_id", user.id)
+    ]);
+
     const dataPackage = await buildMissionDataPackage(user.id, missionId);
 
     if (dataPackage.mission.missionType === "single_stock") {

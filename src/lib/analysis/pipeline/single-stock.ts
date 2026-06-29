@@ -2,7 +2,9 @@ import { getFamilyId, savePipelineAgentRun } from "@/lib/analysis/pipeline/db";
 import { callModel, inputSummary, validateOrRepair } from "@/lib/analysis/pipeline/model";
 import { writeRecommendations } from "@/lib/analysis/pipeline/recommendations";
 import {
+  CommitteeDecisionSchema,
   MissionAnalysisSchema,
+  type CommitteeDecision,
   type DivisionDecision,
   type MissionAnalysis
 } from "@/lib/analysis/schemas";
@@ -25,10 +27,44 @@ const QUICK_SINGLE_STOCK_SCHEMA = `{
   "conditionsToAct": ["可以行動前需要看到的條件"]
 }`;
 
+type QuickModel = {
+  name: string;
+  manager_name: string;
+  model_provider: string;
+  model_name: string;
+};
+
+type QuickAnalysisResult =
+  | {
+      status: "completed";
+      model: QuickModel;
+      analysis: MissionAnalysis;
+      decision: DivisionDecision;
+    }
+  | {
+      status: "failed";
+      model: QuickModel;
+      error: string;
+    };
+
 function normalizeAction(suggestion: MissionAnalysis["suggestion"]) {
   if (suggestion === "buy") return "small_buy";
   if (suggestion === "reject") return "avoid";
   return suggestion;
+}
+
+function actionRank(action: DivisionDecision["decisionAction"]) {
+  const ranks: Record<DivisionDecision["decisionAction"], number> = {
+    avoid: 0,
+    sell: 1,
+    reduce: 2,
+    wait: 3,
+    hold: 4,
+    small_buy: 5,
+    buy: 6
+  };
+
+  return ranks[action] ?? 3;
 }
 
 function buildQuickSingleStockPrompt(dataPackage: MissionDataPackage) {
@@ -55,42 +91,90 @@ ${QUICK_SINGLE_STOCK_SCHEMA}
 
 規則：
 - 只回答這一檔股票，不要推薦其他股票。
+- 你必須給出明確建議：buy、wait、reject、hold、reduce 或 sell。
+- reason 必須包含至少三個具體理由，並明確提到價格、漲跌幅、風險。
 - 如果資料不足、價格缺失或資料過舊，suggestion 必須是 wait 或 reject，confidence 不可超過 60。
 - 如果建議買進，請偏保守，suggestion 使用 buy，但 reason 必須說明風險。
 - 只回傳 JSON，不要加 markdown。`;
 }
 
-async function getQuickModel() {
+async function getQuickModels() {
   const supabase = createSupabaseServiceClient();
   const { data, error } = await supabase
     .from("divisions")
     .select("name, manager_name, model_provider, model_name")
     .eq("is_enabled", true)
-    .eq("model_provider", "OpenAI")
     .order("sort_order", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
-  if (error || !data) {
-    throw new Error(error?.message ?? "找不到可用的快速分析模型。");
+  if (error) {
+    throw new Error(error.message);
   }
 
-  return data as {
-    name: string;
-    manager_name: string;
-    model_provider: string;
-    model_name: string;
+  const rows = (data ?? []) as QuickModel[];
+  const openAi = rows.find((row) => row.model_provider === "OpenAI");
+  const anthropic = rows.find((row) => row.model_provider === "Anthropic");
+  const models = [openAi, anthropic].filter(Boolean) as QuickModel[];
+
+  if (!models.length) {
+    throw new Error("找不到可用的快速分析模型。");
+  }
+
+  return models;
+}
+
+function buildDecision(params: {
+  model: QuickModel;
+  analysis: MissionAnalysis;
+  dataPackage: MissionDataPackage;
+}): DivisionDecision {
+  const action = normalizeAction(params.analysis.suggestion);
+  const symbol =
+    params.analysis.relatedSymbols[0] ?? params.dataPackage.mission.relatedSymbols[0] ?? "";
+  const relatedSecurity = params.dataPackage.mission.relatedSecurities.find(
+    (security) => security.symbol === symbol
+  );
+  const market = relatedSecurity?.market ?? (/^\d+$/.test(symbol) ? "TW" : "US");
+  const name = relatedSecurity?.name || symbol;
+
+  return {
+    division: `${params.model.model_provider} 快速分析`,
+    divisionManager: params.model.manager_name,
+    marketSummary: params.analysis.summary,
+    portfolioActions: [],
+    missionDecision: params.analysis,
+    topRecommendations: [
+      {
+        symbol,
+        market,
+        name,
+        action,
+        reason: params.analysis.reason,
+        buyZone: params.analysis.buyZone,
+        targetPrice: params.analysis.targetPrice,
+        stopLoss: params.analysis.stopLoss,
+        positionSize: action === "small_buy" ? "小部位" : "不適用",
+        timeHorizon: params.analysis.timeHorizon,
+        confidence: params.analysis.confidence,
+        keyRisks: params.analysis.keyRisks
+      }
+    ],
+    confidence: params.analysis.confidence,
+    supportingReasons: [params.analysis.reason],
+    opposingReasons: params.analysis.keyRisks,
+    supportingTeams: [`${params.model.model_provider} 快速分析`],
+    opposingTeams: [],
+    internalDisagreements: [],
+    decisionAction: action
   };
 }
 
-export async function runSingleStockMission(params: {
+async function runQuickModel(params: {
   userId: string;
   missionId: string;
   dataPackage: MissionDataPackage;
-}) {
-  const supabase = createSupabaseServiceClient();
-  const familyId = await getFamilyId(params.userId);
-  const model = await getQuickModel();
+  model: QuickModel;
+}): Promise<QuickAnalysisResult> {
   const prompt = buildQuickSingleStockPrompt(params.dataPackage);
   const startedAt = new Date().toISOString();
   let tokenCount = 0;
@@ -100,8 +184,8 @@ export async function runSingleStockMission(params: {
 
   try {
     const modelResult = await callModel({
-      provider: model.model_provider,
-      model: model.model_name,
+      provider: params.model.model_provider,
+      model: params.model.model_name,
       prompt
     });
     tokenCount += modelResult.tokenCount;
@@ -113,8 +197,8 @@ export async function runSingleStockMission(params: {
       rawText: modelResult.text,
       schema: MissionAnalysisSchema,
       schemaDescription: QUICK_SINGLE_STOCK_SCHEMA,
-      provider: model.model_provider,
-      model: model.model_name
+      provider: params.model.model_provider,
+      model: params.model.model_name
     });
     tokenCount += validation.tokenCount;
     promptTokens += validation.promptTokens;
@@ -122,93 +206,18 @@ export async function runSingleStockMission(params: {
     estimatedCostUsd += validation.estimatedCostUsd;
 
     const analysis = validation.parsed;
-    const action = normalizeAction(analysis.suggestion);
-    const symbol = analysis.relatedSymbols[0] ?? params.dataPackage.mission.relatedSymbols[0] ?? "";
-    const relatedSecurity = params.dataPackage.mission.relatedSecurities.find(
-      (security) => security.symbol === symbol
-    );
-    const market = relatedSecurity?.market ?? (/^\d+$/.test(symbol) ? "TW" : "US");
-    const name = relatedSecurity?.name || symbol;
-    const decision: DivisionDecision = {
-      division: "快速單股分析",
-      divisionManager: model.manager_name,
-      marketSummary: analysis.summary,
-      portfolioActions: [],
-      missionDecision: analysis,
-      topRecommendations: [
-        {
-          symbol,
-          market,
-          name,
-          action,
-          reason: analysis.reason,
-          buyZone: analysis.buyZone,
-          targetPrice: analysis.targetPrice,
-          stopLoss: analysis.stopLoss,
-          positionSize: action === "small_buy" ? "小部位" : "不適用",
-          timeHorizon: analysis.timeHorizon,
-          confidence: analysis.confidence,
-          keyRisks: analysis.keyRisks
-        }
-      ],
-      confidence: analysis.confidence,
-      supportingReasons: [analysis.reason],
-      opposingReasons: analysis.keyRisks,
-      supportingTeams: ["快速單股分析"],
-      opposingTeams: [],
-      internalDisagreements: [],
-      decisionAction: action
-    };
-
-    const { data, error } = await supabase
-      .from("division_decisions")
-      .insert({
-        user_id: params.userId,
-        family_id: familyId,
-        daily_run_id: null,
-        mission_id: params.missionId,
-        division: decision.division,
-        division_manager: decision.divisionManager,
-        model_provider: model.model_provider,
-        model_name: model.model_name,
-        decision_action: decision.decisionAction,
-        confidence: decision.confidence,
-        market_summary: decision.marketSummary,
-        portfolio_actions: decision.portfolioActions,
-        mission_decision: decision.missionDecision,
-        top_recommendations: decision.topRecommendations,
-        supporting_teams: decision.supportingTeams,
-        opposing_teams: decision.opposingTeams,
-        internal_disagreements: decision.internalDisagreements
-      })
-      .select("id")
-      .single();
-
-    if (error || !data) {
-      throw new Error(error?.message ?? "快速分析結果儲存失敗。");
-    }
-
-    await writeRecommendations({
-      userId: params.userId,
-      familyId,
-      dailyRunId: null,
-      missionId: params.missionId,
-      teamReports: [],
-      divisionDecisions: [
-        {
-          decision,
-          divisionDecisionId: (data as { id: string }).id
-        }
-      ],
-      committeeDecision: null
+    const decision = buildDecision({
+      model: params.model,
+      analysis,
+      dataPackage: params.dataPackage
     });
 
     await savePipelineAgentRun({
       userId: params.userId,
       dailyRunId: null,
       missionId: params.missionId,
-      provider: model.model_provider,
-      model: model.model_name,
+      provider: params.model.model_provider,
+      model: params.model.model_name,
       promptKey: "missionAnalysis",
       inputSummary: inputSummary(prompt),
       output: analysis,
@@ -223,21 +232,23 @@ export async function runSingleStockMission(params: {
     });
 
     return {
-      decision,
-      divisionDecisionId: (data as { id: string }).id
+      status: "completed",
+      model: params.model,
+      analysis,
+      decision
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown quick mission failure";
+
     await savePipelineAgentRun({
       userId: params.userId,
       dailyRunId: null,
       missionId: params.missionId,
-      provider: model.model_provider,
-      model: model.model_name,
+      provider: params.model.model_provider,
+      model: params.model.model_name,
       promptKey: "missionAnalysis",
       inputSummary: inputSummary(prompt),
-      output: {
-        error: error instanceof Error ? error.message : "Unknown quick mission failure"
-      },
+      output: { error: message },
       confidence: null,
       tokenCount,
       promptTokens,
@@ -246,9 +257,194 @@ export async function runSingleStockMission(params: {
       startedAt,
       completedAt: new Date().toISOString(),
       status: "failed",
-      errorMessage: error instanceof Error ? error.message : "Unknown quick mission failure"
+      errorMessage: message
     });
 
-    throw error;
+    return {
+      status: "failed",
+      model: params.model,
+      error: message
+    };
   }
+}
+
+function buildConsensus(results: Array<Extract<QuickAnalysisResult, { status: "completed" }>>) {
+  const actions = results.map((result) => result.decision.decisionAction);
+  const mostConservative = results.reduce((lowest, current) =>
+    actionRank(current.decision.decisionAction) < actionRank(lowest.decision.decisionAction)
+      ? current
+      : lowest
+  );
+  const mostAggressive = results.reduce((highest, current) =>
+    actionRank(current.decision.decisionAction) > actionRank(highest.decision.decisionAction)
+      ? current
+      : highest
+  );
+  const allAgree = actions.every((action) => action === actions[0]);
+  const averageConfidence =
+    results.reduce((sum, result) => sum + result.decision.confidence, 0) / results.length;
+  const actionType = mostConservative.decision.decisionAction;
+  const consensusLevel: CommitteeDecision["consensusLevel"] = allAgree
+    ? "strong"
+    : results.length >= 2
+      ? "weak"
+      : "none";
+  const isActionAllowed = actionType === "small_buy" || actionType === "buy";
+  const conservativeAnalysis = mostConservative.decision.missionDecision as MissionAnalysis;
+
+  return CommitteeDecisionSchema.parse({
+    finalAction: isActionAllowed ? "act" : "no_action",
+    actionType,
+    consensusLevel,
+    divisionConclusions: Object.fromEntries(
+      results.map((result) => [
+        result.decision.division,
+        {
+          action: result.decision.decisionAction,
+          confidence: result.decision.confidence,
+          summary: result.decision.marketSummary,
+          reason: (result.decision.missionDecision as MissionAnalysis).reason
+        }
+      ])
+    ),
+    agreements: allAgree ? [`兩個模型都建議 ${actionType}`] : [],
+    disagreements: allAgree
+      ? []
+      : results.map(
+          (result) =>
+            `${result.decision.division}: ${result.decision.decisionAction} (${result.decision.confidence})`
+        ),
+    finalBuyZone: conservativeAnalysis.buyZone,
+    finalTargetPrice: conservativeAnalysis.targetPrice,
+    finalStopLoss: conservativeAnalysis.stopLoss,
+    finalPositionSize: isActionAllowed ? "小部位" : "不適用",
+    finalRecommendations: mostConservative.decision.topRecommendations,
+    confidence: Math.round(Math.min(averageConfidence, mostConservative.decision.confidence)),
+    isActionAllowed,
+    reason: `綜合 ${results.map((result) => result.decision.division).join("、")} 的快速分析，採用較保守結論：${actionType}。${conservativeAnalysis.reason}`,
+    mostConservativeDivision: mostConservative.decision.division,
+    mostAggressiveDivision: mostAggressive.decision.division,
+    whatCouldChangeDecision: Array.from(
+      new Set(
+        results.flatMap(
+          (result) => (result.decision.missionDecision as MissionAnalysis).conditionsToAct
+        )
+      )
+    )
+  });
+}
+
+export async function runSingleStockMission(params: {
+  userId: string;
+  missionId: string;
+  dataPackage: MissionDataPackage;
+}) {
+  const supabase = createSupabaseServiceClient();
+  const familyId = await getFamilyId(params.userId);
+  const models = await getQuickModels();
+  const results = await Promise.all(
+    models.map((model) =>
+      runQuickModel({
+        userId: params.userId,
+        missionId: params.missionId,
+        dataPackage: params.dataPackage,
+        model
+      })
+    )
+  );
+  const completed = results.filter(
+    (result): result is Extract<QuickAnalysisResult, { status: "completed" }> =>
+      result.status === "completed"
+  );
+
+  if (!completed.length) {
+    const errors = results
+      .filter((result): result is Extract<QuickAnalysisResult, { status: "failed" }> =>
+        result.status === "failed"
+      )
+      .map((result) => result.error);
+    throw new Error(errors.join("\n") || "快速分析失敗。");
+  }
+
+  const savedDivisionDecisions = [];
+
+  for (const result of completed) {
+    const { data, error } = await supabase
+      .from("division_decisions")
+      .insert({
+        user_id: params.userId,
+        family_id: familyId,
+        daily_run_id: null,
+        mission_id: params.missionId,
+        division: result.decision.division,
+        division_manager: result.decision.divisionManager,
+        model_provider: result.model.model_provider,
+        model_name: result.model.model_name,
+        decision_action: result.decision.decisionAction,
+        confidence: result.decision.confidence,
+        market_summary: result.decision.marketSummary,
+        portfolio_actions: result.decision.portfolioActions,
+        mission_decision: result.decision.missionDecision,
+        top_recommendations: result.decision.topRecommendations,
+        supporting_teams: result.decision.supportingTeams,
+        opposing_teams: result.decision.opposingTeams,
+        internal_disagreements: result.decision.internalDisagreements
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message ?? "快速分析結果儲存失敗。");
+    }
+
+    savedDivisionDecisions.push({
+      decision: result.decision,
+      divisionDecisionId: (data as { id: string }).id
+    });
+  }
+
+  const consensus = buildConsensus(completed);
+  const { data: committeeData, error: committeeError } = await supabase
+    .from("committee_decisions")
+    .insert({
+      user_id: params.userId,
+      family_id: familyId,
+      daily_run_id: null,
+      mission_id: params.missionId,
+      final_action: consensus.finalAction,
+      action_type: consensus.actionType,
+      consensus_level: consensus.consensusLevel,
+      confidence: consensus.confidence,
+      weighted_confidence: consensus.confidence,
+      decision_summary: consensus.reason,
+      agreement_summary: consensus.agreements.join("\n"),
+      disagreement_summary: consensus.disagreements.join("\n"),
+      final_recommendations: consensus.finalRecommendations,
+      division_inputs: savedDivisionDecisions.map((result) => result.decision),
+      is_action_allowed: consensus.isActionAllowed
+    })
+    .select("id")
+    .single();
+
+  if (committeeError || !committeeData) {
+    throw new Error(committeeError?.message ?? "快速委員會結果儲存失敗。");
+  }
+
+  await writeRecommendations({
+    userId: params.userId,
+    familyId,
+    dailyRunId: null,
+    missionId: params.missionId,
+    teamReports: [],
+    divisionDecisions: savedDivisionDecisions,
+    committeeDecision: {
+      decision: consensus,
+      committeeDecisionId: (committeeData as { id: string }).id
+    }
+  });
+
+  return {
+    decision: consensus,
+    divisionDecisionId: savedDivisionDecisions[0]?.divisionDecisionId ?? null
+  };
 }

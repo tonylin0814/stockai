@@ -78,6 +78,12 @@ function percentText(value: unknown) {
   return numberValue === null ? "—" : formatSignedPercent(numberValue);
 }
 
+function stringList(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item)).filter(Boolean).join("；")
+    : "—";
+}
+
 export default async function MissionResultPage({ params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient();
   const {
@@ -297,6 +303,40 @@ export default async function MissionResultPage({ params }: { params: { id: stri
                 <Td>{Array.isArray(division.opposing_teams) ? division.opposing_teams.join(", ") : "—"}</Td>
               </tr>
             ))}
+          </tbody>
+        </Table>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold text-slate-950">模型分析對照</h2>
+        <Table>
+          <thead>
+            <tr>
+              <Th>模型</Th>
+              <Th>建議</Th>
+              <Th>信心</Th>
+              <Th>摘要</Th>
+              <Th>理由</Th>
+              <Th>主要風險</Th>
+              <Th>行動條件</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {divisions.map((division) => {
+              const missionDecision = asRecord(division.mission_decision);
+
+              return (
+                <tr key={`analysis-${String(division.id)}`}>
+                  <Td>{String(division.division ?? "—")}</Td>
+                  <Td>{String(division.decision_action ?? "—")}</Td>
+                  <Td>{String(division.confidence ?? "—")}</Td>
+                  <Td>{String(missionDecision.summary ?? division.market_summary ?? "—")}</Td>
+                  <Td>{String(missionDecision.reason ?? "—")}</Td>
+                  <Td>{stringList(missionDecision.keyRisks)}</Td>
+                  <Td>{stringList(missionDecision.conditionsToAct)}</Td>
+                </tr>
+              );
+            })}
           </tbody>
         </Table>
       </section>
