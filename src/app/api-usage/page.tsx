@@ -12,7 +12,6 @@ type AgentRunRow = {
   status: string | null;
   started_at: string | null;
   created_at: string;
-  profiles: { email?: string | null } | null;
 };
 
 function formatUsd(value: number) {
@@ -38,10 +37,6 @@ function formatDateTime(value: string) {
       hour12: false
     })
     .replace(/\//g, "-");
-}
-
-function shortUser(email: string | null | undefined, fallback: string) {
-  return email?.split("@")[0] || fallback.split("@")[0] || "—";
 }
 
 function isSameDay(value: string, today: Date) {
@@ -87,14 +82,12 @@ export default async function ApiUsagePage() {
   try {
     const { data, error } = await supabase
       .from("agent_runs")
-      .select("id, model_provider, model_name, prompt_tokens, completion_tokens, token_count, estimated_cost_usd, status, started_at, created_at, profiles(email)")
+      .select("id, model_provider, model_name, prompt_tokens, completion_tokens, token_count, estimated_cost_usd, status, started_at, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1000);
 
-    if (!error) {
-      rows = (data ?? []) as unknown as AgentRunRow[];
-    }
+    if (!error) rows = (data ?? []) as unknown as AgentRunRow[];
   } catch {
     rows = [];
   }
@@ -107,6 +100,7 @@ export default async function ApiUsagePage() {
     .filter((row) => isSameMonth(row.created_at, today))
     .reduce((sum, row) => sum + (Number(row.estimated_cost_usd) || 0), 0);
   const totalCost = rows.reduce((sum, row) => sum + (Number(row.estimated_cost_usd) || 0), 0);
+  const userLabel = user.email?.split("@")[0] ?? "—";
 
   return (
     <div className="space-y-6">
@@ -155,7 +149,7 @@ export default async function ApiUsagePage() {
             {rows.map((row) => (
               <tr key={row.id}>
                 <Td>{formatDateTime(row.created_at)}</Td>
-                <Td>{shortUser(row.profiles?.email, user.email ?? "")}</Td>
+                <Td>{userLabel}</Td>
                 <Td>{row.model_provider ?? "—"}</Td>
                 <Td>{row.model_name ?? "—"}</Td>
                 <Td>{row.prompt_tokens ?? "—"}</Td>
