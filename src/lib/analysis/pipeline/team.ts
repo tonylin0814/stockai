@@ -135,7 +135,8 @@ async function callModel(params: {
     const response = await client.chat.completions.create({
       model: params.model,
       messages: [{ role: "user", content: params.prompt }],
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      max_tokens: 16000
     });
 
     const promptTokens = response.usage?.prompt_tokens ?? 0;
