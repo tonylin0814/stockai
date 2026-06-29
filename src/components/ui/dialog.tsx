@@ -8,11 +8,12 @@ import { cn } from "@/lib/utils";
 type DialogProps = {
   trigger: React.ReactNode;
   title: string;
-  children: React.ReactNode;
+  children: React.ReactNode | ((close: () => void) => React.ReactNode);
 };
 
 export function Dialog({ trigger, title, children }: DialogProps) {
   const [open, setOpen] = React.useState(false);
+  const close = React.useCallback(() => setOpen(false), []);
 
   return (
     <>
@@ -30,13 +31,13 @@ export function Dialog({ trigger, title, children }: DialogProps) {
                 type="button"
                 variant="ghost"
                 size="icon"
-                onClick={() => setOpen(false)}
+                onClick={close}
                 aria-label="關閉"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            {children}
+            {typeof children === "function" ? children(close) : children}
           </div>
         </div>
       ) : null}

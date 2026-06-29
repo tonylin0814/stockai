@@ -1,13 +1,10 @@
 import Link from "next/link";
 import { Plus, XCircle } from "lucide-react";
-import { cancelMission, createMission } from "@/app/actions";
-import { FormField } from "@/components/form-field";
+import { cancelMission } from "@/app/actions";
+import { MissionForm } from "@/components/mission-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Table, Td, Th } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -20,43 +17,12 @@ function statusClass(status: string) {
   return "border-yellow-200 bg-yellow-50 text-yellow-800";
 }
 
-function MissionForm() {
-  return (
-    <form action={createMission} className="grid gap-4 md:grid-cols-2">
-      <FormField label="任務標題" htmlFor="title">
-        <Input id="title" name="title" required />
-      </FormField>
-      <FormField label="任務類型" htmlFor="mission_type">
-        <Select id="mission_type" name="mission_type" required defaultValue="single_stock">
-          <option value="single_stock">single_stock</option>
-          <option value="multi_stock">multi_stock</option>
-          <option value="portfolio_review">portfolio_review</option>
-          <option value="watchlist_review">watchlist_review</option>
-          <option value="theme">theme</option>
-          <option value="event">event</option>
-        </Select>
-      </FormField>
-      <div className="md:col-span-2">
-        <FormField label="原始問題" htmlFor="original_question">
-          <Textarea id="original_question" name="original_question" required />
-        </FormField>
-      </div>
-      <FormField label="相關股票代號" htmlFor="related_symbols">
-        <Input id="related_symbols" name="related_symbols" placeholder="NVDA, TSMC, 2330" />
-      </FormField>
-      <FormField label="相關市場" htmlFor="related_market">
-        <Select id="related_market" name="related_market" defaultValue="">
-          <option value="">未指定</option>
-          <option value="US">US</option>
-          <option value="TW">TW</option>
-          <option value="both">both</option>
-        </Select>
-      </FormField>
-      <div className="flex justify-end md:col-span-2">
-        <Button type="submit">建立任務</Button>
-      </div>
-    </form>
-  );
+function statusLabel(status: string) {
+  if (status === "completed") return "完成";
+  if (status === "running") return "執行中";
+  if (status === "cancelled") return "已取消";
+  if (status === "failed") return "失敗";
+  return "待執行";
 }
 
 export default async function MissionsPage() {
@@ -89,7 +55,7 @@ export default async function MissionsPage() {
             </Button>
           }
         >
-          <MissionForm />
+          {(close) => <MissionForm onSaved={close} />}
         </Dialog>
       </div>
 
@@ -110,7 +76,7 @@ export default async function MissionsPage() {
               <Td>{mission.mission_type}</Td>
               <Td>
                 <span className={cn("rounded-md border px-2 py-1 text-xs font-medium", statusClass(mission.status))}>
-                  {mission.status}
+                  {statusLabel(mission.status)}
                 </span>
               </Td>
               <Td>{formatDateTime(mission.created_at)}</Td>
