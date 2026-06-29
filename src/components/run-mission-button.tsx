@@ -5,7 +5,23 @@ import { useState } from "react";
 import { Play, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function RunMissionButton({ missionId, label = "執行分析" }: { missionId: string; label?: string }) {
+async function readResponse(response: Response, setError: (message: string) => void) {
+  try {
+    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    const text = await response.text().catch(() => "");
+    setError(text.slice(0, 200) || `伺服器錯誤 (HTTP ${response.status})`);
+    return null;
+  }
+}
+
+export function RunMissionButton({
+  missionId,
+  label = "執行分析"
+}: {
+  missionId: string;
+  label?: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,10 +32,13 @@ export function RunMissionButton({ missionId, label = "執行分析" }: { missio
 
     try {
       const response = await fetch(`/api/analysis/mission/${missionId}`, { method: "POST" });
-      const data = (await response.json()) as { error?: string };
+      const data = await readResponse(response, setError);
+
+      if (!data) return;
 
       if (!response.ok) {
-        throw new Error(data.error ?? "任務分析失敗。");
+        setError((data.error as string) || `伺服器錯誤 (HTTP ${response.status})`);
+        return;
       }
 
       router.refresh();
@@ -34,7 +53,7 @@ export function RunMissionButton({ missionId, label = "執行分析" }: { missio
     <div className="space-y-2">
       <Button type="button" onClick={runMission} disabled={loading}>
         {loading ? <RotateCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-        {loading ? "分析執行中…" : label}
+        {loading ? "分析執行中..." : label}
       </Button>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
     </div>

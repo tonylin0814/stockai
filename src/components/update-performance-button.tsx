@@ -5,6 +5,16 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+async function readResponse(response: Response, setError: (message: string) => void) {
+  try {
+    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    const text = await response.text().catch(() => "");
+    setError(text.slice(0, 200) || `伺服器錯誤 (HTTP ${response.status})`);
+    return null;
+  }
+}
+
 export function UpdatePerformanceButton() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -18,15 +28,13 @@ export function UpdatePerformanceButton() {
 
     try {
       const response = await fetch("/api/performance/evaluate", { method: "POST" });
-      const data = (await response.json()) as {
-        evaluated?: number;
-        skipped?: number;
-        message?: string;
-        error?: string;
-      };
+      const data = await readResponse(response, setError);
+
+      if (!data) return;
 
       if (!response.ok) {
-        throw new Error(data.error ?? "績效更新失敗。");
+        setError((data.error as string) || `伺服器錯誤 (HTTP ${response.status})`);
+        return;
       }
 
       setMessage(`${data.message ?? "績效更新完成。"} 已評估 ${data.evaluated ?? 0} 筆。`);
