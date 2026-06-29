@@ -19,12 +19,13 @@ function yahooSymbol(symbol: string, market: "US" | "TW") {
 }
 
 export class YahooProvider {
-  async getIndexQuoteFromChart(symbol: string, market: "US" | "TW"): Promise<Quote> {
+  async getQuoteFromChart(symbol: string, market: "US" | "TW"): Promise<Quote> {
     const source = "Yahoo Finance Chart";
+    const querySymbol = yahooSymbol(symbol, market);
 
     try {
       const response = await fetch(
-        `${YAHOO_CHART_URL}/${encodeURIComponent(symbol)}?range=1d&interval=1m`,
+        `${YAHOO_CHART_URL}/${encodeURIComponent(querySymbol)}?range=1d&interval=1m`,
         { next: { revalidate: 60 } }
       );
 
@@ -86,6 +87,10 @@ export class YahooProvider {
     } catch {
       return missingQuote(symbol, market, source);
     }
+  }
+
+  async getIndexQuoteFromChart(symbol: string, market: "US" | "TW"): Promise<Quote> {
+    return this.getQuoteFromChart(symbol, market);
   }
 
   async getQuote(symbol: string, market: "US" | "TW"): Promise<Quote> {

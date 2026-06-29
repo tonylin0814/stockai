@@ -22,6 +22,11 @@ class CompositeProvider implements MarketDataProvider {
 
   async getQuote(symbol: string, market: "US" | "TW"): Promise<Quote> {
     if (market === "TW") {
+      const chartQuote = await this.yahoo.getQuoteFromChart(symbol, market);
+      if (chartQuote.qualityState !== "missing") {
+        return chartQuote;
+      }
+
       const yahooQuote = await this.yahoo.getQuote(symbol, market);
       return yahooQuote.qualityState === "missing"
         ? this.twse.getStockQuote(symbol)

@@ -3,7 +3,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { RunMissionButton } from "@/components/run-mission-button";
 import { TeamReportTabs } from "@/components/team-report-tabs";
 import { Table, Td, Th } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function consensusClass(level: string | null) {
@@ -23,6 +23,59 @@ function isStaleRunningMission(startedAt: unknown) {
   if (!startedAt) return false;
   const started = new Date(String(startedAt)).getTime();
   return Number.isFinite(started) && Date.now() - started > 10 * 60 * 1000;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asNumber(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function quoteRows(dataPackage: unknown) {
+  const data = asRecord(dataPackage);
+  const mission = asRecord(data.mission);
+  const marketSnapshot = asRecord(data.marketSnapshot);
+  const related = Array.isArray(mission.relatedSecurities)
+    ? mission.relatedSecurities
+    : [];
+  const rows = related.map((item) => {
+    const security = asRecord(item);
+    const quote = asRecord(security.quote);
+    return {
+      label: `${String(security.symbol ?? "—")} ${String(security.name ?? "")}`.trim(),
+      quote
+    };
+  });
+  const taiex = asRecord(marketSnapshot.taiex);
+
+  if (Object.keys(taiex).length) {
+    rows.push({
+      label: "台股加權指數",
+      quote: taiex
+    });
+  }
+
+  return rows;
+}
+
+function priceText(value: unknown) {
+  const numberValue = asNumber(value);
+  return numberValue === null ? "—" : formatNumber(numberValue, 2);
+}
+
+function signedText(value: unknown) {
+  const numberValue = asNumber(value);
+  return numberValue === null ? "—" : formatSignedNumber(numberValue, 2);
+}
+
+function percentText(value: unknown) {
+  const numberValue = asNumber(value);
+  return numberValue === null ? "—" : formatSignedPercent(numberValue);
 }
 
 export default async function MissionResultPage({ params }: { params: { id: string } }) {
@@ -74,6 +127,38 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       </div>
     </section>
   );
+  const sourceRows = quoteRows(missionRow.data_package);
+  const sourceSection = sourceRows.length ? (
+    <section className="space-y-3">
+      <h2 className="text-xl font-semibold text-slate-950">使用資料</h2>
+      <Table>
+        <thead>
+          <tr>
+            <Th>項目</Th>
+            <Th>價格</Th>
+            <Th>漲跌</Th>
+            <Th>漲跌幅</Th>
+            <Th>資料來源</Th>
+            <Th>資料時間</Th>
+            <Th>品質</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {sourceRows.map((row) => (
+            <tr key={row.label}>
+              <Td>{row.label}</Td>
+              <Td>{priceText(row.quote.price)}</Td>
+              <Td>{signedText(row.quote.change)}</Td>
+              <Td>{percentText(row.quote.changePct)}</Td>
+              <Td>{String(row.quote.source ?? "—")}</Td>
+              <Td>{formatDateTime(String(row.quote.sourceUpdatedAt ?? ""))}</Td>
+              <Td>{String(row.quote.qualityState ?? "—")}</Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </section>
+  ) : null;
 
   if (status === "pending") {
     return (
@@ -100,6 +185,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
     return (
       <div className="space-y-5">
         {detailSection}
+        {sourceSection}
         <div className="rounded-md border border-red-200 bg-red-50 p-6">
           <h2 className="text-xl font-semibold text-red-900">任務分析失敗</h2>
           <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
@@ -169,6 +255,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   return (
     <div className="space-y-8">
       {detailSection}
+      {sourceSection}
 
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
