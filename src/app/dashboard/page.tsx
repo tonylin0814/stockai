@@ -7,9 +7,15 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function DashboardPage() {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
+
   const displayName = user?.email ?? "使用者";
 
   return (

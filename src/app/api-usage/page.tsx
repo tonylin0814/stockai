@@ -82,13 +82,23 @@ export default async function ApiUsagePage() {
 
   if (!user) return null;
 
-  const { data } = await supabase
-    .from("agent_runs")
-    .select("id, model_provider, model_name, prompt_tokens, completion_tokens, token_count, estimated_cost_usd, status, started_at, created_at, profiles(email)")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1000);
-  const rows = (data ?? []) as unknown as AgentRunRow[];
+  let rows: AgentRunRow[] = [];
+
+  try {
+    const { data, error } = await supabase
+      .from("agent_runs")
+      .select("id, model_provider, model_name, prompt_tokens, completion_tokens, token_count, estimated_cost_usd, status, started_at, created_at, profiles(email)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1000);
+
+    if (!error) {
+      rows = (data ?? []) as unknown as AgentRunRow[];
+    }
+  } catch {
+    rows = [];
+  }
+
   const today = new Date();
   const todayCost = rows
     .filter((row) => isSameDay(row.created_at, today))
@@ -124,45 +134,42 @@ export default async function ApiUsagePage() {
         </div>
       </div>
 
-      <Table>
-        <thead>
-          <tr>
-            <Th>日期時間</Th>
-            <Th>使用者</Th>
-            <Th>供應商</Th>
-            <Th>模型</Th>
-            <Th>輸入 Tokens</Th>
-            <Th>輸出 Tokens</Th>
-            <Th>總 Tokens</Th>
-            <Th>費用 (USD)</Th>
-            <Th>狀態</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <Td>{formatDateTime(row.created_at)}</Td>
-              <Td>{shortUser(row.profiles?.email, user.email ?? "")}</Td>
-              <Td>{row.model_provider ?? "—"}</Td>
-              <Td>{row.model_name ?? "—"}</Td>
-              <Td>{row.prompt_tokens ?? "—"}</Td>
-              <Td>{row.completion_tokens ?? "—"}</Td>
-              <Td>{row.token_count ?? "—"}</Td>
-              <Td>{formatCost(row.estimated_cost_usd)}</Td>
-              <Td>
-                <StatusCell status={row.status} />
-              </Td>
-            </tr>
-          ))}
-          {rows.length === 0 ? (
+      {rows.length === 0 ? (
+        <p className="text-sm text-slate-500">尚無 API 使用記錄。</p>
+      ) : (
+        <Table>
+          <thead>
             <tr>
-              <Td colSpan={9} className="py-8 text-center text-slate-500">
-                尚無 API 用量資料。
-              </Td>
+              <Th>日期時間</Th>
+              <Th>使用者</Th>
+              <Th>供應商</Th>
+              <Th>模型</Th>
+              <Th>輸入 Tokens</Th>
+              <Th>輸出 Tokens</Th>
+              <Th>總 Tokens</Th>
+              <Th>費用 (USD)</Th>
+              <Th>狀態</Th>
             </tr>
-          ) : null}
-        </tbody>
-      </Table>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id}>
+                <Td>{formatDateTime(row.created_at)}</Td>
+                <Td>{shortUser(row.profiles?.email, user.email ?? "")}</Td>
+                <Td>{row.model_provider ?? "—"}</Td>
+                <Td>{row.model_name ?? "—"}</Td>
+                <Td>{row.prompt_tokens ?? "—"}</Td>
+                <Td>{row.completion_tokens ?? "—"}</Td>
+                <Td>{row.token_count ?? "—"}</Td>
+                <Td>{formatCost(row.estimated_cost_usd)}</Td>
+                <Td>
+                  <StatusCell status={row.status} />
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
     </div>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
 
-export default function GlobalError({
+export default function ErrorPage({
   error,
   reset
 }: {
@@ -20,7 +19,16 @@ export default function GlobalError({
       <p className="max-w-sm text-sm text-slate-600">
         {error.message || "請重新整理頁面或稍後再試。"}
       </p>
-      <Button type="button" onClick={reset} variant="secondary" size="sm">重試</Button>
+      {error.digest ? (
+        <p className="font-mono text-xs text-slate-400">digest: {error.digest}</p>
+      ) : null}
+      <button
+        type="button"
+        onClick={reset}
+        className="rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50"
+      >
+        重試
+      </button>
     </div>
   );
 }
