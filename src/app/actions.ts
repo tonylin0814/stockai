@@ -389,10 +389,32 @@ export async function createMission(formData: FormData) {
     related_symbols: getString(formData, "related_symbols"),
     related_market: getString(formData, "related_market")
   });
-  const relatedSymbols = (input.related_symbols ?? "")
+  const explicitSymbols = (input.related_symbols ?? "")
     .split(",")
     .map((symbol) => symbol.trim().toUpperCase())
     .filter(Boolean);
+  const inferredSymbols = Array.from(
+    new Set(
+      `${input.title} ${input.original_question}`
+        .toUpperCase()
+        .match(/\b[A-Z]{1,5}(?:\.[A-Z]{1,3})?\b|\b\d{4}(?:\.TW)?\b/g) ?? []
+    )
+  ).filter(
+    (symbol) =>
+      ![
+        "US",
+        "TW",
+        "ETF",
+        "AI",
+        "BUY",
+        "SELL",
+        "HOLD",
+        "WAIT",
+        "OR",
+        "AND"
+      ].includes(symbol)
+  );
+  const relatedSymbols = explicitSymbols.length ? explicitSymbols : inferredSymbols;
 
   const { error } = await supabase.from("missions").insert({
     user_id: user.id,

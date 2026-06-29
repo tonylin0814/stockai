@@ -28,6 +28,7 @@ type MissionRow = {
   mission_type: string | null;
   original_question: string;
   related_symbols: string[] | null;
+  data_package: Record<string, unknown> | null;
 };
 
 function normalizeSymbol(symbol: string) {
@@ -39,6 +40,10 @@ function inferMarket(symbol: string): "US" | "TW" {
   return /^\d+$/.test(normalized) || normalized.endsWith(".TW") ? "TW" : "US";
 }
 
+function marketPreference(value: unknown): "US" | "TW" | null {
+  return value === "US" || value === "TW" ? value : null;
+}
+
 export async function buildMissionDataPackage(
   userId: string,
   missionId: string
@@ -47,7 +52,7 @@ export async function buildMissionDataPackage(
   const provider = getMarketDataProvider();
   const { data: missionData, error } = await supabase
     .from("missions")
-    .select("id, title, mission_type, original_question, related_symbols")
+    .select("id, title, mission_type, original_question, related_symbols, data_package")
     .eq("id", missionId)
     .eq("user_id", userId)
     .single();
@@ -59,6 +64,7 @@ export async function buildMissionDataPackage(
   const mission = missionData as MissionRow;
   const dailyPackage = await buildDailyDataPackage(userId);
   const symbols = (mission.related_symbols ?? []).map(normalizeSymbol).filter(Boolean);
+  const preferredMarket = marketPreference(mission.data_package?.relatedMarket);
   const [portfolioRows, watchlistRows] = await Promise.all([
     supabase
       .from("portfolio_holdings")
@@ -84,7 +90,7 @@ export async function buildMissionDataPackage(
   );
   const relatedSecurities = await Promise.all(
     symbols.map(async (symbol) => {
-      const market = inferMarket(symbol);
+      const market = preferredMarket ?? inferMarket(symbol);
       const quote = await provider.getQuote(symbol, market);
       const key = `${symbol}:${market}`;
 
