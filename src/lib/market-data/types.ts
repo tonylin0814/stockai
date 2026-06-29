@@ -1,3 +1,5 @@
+import type { TechnicalSummary } from "@/lib/market-data/indicators";
+
 export type DataQualityState =
   | "fresh"
   | "delayed"
@@ -59,3 +61,5 @@ export interface MarketDataProvider {
   getFXRate(base: string, quote: string): Promise<number>;
   getMacro(seriesId: string): Promise<MacroDataPoint[]>;
 }
+
+export type { TechnicalSummary };

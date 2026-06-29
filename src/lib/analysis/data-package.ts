@@ -1,6 +1,13 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { computeTechnicals } from "@/lib/market-data/indicators";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
-import type { DataQualityState, MacroDataPoint, Quote } from "@/lib/market-data/types";
+import type { TechnicalSummary } from "@/lib/market-data/indicators";
+import type {
+  Fundamentals,
+  MacroDataPoint,
+  NewsItem,
+  Quote
+} from "@/lib/market-data/types";
 
 export type PortfolioItem = {
   id: string;
@@ -15,6 +22,9 @@ export type PortfolioItem = {
   notes: string | null;
   currentPrice: number;
   quote: Quote;
+  technicals: TechnicalSummary;
+  fundamentals: Fundamentals | null;
+  news: NewsItem[];
 };
 
 export type WatchlistItem = {
@@ -31,6 +41,9 @@ export type WatchlistItem = {
   notes: string | null;
   currentPrice: number;
   quote: Quote;
+  technicals: TechnicalSummary;
+  fundamentals: Fundamentals | null;
+  news: NewsItem[];
 };
 
 export type DailyDataPackage = {
@@ -173,32 +186,95 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
   const holdingRows = (holdingsResult.data ?? []) as unknown as HoldingRow[];
   const watchlistRows = (watchlistResult.data ?? []) as unknown as WatchlistRow[];
 
-  const [holdingQuotes, watchlistQuotes, taiex, sp500, nasdaq, dow, vix, usdTwd, dgs10] =
-    await Promise.all([
-      Promise.all(
-        holdingRows.map((row) => {
-          const security = row.securities;
-          return security && isMarket(security.market)
-            ? provider.getQuote(security.symbol, security.market)
-            : Promise.resolve(provider.getQuote("", "US"));
-        })
-      ),
-      Promise.all(
-        watchlistRows.map((row) => {
-          const security = row.securities;
-          return security && isMarket(security.market)
-            ? provider.getQuote(security.symbol, security.market)
-            : Promise.resolve(provider.getQuote("", "US"));
-        })
-      ),
-      provider.getIndex("TAIEX", "TW"),
-      provider.getIndex("^GSPC", "US"),
-      provider.getIndex("^IXIC", "US"),
-      provider.getIndex("^DJI", "US"),
-      provider.getIndex("^VIX", "US"),
-      provider.getFXRate("USD", "TWD"),
-      provider.getMacro("DGS10")
-    ]);
+  const [
+    holdingQuotes,
+    watchlistQuotes,
+    taiex,
+    sp500,
+    nasdaq,
+    dow,
+    vix,
+    usdTwd,
+    dgs10,
+    holdingHistories,
+    watchlistHistories,
+    holdingFundamentals,
+    watchlistFundamentals,
+    holdingNews,
+    watchlistNews
+  ] = await Promise.all([
+    Promise.all(
+      holdingRows.map((row) => {
+        const security = row.securities;
+        return security && isMarket(security.market)
+          ? provider.getQuote(security.symbol, security.market)
+          : provider.getQuote("", "US");
+      })
+    ),
+    Promise.all(
+      watchlistRows.map((row) => {
+        const security = row.securities;
+        return security && isMarket(security.market)
+          ? provider.getQuote(security.symbol, security.market)
+          : provider.getQuote("", "US");
+      })
+    ),
+    provider.getIndex("TAIEX", "TW"),
+    provider.getIndex("^GSPC", "US"),
+    provider.getIndex("^IXIC", "US"),
+    provider.getIndex("^DJI", "US"),
+    provider.getIndex("^VIX", "US"),
+    provider.getFXRate("USD", "TWD"),
+    provider.getMacro("DGS10"),
+    Promise.all(
+      holdingRows.map((row) => {
+        const security = row.securities;
+        return security && isMarket(security.market)
+          ? provider.getHistory(security.symbol, security.market, 90)
+          : Promise.resolve([]);
+      })
+    ),
+    Promise.all(
+      watchlistRows.map((row) => {
+        const security = row.securities;
+        return security && isMarket(security.market)
+          ? provider.getHistory(security.symbol, security.market, 90)
+          : Promise.resolve([]);
+      })
+    ),
+    Promise.all(
+      holdingRows.map((row) => {
+        const security = row.securities;
+        return security && isMarket(security.market)
+          ? provider.getFundamentals(security.symbol, security.market)
+          : Promise.resolve(null);
+      })
+    ),
+    Promise.all(
+      watchlistRows.map((row) => {
+        const security = row.securities;
+        return security && isMarket(security.market)
+          ? provider.getFundamentals(security.symbol, security.market)
+          : Promise.resolve(null);
+      })
+    ),
+    Promise.all(
+      holdingRows.map((row) => {
+        const security = row.securities;
+        return security?.market === "US"
+          ? provider.getNews(security.symbol)
+          : Promise.resolve([]);
+      })
+    ),
+    Promise.all(
+      watchlistRows.map((row) => {
+        const security = row.securities;
+        return security?.market === "US"
+          ? provider.getNews(security.symbol)
+          : Promise.resolve([]);
+      })
+    )
+  ]);
 
   const portfolio: PortfolioItem[] = holdingRows.flatMap((row, index) => {
     const security = row.securities;
@@ -208,6 +284,9 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     }
 
     const quote = holdingQuotes[index];
+    const history = holdingHistories[index] ?? [];
+    const fundamentals = holdingFundamentals[index] ?? null;
+    const news = (holdingNews[index] ?? []).slice(0, 5);
 
     return [
       {
@@ -222,7 +301,10 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
         strategy: row.strategy,
         notes: row.notes,
         currentPrice: quote.price,
-        quote
+        quote,
+        technicals: computeTechnicals(history),
+        fundamentals,
+        news
       }
     ];
   });
@@ -235,6 +317,9 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     }
 
     const quote = watchlistQuotes[index];
+    const history = watchlistHistories[index] ?? [];
+    const fundamentals = watchlistFundamentals[index] ?? null;
+    const news = (watchlistNews[index] ?? []).slice(0, 5);
 
     return [
       {
@@ -250,7 +335,10 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
         visibility: row.visibility,
         notes: row.notes,
         currentPrice: quote.price,
-        quote
+        quote,
+        technicals: computeTechnicals(history),
+        fundamentals,
+        news
       }
     ];
   });
