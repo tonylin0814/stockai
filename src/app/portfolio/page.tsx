@@ -114,7 +114,7 @@ export default async function PortfolioPage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-600">總市值</div>
+          <div className="text-sm text-slate-600">總市值（TWD 換算）</div>
           <div className="mt-1 text-xl font-semibold text-slate-950">
             {formatCurrency(totalMarketValueTwd, "TWD")}
           </div>
