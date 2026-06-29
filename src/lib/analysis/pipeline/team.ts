@@ -136,7 +136,7 @@ async function callModel(params: {
       model: params.model,
       messages: [{ role: "user", content: params.prompt }],
       response_format: { type: "json_object" },
-      max_tokens: 16000
+      max_completion_tokens: 16000
     });
 
     const promptTokens = response.usage?.prompt_tokens ?? 0;
