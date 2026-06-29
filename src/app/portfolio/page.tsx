@@ -5,6 +5,7 @@ import {
   updateHolding
 } from "@/app/actions";
 import { HoldingForm } from "@/app/portfolio/holding-form";
+import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -99,17 +100,20 @@ export default async function PortfolioPage() {
           <h1 className="text-2xl font-semibold text-slate-950">投資組合</h1>
           <p className="mt-1 text-sm text-slate-600">管理手動輸入的台股、美股與 ETF 持股。</p>
         </div>
-        <Dialog
-          title="新增持股"
-          trigger={
-            <Button type="button">
-              <Plus className="h-4 w-4" />
-              新增持股
-            </Button>
-          }
-        >
-          {(close) => <HoldingForm action={createHolding} onSuccess={close} />}
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <RunAnalysisButton redirectTo="/analysis/daily" />
+          <Dialog
+            title="新增持股"
+            trigger={
+              <Button type="button">
+                <Plus className="h-4 w-4" />
+                新增持股
+              </Button>
+            }
+          >
+            {(close) => <HoldingForm action={createHolding} onSuccess={close} />}
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

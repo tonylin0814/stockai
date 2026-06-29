@@ -15,7 +15,13 @@ async function readResponse(response: Response, setError: (message: string) => v
   }
 }
 
-export function RunAnalysisButton({ label = "執行今日分析" }: { label?: string }) {
+export function RunAnalysisButton({
+  label = "執行今日分析",
+  redirectTo
+}: {
+  label?: string;
+  redirectTo?: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +41,11 @@ export function RunAnalysisButton({ label = "執行今日分析" }: { label?: st
         return;
       }
 
-      router.refresh();
+      if (redirectTo) {
+        router.push(redirectTo);
+      } else {
+        router.refresh();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "分析執行失敗。");
     } finally {
