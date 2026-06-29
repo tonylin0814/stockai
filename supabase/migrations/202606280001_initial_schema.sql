@@ -595,7 +595,7 @@ insert into public.divisions (
   sort_order
 ) values
   ('GPT Division', 'Monica', 'OpenAI', 'gpt-5.5', 'GPT 5.5 reasoning brain', true, true, 1),
-  ('Claude Division', 'Claire', 'Anthropic', 'claude-sonnet-latest', 'Claude Sonnet reasoning brain', true, true, 2)
+  ('Claude Division', 'Claire', 'Anthropic', 'claude-sonnet-4-6', 'Claude Sonnet reasoning brain', true, true, 2)
 on conflict (name) do update set
   manager_name = excluded.manager_name,
   model_provider = excluded.model_provider,
