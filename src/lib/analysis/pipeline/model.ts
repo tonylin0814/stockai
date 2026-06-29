@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import type { z } from "zod";
 import { assertAnalysisBudget } from "@/lib/analysis/cost-guard";
+import type { DataQualityState } from "@/lib/market-data/types";
 
 const MODEL_COST_PER_1M: Record<string, { input: number; output: number }> = {
   "gpt-5": { input: 10, output: 40 },
@@ -43,8 +44,55 @@ export function stripJsonFence(text: string) {
     .trim();
 }
 
+export function extractJsonFromOutput(text: string) {
+  const marker = "---JSON_START---";
+  const markedIndex = text.lastIndexOf(marker);
+  const candidate = markedIndex >= 0 ? text.slice(markedIndex + marker.length) : text;
+  const stripped = stripJsonFence(candidate);
+  const firstBrace = stripped.indexOf("{");
+  const lastBrace = stripped.lastIndexOf("}");
+
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return stripped.slice(firstBrace, lastBrace + 1).trim();
+  }
+
+  return stripped;
+}
+
 export function parseJson(text: string): unknown {
-  return JSON.parse(stripJsonFence(text));
+  return JSON.parse(extractJsonFromOutput(text));
+}
+
+export function enforceConfidenceCap(
+  confidence: number,
+  context: {
+    worstQualityState?: DataQualityState | null;
+    daysUntilEarnings?: number | null;
+    fundamentalsAndNewsMissing?: boolean;
+  } = {}
+) {
+  const qualityCaps: Record<DataQualityState, number> = {
+    fresh: 90,
+    delayed: 75,
+    stale: 55,
+    missing: 40,
+    conflicting: 50
+  };
+  let cap = context.worstQualityState ? qualityCaps[context.worstQualityState] : 90;
+
+  if (context.fundamentalsAndNewsMissing) {
+    cap = Math.min(cap, 50);
+  }
+
+  if (context.daysUntilEarnings !== null && context.daysUntilEarnings !== undefined) {
+    if (context.daysUntilEarnings <= 7) {
+      cap -= 10;
+    } else if (context.daysUntilEarnings <= 14) {
+      cap -= 5;
+    }
+  }
+
+  return Math.max(0, Math.min(confidence, cap));
 }
 
 export async function callModel(params: {
@@ -66,7 +114,9 @@ export async function callModel(params: {
     const response = await client.chat.completions.create({
       model: params.model,
       messages: [{ role: "user", content: params.prompt }],
-      response_format: { type: "json_object" },
+      ...(params.prompt.includes("---JSON_START---")
+        ? {}
+        : { response_format: { type: "json_object" as const } }),
       max_completion_tokens: 16000
     });
     const promptTokens = response.usage?.prompt_tokens ?? 0;

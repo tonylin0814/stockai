@@ -2,8 +2,10 @@ import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
   DATA_QUALITY_RULE,
+  CONFIDENCE_CALIBRATION_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
+  REASONING_SCRATCHPAD_RULE,
   SKEPTIC_RULE,
   TECHNICAL_ANALYSIS_GUIDE,
   compactMarketSummary,
@@ -77,6 +79,8 @@ ${AGENT_OUTPUT_JSON_SCHEMA}
 
 規則：
 - ${DATA_QUALITY_RULE}
+- ${CONFIDENCE_CALIBRATION_GUIDE}
 - ${SKEPTIC_RULE}
+- ${REASONING_SCRATCHPAD_RULE}
 - ${JSON_STRICT_RULE}`;
 }

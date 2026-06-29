@@ -2,12 +2,14 @@ import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
   CATALYST_FRAMEWORK,
+  CONFIDENCE_CALIBRATION_GUIDE,
   DATA_QUALITY_RULE,
   EARNINGS_RISK_GUIDE,
   ETF_ANALYSIS_GUIDE,
   FUNDAMENTAL_QUALITY_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
+  REASONING_SCRATCHPAD_RULE,
   SCENARIO_ANALYSIS_GUIDE,
   SKEPTIC_RULE,
   TAIWAN_FUNDAMENTAL_GUIDE,
@@ -97,8 +99,10 @@ recommendations 每個元素：
 
 規則：
 - ${DATA_QUALITY_RULE}
+- ${CONFIDENCE_CALIBRATION_GUIDE}
 - ${SKEPTIC_RULE}
 - 每個推薦必須有具體的 buyZone、targetPrice、stopLoss，不接受「依個人評估」
 - compositeScore 必須填入你計算的 0-100 評分
+- ${REASONING_SCRATCHPAD_RULE}
 - ${JSON_STRICT_RULE}`;
 }

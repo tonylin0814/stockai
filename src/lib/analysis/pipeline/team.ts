@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import type { z } from "zod";
 import type { DailyDataPackage } from "@/lib/analysis/data-package";
+import { enforceConfidenceCap } from "@/lib/analysis/pipeline/model";
 import {
   AgentOutputSchema,
   AGENT_OUTPUT_JSON_SCHEMA,
@@ -18,6 +19,7 @@ import { buildTeamLeaderPrompt } from "@/lib/analysis/prompts/team-leader";
 import { PROMPT_VERSIONS } from "@/lib/analysis/prompts/versions";
 import type { PromptIdentity } from "@/lib/analysis/prompts/common";
 import { assertAnalysisBudget } from "@/lib/analysis/cost-guard";
+import type { DataQualityState } from "@/lib/market-data/types";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 export type DivisionTeam = {
@@ -139,8 +141,131 @@ function stripJsonFence(text: string) {
     .trim();
 }
 
+function extractJsonFromOutput(text: string) {
+  const marker = "---JSON_START---";
+  const markedIndex = text.lastIndexOf(marker);
+  const candidate = markedIndex >= 0 ? text.slice(markedIndex + marker.length) : text;
+  const stripped = stripJsonFence(candidate);
+  const firstBrace = stripped.indexOf("{");
+  const lastBrace = stripped.lastIndexOf("}");
+
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return stripped.slice(firstBrace, lastBrace + 1).trim();
+  }
+
+  return stripped;
+}
+
 function parseJson(text: string): unknown {
-  return JSON.parse(stripJsonFence(text));
+  return JSON.parse(extractJsonFromOutput(text));
+}
+
+function getWorstQualityState(dataPackage: DailyDataPackage): DataQualityState {
+  const qualityCaps: Record<DataQualityState, number> = {
+    fresh: 90,
+    delayed: 75,
+    stale: 55,
+    missing: 40,
+    conflicting: 50
+  };
+  const states: DataQualityState[] = [
+    ...dataPackage.portfolio.map((item) => item.quote.qualityState),
+    ...dataPackage.watchlist.map((item) => item.quote.qualityState),
+    dataPackage.marketSnapshot.taiex.qualityState,
+    dataPackage.marketSnapshot.sp500.qualityState,
+    dataPackage.marketSnapshot.nasdaq.qualityState,
+    dataPackage.marketSnapshot.dow.qualityState,
+    dataPackage.marketSnapshot.vix.qualityState,
+    ...dataPackage.portfolio
+      .map((item) => item.fundamentals?.qualityState)
+      .filter((state): state is DataQualityState => Boolean(state)),
+    ...dataPackage.watchlist
+      .map((item) => item.fundamentals?.qualityState)
+      .filter((state): state is DataQualityState => Boolean(state))
+  ];
+
+  return states.reduce<DataQualityState>(
+    (worst, state) => (qualityCaps[state] < qualityCaps[worst] ? state : worst),
+    "fresh"
+  );
+}
+
+function getMinDaysUntilEarnings(dataPackage: DailyDataPackage) {
+  const days = (dataPackage.upcomingEarnings ?? [])
+    .map((event) => event.daysUntil)
+    .filter((value) => Number.isFinite(value));
+
+  return days.length ? Math.min(...days) : null;
+}
+
+function hasFundamentalsAndNewsMissing(dataPackage: DailyDataPackage) {
+  return [...dataPackage.portfolio, ...dataPackage.watchlist].some(
+    (item) =>
+      (!item.fundamentals || item.fundamentals.qualityState === "missing") &&
+      item.news.length === 0
+  );
+}
+
+function confidenceContext(dataPackage: DailyDataPackage) {
+  return {
+    worstQualityState: getWorstQualityState(dataPackage),
+    daysUntilEarnings: getMinDaysUntilEarnings(dataPackage),
+    fundamentalsAndNewsMissing: hasFundamentalsAndNewsMissing(dataPackage)
+  };
+}
+
+function capConfidence(value: number, dataPackage: DailyDataPackage) {
+  return enforceConfidenceCap(value, confidenceContext(dataPackage));
+}
+
+function capRecordConfidence<T extends Record<string, unknown>>(
+  record: T,
+  dataPackage: DailyDataPackage
+): T {
+  if (typeof record.confidence !== "number") {
+    return record;
+  }
+
+  return {
+    ...record,
+    confidence: capConfidence(record.confidence, dataPackage)
+  };
+}
+
+function capAgentOutput(output: AgentOutput, dataPackage: DailyDataPackage): AgentOutput {
+  return {
+    ...output,
+    confidence: capConfidence(output.confidence, dataPackage),
+    recommendations: output.recommendations.map((recommendation) =>
+      capRecordConfidence(recommendation, dataPackage)
+    )
+  };
+}
+
+function capTeamReport(report: TeamReport, dataPackage: DailyDataPackage): TeamReport {
+  return {
+    ...report,
+    marketView: {
+      ...report.marketView,
+      confidence: capConfidence(report.marketView.confidence, dataPackage)
+    },
+    portfolioReview: report.portfolioReview.map((item) => ({
+      ...item,
+      confidence: capConfidence(item.confidence, dataPackage)
+    })),
+    missionAnalysis: {
+      ...report.missionAnalysis,
+      confidence: capConfidence(report.missionAnalysis.confidence, dataPackage)
+    },
+    marketScanRecommendations: report.marketScanRecommendations.map((item) => ({
+      ...item,
+      confidence: capConfidence(item.confidence, dataPackage)
+    })),
+    finalTeamView: {
+      ...report.finalTeamView,
+      confidence: capConfidence(report.finalTeamView.confidence, dataPackage)
+    }
+  };
 }
 
 function getLeafAgentModel(divisionModel: string): string {
@@ -182,7 +307,9 @@ async function callModel(params: {
     const response = await client.chat.completions.create({
       model: params.model,
       messages: [{ role: "user", content: params.prompt }],
-      response_format: { type: "json_object" },
+      ...(params.prompt.includes("---JSON_START---")
+        ? {}
+        : { response_format: { type: "json_object" as const } }),
       max_completion_tokens: 16000
     });
 
@@ -395,7 +522,8 @@ export async function runTeamPipeline(params: {
       promptTokens += validation.promptTokens;
       completionTokens += validation.completionTokens;
       estimatedCostUsd += validation.estimatedCostUsd;
-      agentOutputs[step.promptKey] = validation.parsed;
+      const cappedOutput = capAgentOutput(validation.parsed, params.dataPackage);
+      agentOutputs[step.promptKey] = cappedOutput;
 
       await saveAgentRun({
         userId: params.userId,
@@ -406,8 +534,8 @@ export async function runTeamPipeline(params: {
         model: leafModel,
         promptKey: step.promptKey,
         inputSummary: inputSummary(prompt),
-        output: validation.parsed,
-        confidence: validation.parsed.confidence,
+        output: cappedOutput,
+        confidence: cappedOutput.confidence,
         tokenCount,
         promptTokens,
         completionTokens,
@@ -485,7 +613,7 @@ export async function runTeamPipeline(params: {
     promptTokens += validation.promptTokens;
     completionTokens += validation.completionTokens;
     estimatedCostUsd += validation.estimatedCostUsd;
-    const report = validation.parsed;
+    const report = capTeamReport(validation.parsed, params.dataPackage);
     const familyId = await getFamilyId(params.userId);
     const { data, error } = await supabase
       .from("team_reports")

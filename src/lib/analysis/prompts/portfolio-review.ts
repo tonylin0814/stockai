@@ -2,12 +2,14 @@ import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
   CATALYST_FRAMEWORK,
+  CONFIDENCE_CALIBRATION_GUIDE,
   DATA_QUALITY_RULE,
   EARNINGS_RISK_GUIDE,
   ETF_ANALYSIS_GUIDE,
   FUNDAMENTAL_QUALITY_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
+  REASONING_SCRATCHPAD_RULE,
   SCENARIO_ANALYSIS_GUIDE,
   SKEPTIC_RULE,
   TAIWAN_FUNDAMENTAL_GUIDE,
@@ -93,8 +95,10 @@ recommendations 中每個元素：
 
 規則：
 - ${DATA_QUALITY_RULE}
+- ${CONFIDENCE_CALIBRATION_GUIDE}
 - ${SKEPTIC_RULE}
 - stopLoss 必填，必須是具體數字（例：「$145.0」或「成本價下方8%」），不接受「根據個人風險承受能力」
 - 不得編造現價、財務比率或分析師目標價；資料沒有提供的數字請跳過，並用定性分析補足
+- ${REASONING_SCRATCHPAD_RULE}
 - ${JSON_STRICT_RULE}`;
 }

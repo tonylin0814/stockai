@@ -3,9 +3,11 @@ import { AGENT_OUTPUT_JSON_SCHEMA } from "@/lib/analysis/schemas";
 import {
   DATA_QUALITY_RULE,
   EARNINGS_RISK_GUIDE,
+  CONFIDENCE_CALIBRATION_GUIDE,
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
   CATALYST_FRAMEWORK,
+  REASONING_SCRATCHPAD_RULE,
   SCENARIO_ANALYSIS_GUIDE,
   compactMarketSummary,
   getRoleGuidance,
@@ -77,7 +79,9 @@ recommendations 應包含今日最值得關注的 1-2 個行動項目：
 
 規則：
 - ${DATA_QUALITY_RULE}
+- ${CONFIDENCE_CALIBRATION_GUIDE}
 - ${SKEPTIC_RULE}
 - 若投資組合和關注清單都為空，summary 必須說明無法分析，並建議先新增持股或關注標的
+- ${REASONING_SCRATCHPAD_RULE}
 - ${JSON_STRICT_RULE}`;
 }

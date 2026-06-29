@@ -57,11 +57,11 @@ export function getRoleGuidance(
       teamLeader: "整合情緒與催化劑觀點，避免追高炒作，也不要忽略被錯殺的機會。"
     },
     risk: {
-      marketReview: "優先分析市場共識可能錯在哪、尾端風險、流動性、槓桿與估值壓力。",
-      portfolioReview: "優先做壓力測試：大盤下跌時的脆弱持股、最壞情境、集中風險與停損紀律。",
-      missionAnalysis: "優先找出今日最需要降低的風險曝險，以及部位管理和停損調整。",
-      marketScan: "優先識別高估值高熱度但支撐薄弱的標的，也可提出防禦或避險候選。",
-      teamLeader: "整合風險觀點，確保建議有下行情境、停損條件、部位大小與風險報酬比。"
+      marketReview: "你是今日市場的懷疑論者。找出市場共識最可能錯在哪裡、誰在承擔看不見的槓桿、哪個板塊估值最脆弱。不要確認多頭觀點，要找出它的漏洞。",
+      portfolioReview: "對每一持股進行壓力測試：若大盤下跌 15%，哪些持股最先崩，為什麼？集中風險在哪？停損紀律是否足夠嚴格？你要比其他團隊更保守。",
+      missionAnalysis: "假設其他人都傾向執行這個任務（buy/act），你的工作是找出三個可能讓這個決定後悔的具體原因。若找不到，說明為什麼。",
+      marketScan: "不要推薦買進標的。你的工作是找出市場中被過度追捧、基礎薄弱、或接近危險水位的標的，提醒投資人避開。",
+      teamLeader: "整合來自四個方向的反向觀點，確認最終建議的下行情境、停損條件、部位大小，以及最壞情況發生時的應對計畫。"
     }
   };
 
@@ -69,19 +69,97 @@ export function getRoleGuidance(
   const guidance = focus[role]?.[agentType];
   if (!name && !guidance) return "";
 
-  return `## 本團隊專業角色：${role.toUpperCase()}
+  let result = `## 本團隊專業角色：${role.toUpperCase()}
 你的團隊專長是${name ?? role}。${guidance ?? "請用此專業視角做獨立判斷。"}
 請保持這個分析鏡頭，但不要忽略資料品質限制與反方風險。`;
+
+  if (role === "risk") {
+    result += `\n\n${ADVERSARIAL_RISK_GUIDE}`;
+  }
+
+  return result;
 }
 
-export const DATA_QUALITY_RULE =
-  "若資料品質為 missing 或 stale，信心分數上限為 60。若關鍵價格資料為 missing，action 必須是 wait 或 insufficient_data，不得給出 buy 或 small_buy。";
+export const DATA_QUALITY_RULE = `## 資料品質與信心度規則（強制執行）
+
+**資料品質對信心的硬上限：**
+| 資料品質 | 信心上限 |
+| --- | --- |
+| fresh | 90 |
+| delayed | 75 |
+| stale | 55 |
+| missing | 40 |
+| conflicting | 50 |
+
+若多個股票的資料品質不同，以最差的那個決定整體信心上限。
+
+**財報風險降低信心：**
+- 財報日在 7 天內 → 信心再降 10
+- 財報日在 8-14 天內 → 信心再降 5
+
+**關鍵資料缺失對行動的限制：**
+- 現價 missing → action 只能是 wait 或 insufficient_data，禁止 buy / small_buy / add
+- 現價 stale → action 只能是 watch 或 wait，不得 buy
+- 基本面和新聞同時缺失 → confidence 不超過 50
+
+**高信心的最低證據要求：**
+- confidence > 75 → reason 欄位必須引用至少 3 個具體數字
+- confidence > 85 → 必須引用至少 5 個具體數字，且資料品質必須是 fresh
+- confidence = 90 只保留給資料完整、技術/基本面/新聞一致、無即將財報且有明確催化劑的情況`;
+
+export const CONFIDENCE_CALIBRATION_GUIDE = `## 信心度校準指引（Confidence Calibration）
+
+信心度不是「你感覺多有把握」，而是「根據現有資料，這個判斷正確的客觀機率」。
+
+**校準錨點：**
+- 60 = 比隨機猜測稍好，資料不完整或有明顯矛盾
+- 70 = 合理判斷，主要技術或基本面指標支持，但有一個以上重要未知因素
+- 80 = 強力判斷，多個獨立指標一致，無即將財報，資料品質 fresh
+- 85 = 非常強力，技術+基本面+新聞三者一致，有具體催化劑，部位風險可控
+- 90 = 所有指標一致、資料完整、多重確認，此分數應非常少見
+
+**常見錯誤（不得犯）：**
+- 資料只有價格和成交量，卻給 80+
+- 無法解釋為何是這個信心數字
+- 所有分析都給 75-85，造成信心通膨
+- 好消息 = 高信心，壞消息 = 低信心`;
 
 export const SKEPTIC_RULE =
   "你必須至少指出一個可能的錯誤或風險。若真的找不到，必須明確說明為什麼沒有問題。";
 
 export const JSON_STRICT_RULE =
-  "重要：只回傳純 JSON 物件，不加 markdown、不加說明文字、不加 ```。JSON 必須完整，不得截斷。所有必填欄位都必須存在。";
+  "重要：最終 JSON 必須是純 JSON 物件，不加 markdown、不加 ```。若前文要求先輸出可審核摘要，請在 ---JSON_START--- 後只輸出 JSON。JSON 必須完整，不得截斷。所有必填欄位都必須存在。";
+
+export const REASONING_SCRATCHPAD_RULE = `## 必要證據審核摘要（先寫摘要，後寫 JSON）
+
+在輸出 JSON 之前，請先完成以下「可審核摘要」。這不是逐步內心推理，不要輸出隱藏思考過程；只列出可被使用者檢查的證據、反方論點與信心校準。
+
+**A. 資料點引用（Data Citation）**
+列出你從資料包中實際讀到的 3-5 個具體數字或事實，每條用「→」標示其分析含義。若資料 missing 或不足，必須明確寫出「[資料缺失] xxx 無資料」。
+
+**B. 最強反方論點（Devil's Argument）**
+寫出一個具體且難以反駁的反方觀點。不得只寫「市場有風險」。
+
+**C. 信心度自評（Confidence Calibration）**
+寫出：「資料品質 [X]，[Y] 個具體數字支持，信心上限 [Z]，最終決定信心 [N]。」
+
+---JSON_START---
+（在此行之後輸出 JSON，JSON 前不要有任何其他文字）`;
+
+export const ADVERSARIAL_RISK_GUIDE = `## 你是反向思考者（Devil's Advocate）
+
+你的任務不是確認其他人的觀點。你的任務是：假設其他分析師都傾向看多（或看空），你要找出他們可能錯在哪裡。
+
+你必須完成以下三個步驟，每一步都要有具體理由：
+
+**步驟 1：找出論點最弱的環節**
+其他團隊最常用哪個理由支持他們的結論？這個理由有什麼你不同意的？
+
+**步驟 2：列出三個具體黑天鵝風險**
+每條必須是：具體事件 + 觸發條件 + 預估股價影響（%）。不得把「市場波動」當作具體風險。
+
+**步驟 3：區分可忽略風險與必須嚴肅對待的風險**
+以「機率 × 影響」判斷嚴重程度；若嚴重程度高，action 建議必須更保守。若找不到具體風險，必須說明原因。`;
 
 export const ACTION_VALUES =
   "可用 action 值（只能用這些）：buy | small_buy | add | hold | wait | watch | reduce | sell | avoid | reject | insufficient_data";

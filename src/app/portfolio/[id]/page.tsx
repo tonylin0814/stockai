@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { notFound } from "next/navigation";
 import { refreshStockMarketData } from "@/app/actions";
 import { QualityBadge } from "@/components/quality-badge";
+import RecommendationRating from "@/components/recommendation-rating";
 import { StockChart } from "@/components/stock-chart";
 import { StockQuickAnalysisButton } from "@/components/stock-quick-analysis-button";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import {
 } from "@/lib/format";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { Quote } from "@/lib/market-data/types";
+import { getSymbolAccuracy } from "@/lib/performance/symbol-accuracy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const ACTION_LABEL: Record<string, string> = {
@@ -104,10 +106,21 @@ export default async function StockDetailPage({ params }: { params: { id: string
   if (!security) notFound();
 
   const provider = getMarketDataProvider();
-  const [quote, history, news] = await Promise.all([
+  const recommendationsQuery = supabase
+    .from("recommendations")
+    .select(
+      "id, action, reason, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, key_risks, time_horizon, source_type, source_name, recommendation_date, created_at, user_rating"
+    )
+    .eq("user_id", user.id)
+    .eq("security_id", security.id)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const [quote, history, news, recommendationsResult, symbolAccuracy] = await Promise.all([
     provider.getQuote(security.symbol, security.market as "US" | "TW"),
     provider.getHistory(security.symbol, security.market as "US" | "TW", 30),
-    provider.getNews(security.symbol)
+    provider.getNews(security.symbol),
+    recommendationsQuery,
+    getSymbolAccuracy(user.id, security.id)
   ]);
   const hasPrice = quote.qualityState !== "missing";
   const currentPrice = hasPrice ? quote.price : null;
@@ -121,15 +134,7 @@ export default async function StockDetailPage({ params }: { params: { id: string
   const { dayRange, bidAsk } = hasPrice
     ? formatMarketRef(quote)
     : { dayRange: null, bidAsk: null };
-  const { data: recommendations } = await supabase
-    .from("recommendations")
-    .select(
-      "id, action, reason, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, key_risks, time_horizon, source_type, source_name, recommendation_date, created_at"
-    )
-    .eq("user_id", user.id)
-    .eq("security_id", security.id)
-    .order("created_at", { ascending: false })
-    .limit(5);
+  const recommendations = recommendationsResult.data ?? [];
   const latestRec = (recommendations ?? [])[0] as
     | {
         id: string;
@@ -146,6 +151,7 @@ export default async function StockDetailPage({ params }: { params: { id: string
         source_name: string;
         recommendation_date: string;
         created_at: string;
+        user_rating: string | null;
       }
     | undefined;
   const refreshAction = refreshStockMarketData.bind(null, holdingId);
@@ -297,6 +303,51 @@ export default async function StockDetailPage({ params }: { params: { id: string
                 </ul>
               </div>
             ) : null}
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div className="text-sm font-medium text-slate-700">此標的歷史準確度</div>
+              {symbolAccuracy.evaluatedCount > 0 ? (
+                <div className="mt-2 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                  <div>
+                    <div className="text-xs text-slate-500">已評估</div>
+                    <div className="font-medium text-slate-900">
+                      {symbolAccuracy.evaluatedCount} 筆
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">方向命中</div>
+                    <div className="font-medium text-slate-900">
+                      {symbolAccuracy.winRatePct === null
+                        ? "—"
+                        : formatNumber(symbolAccuracy.winRatePct, 1) + "%"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">達到目標</div>
+                    <div className="font-medium text-slate-900">
+                      {symbolAccuracy.hitTargetPct === null
+                        ? "—"
+                        : formatNumber(symbolAccuracy.hitTargetPct, 1) + "%"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">平均報酬</div>
+                    <div className="font-medium text-slate-900">
+                      {symbolAccuracy.averageReturnPct === null
+                        ? "—"
+                        : formatSignedPercent(symbolAccuracy.averageReturnPct)}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">
+                  尚無足夠的歷史評估樣本，請把本次建議視為新樣本。
+                </p>
+              )}
+            </div>
+            <RecommendationRating
+              recommendationId={latestRec.id}
+              currentRating={latestRec.user_rating}
+            />
           </div>
         ) : (
           <div className="mt-4 rounded-md bg-slate-50 p-4 text-sm text-slate-500">
