@@ -149,6 +149,7 @@ export const CommitteeDecisionSchema = z.object({
 });
 
 export type AgentOutput = z.infer<typeof AgentOutputSchema>;
+export type MissionAnalysis = z.infer<typeof MissionAnalysisSchema>;
 export type TeamReport = z.infer<typeof TeamReportSchema>;
 export type DivisionDecision = z.infer<typeof DivisionDecisionSchema>;
 export type CommitteeDecision = z.infer<typeof CommitteeDecisionSchema>;
