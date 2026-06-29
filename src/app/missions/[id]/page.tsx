@@ -19,6 +19,12 @@ function addDays(value: string | null, days: number) {
   return date;
 }
 
+function isStaleRunningMission(startedAt: unknown) {
+  if (!startedAt) return false;
+  const started = new Date(String(startedAt)).getTime();
+  return Number.isFinite(started) && Date.now() - started > 10 * 60 * 1000;
+}
+
 export default async function MissionResultPage({ params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient();
   const {
@@ -37,7 +43,18 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   if (!mission) notFound();
 
   const missionRow = mission as Record<string, unknown>;
-  const status = String(missionRow.status ?? "pending");
+  let status = String(missionRow.status ?? "pending");
+
+  if (status === "running" && isStaleRunningMission(missionRow.started_at)) {
+    await supabase
+      .from("missions")
+      .update({ status: "failed", completed_at: new Date().toISOString() })
+      .eq("id", params.id)
+      .eq("user_id", user.id);
+    status = "failed";
+    missionRow.status = "failed";
+    missionRow.completed_at = new Date().toISOString();
+  }
 
   const detailSection = (
     <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">

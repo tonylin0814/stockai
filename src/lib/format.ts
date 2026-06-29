@@ -1,3 +1,5 @@
+const TORONTO_TIME_ZONE = "America/Toronto";
+
 export function formatNumber(value: number, digits = 2) {
   if (!Number.isFinite(value)) {
     return "—";
@@ -47,8 +49,16 @@ export function formatDateTime(value: string) {
     return "—";
   }
 
-  return new Intl.DateTimeFormat("zh-TW", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(date);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TORONTO_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
 }

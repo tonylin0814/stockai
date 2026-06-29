@@ -22,6 +22,12 @@ function missionSummary(dataPackage: Awaited<ReturnType<typeof buildMissionDataP
   };
 }
 
+function isStaleRunningMission(startedAt: unknown) {
+  if (!startedAt) return false;
+  const started = new Date(String(startedAt)).getTime();
+  return Number.isFinite(started) && Date.now() - started > 10 * 60 * 1000;
+}
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: { id: string } }
@@ -41,7 +47,7 @@ export async function POST(
   try {
     const { data: mission } = await supabase
       .from("missions")
-      .select("id, status")
+      .select("id, status, started_at")
       .eq("id", missionId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -50,8 +56,20 @@ export async function POST(
       return NextResponse.json({ error: "找不到任務。" }, { status: 404 });
     }
 
-    if (["running", "completed"].includes(String(mission.status))) {
+    if (String(mission.status) === "completed") {
       return NextResponse.json({ error: "任務已執行或正在執行中。" }, { status: 409 });
+    }
+
+    if (String(mission.status) === "running") {
+      if (!isStaleRunningMission((mission as { started_at?: string | null }).started_at)) {
+        return NextResponse.json({ error: "任務已執行或正在執行中。" }, { status: 409 });
+      }
+
+      await supabase
+        .from("missions")
+        .update({ status: "failed", completed_at: new Date().toISOString() })
+        .eq("id", missionId)
+        .eq("user_id", user.id);
     }
 
     await supabase
