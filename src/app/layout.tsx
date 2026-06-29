@@ -21,7 +21,8 @@ const navLinks = [
   { href: "/missions", label: "任務" },
   { href: "/paper-trades", label: "模擬交易" },
   { href: "/reports", label: "報告" },
-  { href: "/settings", label: "設定" }
+  { href: "/settings", label: "設定" },
+  { href: "/api-usage", label: "API 用量" }
 ];
 
 export default async function RootLayout({
