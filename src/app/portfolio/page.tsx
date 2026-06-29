@@ -52,20 +52,17 @@ export default async function PortfolioPage() {
 
   const rows = (holdings ?? []) as unknown as Holding[];
   const provider = getMarketDataProvider();
-  const [quotes, usdTwd] = await Promise.all([
-    Promise.all(
-      rows.map(async (holding) => {
-        const security = holding.securities;
+  const quotes = await Promise.all(
+    rows.map(async (holding) => {
+      const security = holding.securities;
 
-        if (!security) {
-          return null;
-        }
+      if (!security) {
+        return null;
+      }
 
-        return provider.getQuote(security.symbol, security.market as "US" | "TW");
-      })
-    ),
-    provider.getFXRate("USD", "TWD")
-  ]);
+      return provider.getQuote(security.symbol, security.market as "US" | "TW");
+    })
+  );
   const rowsWithQuotes: HoldingWithQuote[] = rows.map((holding, index) => ({
     ...holding,
     quote: quotes[index]
@@ -73,15 +70,13 @@ export default async function PortfolioPage() {
   const pricedRows = rowsWithQuotes.filter(
     (holding) => holding.quote && holding.quote.qualityState !== "missing"
   );
-  const totalMarketValueTwd = pricedRows.reduce((total, holding) => {
-    const quote = holding.quote!;
-    const marketValue = holding.shares * quote.price;
-
-    if (holding.cost_currency === "USD") {
-      return total + marketValue * (usdTwd || 0);
-    }
-
-    return total + marketValue;
+  const taiwanMarketValueTwd = pricedRows.reduce((total, holding) => {
+    if (holding.securities?.market !== "TW") return total;
+    return total + holding.shares * holding.quote!.price;
+  }, 0);
+  const usMarketValueUsd = pricedRows.reduce((total, holding) => {
+    if (holding.securities?.market !== "US") return total;
+    return total + holding.shares * holding.quote!.price;
   }, 0);
   const latestTimestamp = pricedRows
     .map((holding) => holding.quote!.sourceUpdatedAt)
@@ -101,11 +96,17 @@ export default async function PortfolioPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-600">總市值（TWD 換算）</div>
+          <div className="text-sm text-slate-600">台股市值</div>
           <div className="mt-1 text-xl font-semibold text-slate-950">
-            {formatCurrency(totalMarketValueTwd, "TWD")}
+            {formatCurrency(taiwanMarketValueTwd, "TWD")}
+          </div>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-sm text-slate-600">美股市值</div>
+          <div className="mt-1 text-xl font-semibold text-slate-950">
+            {formatCurrency(usMarketValueUsd, "USD")}
           </div>
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
