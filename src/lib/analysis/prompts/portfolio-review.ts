@@ -11,6 +11,7 @@ import {
   SKEPTIC_RULE,
   TAIWAN_FUNDAMENTAL_GUIDE,
   TECHNICAL_ANALYSIS_GUIDE,
+  WEB_RESEARCH_GUIDE,
   compactMarketSummary,
   getRoleGuidance,
   roleLine,
@@ -44,6 +45,7 @@ ${ETF_ANALYSIS_GUIDE}
 若 securityType = 股票（資料中標註 [股票]）：
 ${FUNDAMENTAL_QUALITY_GUIDE}
 ${TAIWAN_FUNDAMENTAL_GUIDE}
+${WEB_RESEARCH_GUIDE}
 
 **階段 3：技術面分析**
 ${TECHNICAL_ANALYSIS_GUIDE}

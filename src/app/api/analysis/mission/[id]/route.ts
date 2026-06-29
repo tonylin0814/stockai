@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { buildMissionDataPackage } from "@/lib/analysis/mission-package";
+import { runWebResearch } from "@/lib/analysis/web-research";
 import { getFamilyId } from "@/lib/analysis/pipeline/db";
 import { runCommitteePipeline } from "@/lib/analysis/pipeline/committee";
 import { runDivisionPipeline } from "@/lib/analysis/pipeline/division";
@@ -94,6 +95,25 @@ export async function POST(
     ]);
 
     const dataPackage = await buildMissionDataPackage(user.id, missionId);
+    dataPackage.webResearch = await runWebResearch({
+      symbols: [
+        ...dataPackage.portfolio.map((item) => ({
+          symbol: item.symbol,
+          name: item.name,
+          market: item.market
+        })),
+        ...dataPackage.watchlist.map((item) => ({
+          symbol: item.symbol,
+          name: item.name,
+          market: item.market
+        })),
+        ...dataPackage.mission.relatedSecurities.map((item) => ({
+          symbol: item.symbol,
+          name: item.name,
+          market: item.market
+        }))
+      ]
+    });
 
     if (dataPackage.mission.missionType === "single_stock") {
       const result = await runSingleStockMission({

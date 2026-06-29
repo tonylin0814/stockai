@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildDailyDataPackage } from "@/lib/analysis/data-package";
+import { runWebResearch } from "@/lib/analysis/web-research";
 import { getFamilyId } from "@/lib/analysis/pipeline/db";
 import { runCommitteePipeline } from "@/lib/analysis/pipeline/committee";
 import { runDivisionPipeline } from "@/lib/analysis/pipeline/division";
@@ -74,6 +75,20 @@ export async function POST() {
 
     dailyRunId = (dailyRun as { id: string }).id;
     const dataPackage = await buildDailyDataPackage(user.id);
+    dataPackage.webResearch = await runWebResearch({
+      symbols: [
+        ...dataPackage.portfolio.map((item) => ({
+          symbol: item.symbol,
+          name: item.name,
+          market: item.market
+        })),
+        ...dataPackage.watchlist.map((item) => ({
+          symbol: item.symbol,
+          name: item.name,
+          market: item.market
+        }))
+      ]
+    });
     const { data: divisionsData, error: divisionsError } = await supabase
       .from("divisions")
       .select("*")

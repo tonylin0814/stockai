@@ -5,6 +5,7 @@ import {
   getUpcomingEarnings,
   type EarningsEvent
 } from "@/lib/market-data/earnings-calendar";
+import type { WebResearchResult } from "@/lib/analysis/web-research";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { TechnicalSummary } from "@/lib/market-data/indicators";
 import type {
@@ -73,6 +74,7 @@ export type DailyDataPackage = {
   };
   decisionMemory: string;
   upcomingEarnings: EarningsEvent[];
+  webResearch: WebResearchResult | null;
 };
 
 type HoldingRow = {
@@ -391,6 +393,7 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     },
     dataQualitySummary,
     decisionMemory,
-    upcomingEarnings
+    upcomingEarnings,
+    webResearch: null
   };
 }
