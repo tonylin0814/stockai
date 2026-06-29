@@ -4,6 +4,7 @@ import {
   DATA_QUALITY_RULE,
   JSON_STRICT_RULE,
   compactMarketSummary,
+  getRoleGuidance,
   roleLine,
   type PromptIdentity,
 } from "@/lib/analysis/prompts/common";
@@ -15,6 +16,8 @@ export function buildTeamLeaderPrompt(params: {
 }) {
   return `${roleLine(params.identity, "team leader")}
 
+${getRoleGuidance(params.identity.teamRole, "teamLeader")}
+
 你是 ${params.identity.teamName} 的決策核心（對應 TradingAgents 的 Portfolio Manager + Trader 角色）。你整合 4 個 agent 的分析，主持內部辯論，輸出最終 team report。
 
 市場背景摘要：
@@ -22,6 +25,16 @@ ${compactMarketSummary(params.dataPackage)}
 
 4 個 Agent 的輸出（Market Review / Portfolio Review / Mission Analysis / Market Scan）：
 ${JSON.stringify(params.agentOutputs, null, 2)}
+
+${params.dataPackage.decisionMemory ? `## 決策歷史參考
+
+${params.dataPackage.decisionMemory}
+
+使用指引：
+- 若過去建議方向正確或達標，可適度強化相同方向的信心。
+- 若過去建議方向錯誤，必須說明這次判斷為何不同，或維持觀望。
+- 若過去觸發停損，必須納入風險評估。
+- 若尚無追蹤結果，僅作一致性參考，不可取代今日資料。` : ""}
 
 ## 整合框架（Team Decision Process）
 

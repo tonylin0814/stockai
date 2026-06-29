@@ -47,6 +47,11 @@ export interface Fundamentals {
   yield?: number;
   ytdReturn?: number;
   threeYearAverageReturn?: number;
+  twsePeRatio?: number | null;
+  twseDividendYield?: number | null;
+  twsePbRatio?: number | null;
+  monthlyRevenueYoY?: number | null;
+  monthlyRevenueNote?: string | null;
   source: string;
   qualityState: DataQualityState;
 }

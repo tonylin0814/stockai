@@ -3,6 +3,7 @@ import { FrankfurterProvider } from "@/lib/market-data/frankfurter";
 import { FredProvider } from "@/lib/market-data/fred";
 import { missingFundamentals, missingQuote, pctDifference } from "@/lib/market-data/common";
 import { TwseProvider } from "@/lib/market-data/twse";
+import { getTwseFundamentals } from "@/lib/market-data/twse-fundamentals";
 import type {
   Fundamentals,
   MarketDataProvider,
@@ -66,7 +67,31 @@ class CompositeProvider implements MarketDataProvider {
 
   async getFundamentals(symbol: string, market: "US" | "TW"): Promise<Fundamentals> {
     if (market === "TW") {
-      return this.yahoo.getFundamentals(symbol, market);
+      const yahooFundamentals = await this.yahoo.getFundamentals(symbol, market);
+      const twse = await getTwseFundamentals(symbol);
+
+      if (!twse) {
+        return yahooFundamentals;
+      }
+
+      return {
+        ...yahooFundamentals,
+        pe: twse.peRatio ?? yahooFundamentals.pe,
+        pb: twse.pbRatio ?? yahooFundamentals.pb,
+        twsePeRatio: twse.peRatio,
+        twseDividendYield: twse.dividendYield,
+        twsePbRatio: twse.pbRatio,
+        monthlyRevenueYoY: null,
+        monthlyRevenueNote: null,
+        source:
+          yahooFundamentals.qualityState === "missing"
+            ? "TWSE OpenAPI"
+            : `${yahooFundamentals.source} / TWSE OpenAPI`,
+        qualityState:
+          twse.peRatio || twse.dividendYield || twse.pbRatio
+            ? "delayed"
+            : yahooFundamentals.qualityState
+      };
     }
 
     const finnhubFundamentals = await this.finnhub.getFundamentals(symbol);

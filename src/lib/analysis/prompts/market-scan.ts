@@ -8,8 +8,10 @@ import {
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
   SKEPTIC_RULE,
+  TAIWAN_FUNDAMENTAL_GUIDE,
   TECHNICAL_ANALYSIS_GUIDE,
   compactMarketSummary,
+  getRoleGuidance,
   roleLine,
   type PromptIdentity
 } from "@/lib/analysis/prompts/common";
@@ -19,6 +21,8 @@ export function buildMarketScanPrompt(
   dataPackage: DailyDataPackage
 ) {
   return `${roleLine(identity, "Market Scan agent")}
+
+${getRoleGuidance(identity.teamRole, "marketScan")}
 
 你的專業是市場機會發掘（對應 Agentic Financial Analyst 的 Recommendation Engine 角色）。你從關注清單和整體市場中篩選出今日最具投資價值的 0-3 個標的，給出有數據支撐的進場建議。
 
@@ -39,6 +43,7 @@ ${ETF_ANALYSIS_GUIDE}
 
 若候選標的是股票（標註 [股票]）：
 ${FUNDAMENTAL_QUALITY_GUIDE}
+${TAIWAN_FUNDAMENTAL_GUIDE}
 
 **Step 3：技術面確認**
 ${TECHNICAL_ANALYSIS_GUIDE}

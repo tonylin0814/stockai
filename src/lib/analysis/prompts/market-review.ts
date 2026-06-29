@@ -7,6 +7,7 @@ import {
   SKEPTIC_RULE,
   TECHNICAL_ANALYSIS_GUIDE,
   compactMarketSummary,
+  getRoleGuidance,
   roleLine,
   type PromptIdentity
 } from "@/lib/analysis/prompts/common";
@@ -16,6 +17,8 @@ export function buildMarketReviewPrompt(
   dataPackage: DailyDataPackage
 ) {
   return `${roleLine(identity, "Market Review agent")}
+
+${getRoleGuidance(identity.teamRole, "marketReview")}
 
 你的專業是宏觀市場分析（對應 TradingAgents 的 Fundamentals + Sentiment Analyst 角色）。你負責評估今日整體市場環境，為 ${identity.teamName} 所有其他 agent 提供市場背景基準。
 

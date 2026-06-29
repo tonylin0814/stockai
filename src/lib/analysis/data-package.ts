@@ -1,4 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { buildDecisionMemory } from "@/lib/analysis/decision-memory";
 import { computeTechnicals } from "@/lib/market-data/indicators";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { TechnicalSummary } from "@/lib/market-data/indicators";
@@ -66,6 +67,7 @@ export type DailyDataPackage = {
     hasConflictingData: boolean;
     missingItems: string[];
   };
+  decisionMemory: string;
 };
 
 type HoldingRow = {
@@ -353,6 +355,11 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     { label: "VIX", quote: vix }
   ];
   const dataQualitySummary = summarizeQuality(quoteItems);
+  const allSymbols = [
+    ...portfolio.map((item) => item.symbol),
+    ...watchlist.map((item) => item.symbol)
+  ];
+  const decisionMemory = await buildDecisionMemory(userId, allSymbols);
 
   await logQualityIssues(userId, quoteItems);
 
@@ -370,6 +377,7 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
       usdTwd,
       tenYearYield: dgs10[0] ?? null
     },
-    dataQualitySummary
+    dataQualitySummary,
+    decisionMemory
   };
 }

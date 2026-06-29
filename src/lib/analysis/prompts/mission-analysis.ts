@@ -6,6 +6,7 @@ import {
   NEWS_SENTIMENT_GUIDE,
   CATALYST_FRAMEWORK,
   compactMarketSummary,
+  getRoleGuidance,
   roleLine,
   SKEPTIC_RULE,
   type PromptIdentity,
@@ -16,6 +17,8 @@ export function buildMissionAnalysisPrompt(
   dataPackage: DailyDataPackage
 ) {
   return `${roleLine(identity, "Mission Analysis agent")}
+
+${getRoleGuidance(identity.teamRole, "missionAnalysis")}
 
 你的專業是任務評估與每日優先排序。目前沒有特定任務，你負責執行「每日例行掃描」：找出投資組合與關注清單中今日最需要立即關注的 1-2 件事。
 

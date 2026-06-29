@@ -87,7 +87,8 @@ export async function runDivisionPipeline(params: {
     divisionName: params.division.name,
     managerName: params.division.manager_name,
     teamReports,
-    dataPackageSummary: dataPackageSummary(params.dataPackage)
+    dataPackageSummary: dataPackageSummary(params.dataPackage),
+    decisionMemory: params.dataPackage.decisionMemory
   });
   const startedAt = new Date().toISOString();
   let tokenCount = 0;

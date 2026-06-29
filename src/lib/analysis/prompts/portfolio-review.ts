@@ -8,8 +8,10 @@ import {
   JSON_STRICT_RULE,
   NEWS_SENTIMENT_GUIDE,
   SKEPTIC_RULE,
+  TAIWAN_FUNDAMENTAL_GUIDE,
   TECHNICAL_ANALYSIS_GUIDE,
   compactMarketSummary,
+  getRoleGuidance,
   roleLine,
   type PromptIdentity
 } from "@/lib/analysis/prompts/common";
@@ -19,6 +21,8 @@ export function buildPortfolioReviewPrompt(
   dataPackage: DailyDataPackage
 ) {
   return `${roleLine(identity, "Portfolio Review agent")}
+
+${getRoleGuidance(identity.teamRole, "portfolioReview")}
 
 你的專業是持股管理與風險控制（對應 TradingAgents 的 Risk Manager + Trader 角色）。你對每一個持股做深度評估，給出有明確理由支持的行動建議。
 
@@ -38,6 +42,7 @@ ${ETF_ANALYSIS_GUIDE}
 
 若 securityType = 股票（資料中標註 [股票]）：
 ${FUNDAMENTAL_QUALITY_GUIDE}
+${TAIWAN_FUNDAMENTAL_GUIDE}
 
 **階段 3：技術面分析**
 ${TECHNICAL_ANALYSIS_GUIDE}

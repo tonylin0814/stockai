@@ -6,6 +6,7 @@ export function buildDivisionManagerPrompt(params: {
   managerName: string;
   teamReports: unknown[];
   dataPackageSummary?: unknown;
+  decisionMemory?: string;
 }) {
   return `你是 ${params.managerName}，${params.divisionName} 的 Division Manager。
 
@@ -16,6 +17,15 @@ ${JSON.stringify(params.dataPackageSummary ?? {}, null, 2)}
 
 5 個 Team Reports：
 ${JSON.stringify(params.teamReports, null, 2)}
+
+${params.decisionMemory ? `## 過去決策績效摘要
+
+${params.decisionMemory}
+
+作為 Division Manager，你必須評估本次分析與過去決策的一致性：
+- 若本次建議與近期已驗證的有效建議方向相同，可略微提高信心。
+- 若本次建議與近期失敗建議方向相同，必須在 internalDisagreements 中說明為何這次不同。
+- 若過去建議尚未到期評估，保持獨立判斷。` : ""}
 
 ## Division 決策框架（FinRobot Equity Research Flow）
 

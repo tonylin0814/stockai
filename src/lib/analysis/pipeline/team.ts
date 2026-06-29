@@ -296,7 +296,8 @@ export async function runTeamPipeline(params: {
     teamName: params.team.team_name,
     teamLeader: params.team.team_leader,
     divisionName: params.division.name,
-    divisionManager: params.division.manager_name
+    divisionManager: params.division.manager_name,
+    teamRole: params.team.team_role
   };
   const teamAgentIds = await getTeamAgentIds(params.team.id);
   const agentOutputs: Partial<Record<AgentStep["promptKey"], AgentOutput>> = {};
