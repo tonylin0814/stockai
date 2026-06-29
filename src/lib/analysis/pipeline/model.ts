@@ -6,9 +6,11 @@ const MODEL_COST_PER_1M: Record<string, { input: number; output: number }> = {
   "gpt-5": { input: 10, output: 40 },
   "gpt-5.5": { input: 10, output: 40 },
   "gpt-4o": { input: 5, output: 15 },
+  "gpt-4o-mini": { input: 0.15, output: 0.6 },
   "claude-sonnet-4-5": { input: 3, output: 15 },
   "claude-sonnet-4-6": { input: 3, output: 15 },
-  "claude-sonnet-latest": { input: 3, output: 15 }
+  "claude-sonnet-latest": { input: 3, output: 15 },
+  "claude-haiku-4-5-20251001": { input: 0.8, output: 4 }
 };
 
 function estimateCostUsd(model: string, promptTokens: number, completionTokens: number): number {

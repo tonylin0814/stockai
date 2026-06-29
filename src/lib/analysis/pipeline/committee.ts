@@ -23,6 +23,15 @@ export type CommitteePipelineResult =
       committeeDecisionId: null;
     };
 
+const REPAIR_MODEL_MAP: Record<string, string> = {
+  OpenAI: "gpt-4o-mini",
+  Anthropic: "claude-haiku-4-5-20251001"
+};
+
+function getRepairModel(provider: string): string {
+  return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
+}
+
 async function getCommitteeModelProvider(divisionName: string) {
   const supabase = createSupabaseServiceClient();
   const { data, error } = await supabase
@@ -85,7 +94,7 @@ export async function runCommitteePipeline(params: {
       schema: CommitteeDecisionSchema,
       schemaDescription: COMMITTEE_DECISION_JSON_SCHEMA,
       provider: model.model_provider,
-      model: model.model_name
+      model: getRepairModel(model.model_provider)
     });
     tokenCount += validation.tokenCount;
     promptTokens += validation.promptTokens;

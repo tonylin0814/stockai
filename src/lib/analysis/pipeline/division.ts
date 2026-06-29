@@ -30,6 +30,15 @@ export type DivisionPipelineResult =
       teamReports: TeamReport[];
     };
 
+const REPAIR_MODEL_MAP: Record<string, string> = {
+  OpenAI: "gpt-4o-mini",
+  Anthropic: "claude-haiku-4-5-20251001"
+};
+
+function getRepairModel(provider: string): string {
+  return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
+}
+
 function dataPackageSummary(dataPackage: DailyDataPackage) {
   return {
     packageDate: dataPackage.packageDate,
@@ -111,7 +120,7 @@ export async function runDivisionPipeline(params: {
       schema: DivisionDecisionSchema,
       schemaDescription: DIVISION_DECISION_JSON_SCHEMA,
       provider: params.division.model_provider,
-      model: params.division.model_name
+      model: getRepairModel(params.division.model_provider)
     });
     tokenCount += validation.tokenCount;
     promptTokens += validation.promptTokens;

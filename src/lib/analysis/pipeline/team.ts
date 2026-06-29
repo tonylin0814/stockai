@@ -68,13 +68,38 @@ type ModelCallResult = {
   tokenCount: number;
 };
 
+const LEAF_AGENT_MODEL_MAP: Record<string, string> = {
+  "gpt-5.5": "gpt-4o",
+  "gpt-5": "gpt-4o",
+  "gpt-4o": "gpt-4o",
+  "claude-sonnet-4-6": "claude-haiku-4-5-20251001",
+  "claude-sonnet-latest": "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-5": "claude-haiku-4-5-20251001"
+};
+
+const TEAM_LEADER_MODEL_MAP: Record<string, string> = {
+  "gpt-5.5": "gpt-4o",
+  "gpt-5": "gpt-4o",
+  "gpt-4o": "gpt-4o",
+  "claude-sonnet-4-6": "claude-sonnet-4-6",
+  "claude-sonnet-latest": "claude-sonnet-latest",
+  "claude-sonnet-4-5": "claude-sonnet-4-5"
+};
+
+const REPAIR_MODEL_MAP: Record<string, string> = {
+  OpenAI: "gpt-4o-mini",
+  Anthropic: "claude-haiku-4-5-20251001"
+};
+
 const MODEL_COST_PER_1M: Record<string, { input: number; output: number }> = {
   "gpt-5": { input: 10, output: 40 },
   "gpt-5.5": { input: 10, output: 40 },
   "gpt-4o": { input: 5, output: 15 },
+  "gpt-4o-mini": { input: 0.15, output: 0.6 },
   "claude-sonnet-4-5": { input: 3, output: 15 },
   "claude-sonnet-4-6": { input: 3, output: 15 },
-  "claude-sonnet-latest": { input: 3, output: 15 }
+  "claude-sonnet-latest": { input: 3, output: 15 },
+  "claude-haiku-4-5-20251001": { input: 0.8, output: 4 }
 };
 
 const agentSteps: AgentStep[] = [
@@ -115,6 +140,18 @@ function stripJsonFence(text: string) {
 
 function parseJson(text: string): unknown {
   return JSON.parse(stripJsonFence(text));
+}
+
+function getLeafAgentModel(divisionModel: string): string {
+  return LEAF_AGENT_MODEL_MAP[divisionModel] ?? divisionModel;
+}
+
+function getTeamLeaderModel(divisionModel: string): string {
+  return TEAM_LEADER_MODEL_MAP[divisionModel] ?? divisionModel;
+}
+
+function getRepairModel(provider: string): string {
+  return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
 }
 
 function estimateCostUsd(model: string, promptTokens: number, completionTokens: number): number {
@@ -309,11 +346,12 @@ export async function runTeamPipeline(params: {
     let promptTokens = 0;
     let completionTokens = 0;
     let estimatedCostUsd = 0;
+    const leafModel = getLeafAgentModel(params.division.model_name);
 
     try {
       const modelResult = await callModel({
         provider: params.division.model_provider,
-        model: params.division.model_name,
+        model: leafModel,
         prompt
       });
       tokenCount += modelResult.tokenCount;
@@ -325,7 +363,7 @@ export async function runTeamPipeline(params: {
         schema: AgentOutputSchema,
         schemaDescription: AGENT_OUTPUT_JSON_SCHEMA,
         provider: params.division.model_provider,
-        model: params.division.model_name
+        model: getRepairModel(params.division.model_provider)
       });
       tokenCount += validation.tokenCount;
       promptTokens += validation.promptTokens;
@@ -339,7 +377,7 @@ export async function runTeamPipeline(params: {
         missionId: params.missionId,
         teamAgentId: teamAgentIds.get(step.agentType) ?? null,
         provider: params.division.model_provider,
-        model: params.division.model_name,
+        model: leafModel,
         promptKey: step.promptKey,
         inputSummary: inputSummary(prompt),
         output: validation.parsed,
@@ -359,7 +397,7 @@ export async function runTeamPipeline(params: {
         missionId: params.missionId,
         teamAgentId: teamAgentIds.get(step.agentType) ?? null,
         provider: params.division.model_provider,
-        model: params.division.model_name,
+        model: leafModel,
         promptKey: step.promptKey,
         inputSummary: inputSummary(prompt),
         output: {
@@ -388,11 +426,12 @@ export async function runTeamPipeline(params: {
   let promptTokens = 0;
   let completionTokens = 0;
   let estimatedCostUsd = 0;
+  const leaderModel = getTeamLeaderModel(params.division.model_name);
 
   try {
     const modelResult = await callModel({
       provider: params.division.model_provider,
-      model: params.division.model_name,
+      model: leaderModel,
       prompt: teamLeaderPrompt
     });
     tokenCount += modelResult.tokenCount;
@@ -404,7 +443,7 @@ export async function runTeamPipeline(params: {
       schema: TeamReportSchema,
       schemaDescription: TEAM_REPORT_JSON_SCHEMA,
       provider: params.division.model_provider,
-      model: params.division.model_name
+      model: getRepairModel(params.division.model_provider)
     });
     tokenCount += validation.tokenCount;
     promptTokens += validation.promptTokens;
@@ -445,7 +484,7 @@ export async function runTeamPipeline(params: {
       missionId: params.missionId,
       teamAgentId: teamAgentIds.get("team_leader") ?? null,
       provider: params.division.model_provider,
-      model: params.division.model_name,
+      model: leaderModel,
       promptKey: "teamLeader",
       inputSummary: inputSummary(teamLeaderPrompt),
       output: report,
@@ -471,7 +510,7 @@ export async function runTeamPipeline(params: {
       missionId: params.missionId,
       teamAgentId: teamAgentIds.get("team_leader") ?? null,
       provider: params.division.model_provider,
-      model: params.division.model_name,
+      model: leaderModel,
       promptKey: "teamLeader",
       inputSummary: inputSummary(teamLeaderPrompt),
       output: {
