@@ -19,7 +19,7 @@ export class FinnhubProvider {
 
     try {
       const url = `${FINNHUB_BASE_URL}/quote?symbol=${encodeURIComponent(symbol)}&token=${this.apiKey}`;
-      const response = await fetch(url, { next: { revalidate: 300 } });
+      const response = await fetch(url, { next: { revalidate: 60 } });
 
       if (!response.ok) {
         return missingQuote(symbol, "US", "Finnhub");
@@ -78,7 +78,7 @@ export class FinnhubProvider {
         token: this.apiKey
       });
       const response = await fetch(`${FINNHUB_BASE_URL}/company-news?${params}`, {
-        next: { revalidate: 300 }
+        next: { revalidate: 60 }
       });
 
       if (!response.ok) {
@@ -112,7 +112,7 @@ export class FinnhubProvider {
 
     try {
       const url = `${FINNHUB_BASE_URL}/stock/metric?symbol=${encodeURIComponent(symbol)}&metric=all&token=${this.apiKey}`;
-      const response = await fetch(url, { next: { revalidate: 300 } });
+      const response = await fetch(url, { next: { revalidate: 60 } });
 
       if (!response.ok) {
         return missingFundamentals("Finnhub");

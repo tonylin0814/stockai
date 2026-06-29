@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { notFound } from "next/navigation";
 import { refreshStockMarketData } from "@/app/actions";
 import { QualityBadge } from "@/components/quality-badge";
+import { StockChart } from "@/components/stock-chart";
 import { StockQuickAnalysisButton } from "@/components/stock-quick-analysis-button";
 import { Button } from "@/components/ui/button";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -307,32 +308,47 @@ export default async function StockDetailPage({ params }: { params: { id: string
       {history.length > 0 ? (
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-slate-950">近期走勢（30 日）</h2>
-          <Table>
-            <thead>
-              <tr>
-                <Th>日期</Th>
-                <Th>開盤</Th>
-                <Th>最高</Th>
-                <Th>最低</Th>
-                <Th>收盤</Th>
-                <Th>成交量</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...history].reverse().slice(0, 10).map((candle) => (
-                <tr key={candle.date}>
-                  <Td>{candle.date}</Td>
-                  <Td>{formatNumber(candle.open, 2)}</Td>
-                  <Td>{formatNumber(candle.high, 2)}</Td>
-                  <Td>{formatNumber(candle.low, 2)}</Td>
-                  <Td className={candle.close >= candle.open ? "text-green-700" : "text-red-700"}>
-                    {formatNumber(candle.close, 2)}
-                  </Td>
-                  <Td>{candle.volume ? `${formatNumber(candle.volume / 1000, 0)}K` : "—"}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <StockChart data={history} market={security.market as "US" | "TW"} />
+
+          <details className="mt-4">
+            <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-600">
+              顯示數字明細
+            </summary>
+            <div className="mt-3 overflow-x-auto">
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>日期</Th>
+                    <Th>開盤</Th>
+                    <Th>最高</Th>
+                    <Th>最低</Th>
+                    <Th>收盤</Th>
+                    <Th>成交量</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...history].reverse().slice(0, 10).map((candle) => (
+                    <tr key={candle.date}>
+                      <Td>{candle.date}</Td>
+                      <Td>{formatNumber(candle.open, 2)}</Td>
+                      <Td>{formatNumber(candle.high, 2)}</Td>
+                      <Td>{formatNumber(candle.low, 2)}</Td>
+                      <Td
+                        className={
+                          candle.close >= candle.open ? "text-green-700" : "text-red-700"
+                        }
+                      >
+                        {formatNumber(candle.close, 2)}
+                      </Td>
+                      <Td>
+                        {candle.volume ? `${formatNumber(candle.volume / 1000, 0)}K` : "—"}
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          </details>
         </div>
       ) : null}
 

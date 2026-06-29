@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { softDeleteHolding } from "@/app/actions";
 import { AddHoldingDialog, EditHoldingDialog } from "@/app/portfolio/holding-dialogs";
+import { MarketStatusDot } from "@/components/market-status-dot";
+import { PortfolioStatusBar } from "@/components/portfolio-status-bar";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
@@ -128,9 +130,12 @@ export default async function PortfolioPage() {
           <div className="mt-1 text-xl font-semibold text-slate-950">{rows.length}</div>
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-600">資料時間</div>
+          <div className="text-sm text-slate-600">最後價格更新</div>
           <div className="mt-1 text-sm font-medium text-slate-950">
             {latestTimestamp ? formatDateTime(latestTimestamp) : "—"}
+          </div>
+          <div className="mt-1">
+            <PortfolioStatusBar />
           </div>
         </div>
       </div>
@@ -149,7 +154,6 @@ export default async function PortfolioPage() {
             <Th>市值</Th>
             <Th>未實現損益</Th>
             <Th>報酬率</Th>
-            <Th>備註</Th>
             <Th>操作</Th>
           </tr>
         </thead>
@@ -185,7 +189,14 @@ export default async function PortfolioPage() {
                       {holding.securities?.name}
                     </Link>
                   </Td>
-                  <Td>{holding.securities?.market}</Td>
+                  <Td>
+                    <div className="flex items-center gap-1.5">
+                      {holding.securities?.market ? (
+                        <MarketStatusDot market={holding.securities.market as "US" | "TW"} />
+                      ) : null}
+                      <span>{holding.securities?.market}</span>
+                    </div>
+                  </Td>
                   <Td>{formatNumber(holding.shares, 4)}</Td>
                   <Td>{formatNumber(holding.average_cost, 2)}</Td>
                   <Td>{holding.cost_currency}</Td>
@@ -210,7 +221,6 @@ export default async function PortfolioPage() {
                   <Td className={pnlClass}>
                     {returnPct === null ? "—" : formatSignedPercent(returnPct)}
                   </Td>
-                  <Td>{holding.notes || "—"}</Td>
                   <Td>
                     <div className="flex items-center gap-2">
                       <EditHoldingDialog holding={holding} />
@@ -233,7 +243,7 @@ export default async function PortfolioPage() {
             })
           ) : (
             <tr>
-              <Td colSpan={13} className="py-8 text-center text-slate-500">
+              <Td colSpan={12} className="py-8 text-center text-slate-500">
                 尚未建立持股。
               </Td>
             </tr>

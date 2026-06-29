@@ -117,7 +117,7 @@ export class YahooProvider {
       const querySymbol = yahooSymbol(symbol, market);
       const response = await fetch(
         `${YAHOO_QUOTE_URL}?symbols=${encodeURIComponent(querySymbol)}`,
-        { next: { revalidate: 300 } }
+        { next: { revalidate: 60 } }
       );
 
       if (!response.ok) {
@@ -174,7 +174,7 @@ export class YahooProvider {
       const querySymbol = yahooSymbol(symbol, market);
       const response = await fetch(
         `${YAHOO_CHART_URL}/${encodeURIComponent(querySymbol)}?range=${days}d&interval=1d`,
-        { next: { revalidate: 300 } }
+        { next: { revalidate: 60 } }
       );
 
       if (!response.ok) {
@@ -222,7 +222,7 @@ export class YahooProvider {
       const querySymbol = yahooSymbol(symbol, market);
       const response = await fetch(
         `${YAHOO_QUOTE_URL}?symbols=${encodeURIComponent(querySymbol)}`,
-        { next: { revalidate: 300 } }
+        { next: { revalidate: 60 } }
       );
 
       if (!response.ok) {
