@@ -28,6 +28,10 @@ function isStaleRunningMission(startedAt: unknown) {
   return Number.isFinite(started) && Date.now() - started > 10 * 60 * 1000;
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message.slice(0, 500) : "未知錯誤";
+}
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: { id: string } }
@@ -67,14 +71,18 @@ export async function POST(
 
       await supabase
         .from("missions")
-        .update({ status: "failed", completed_at: new Date().toISOString() })
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error_message: "先前分析逾時或中斷，已自動標記為失敗。"
+        })
         .eq("id", missionId)
         .eq("user_id", user.id);
     }
 
     await supabase
       .from("missions")
-      .update({ status: "running", started_at: new Date().toISOString() })
+      .update({ status: "running", started_at: new Date().toISOString(), error_message: null })
       .eq("id", missionId)
       .eq("user_id", user.id);
 
@@ -175,7 +183,11 @@ export async function POST(
   } catch (error) {
     await supabase
       .from("missions")
-      .update({ status: "failed", completed_at: new Date().toISOString() })
+      .update({
+        status: "failed",
+        completed_at: new Date().toISOString(),
+        error_message: errorMessage(error)
+      })
       .eq("id", missionId)
       .eq("user_id", user.id);
 

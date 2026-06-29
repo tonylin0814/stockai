@@ -48,12 +48,17 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   if (status === "running" && isStaleRunningMission(missionRow.started_at)) {
     await supabase
       .from("missions")
-      .update({ status: "failed", completed_at: new Date().toISOString() })
+      .update({
+        status: "failed",
+        completed_at: new Date().toISOString(),
+        error_message: "先前分析逾時或中斷，已自動標記為失敗。"
+      })
       .eq("id", params.id)
       .eq("user_id", user.id);
     status = "failed";
     missionRow.status = "failed";
     missionRow.completed_at = new Date().toISOString();
+    missionRow.error_message = "先前分析逾時或中斷，已自動標記為失敗。";
   }
 
   const detailSection = (
@@ -97,6 +102,12 @@ export default async function MissionResultPage({ params }: { params: { id: stri
         {detailSection}
         <div className="rounded-md border border-red-200 bg-red-50 p-6">
           <h2 className="text-xl font-semibold text-red-900">任務分析失敗</h2>
+          <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
+            <p className="text-sm font-medium text-red-800">任務失敗</p>
+            <p className="mt-1 break-words text-sm text-red-700">
+              {String(missionRow.error_message ?? "未知錯誤")}
+            </p>
+          </div>
           <div className="mt-4">
             <RunMissionButton missionId={params.id} label="重新執行分析" />
           </div>
