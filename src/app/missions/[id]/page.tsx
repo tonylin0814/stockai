@@ -124,20 +124,38 @@ function ScenarioSummary({ scenarios }: { scenarios: Record<string, unknown> }) 
   );
 }
 
+function LoadErrorCard({ message }: { message: string }) {
+  return (
+    <div className="rounded-md border border-red-200 bg-red-50 p-6">
+      <h1 className="text-2xl font-semibold text-red-900">任務結果讀取失敗</h1>
+      <p className="mt-2 break-words text-sm text-red-700">{message}</p>
+    </div>
+  );
+}
+
 export default async function MissionResultPage({ params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
 
   if (!user) return null;
 
-  const { data: mission } = await supabase
+  const { data: mission, error: missionError } = await supabase
     .from("missions")
     .select("*")
     .eq("id", params.id)
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (missionError) {
+    return <LoadErrorCard message={missionError.message} />;
+  }
 
   if (!mission) notFound();
 
@@ -145,7 +163,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   let status = String(missionRow.status ?? "pending");
 
   if (status === "running" && isStaleRunningMission(missionRow.started_at)) {
-    await supabase
+    const { error: staleUpdateError } = await supabase
       .from("missions")
       .update({
         status: "failed",
@@ -154,6 +172,9 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       })
       .eq("id", params.id)
       .eq("user_id", user.id);
+    if (staleUpdateError) {
+      return <LoadErrorCard message={staleUpdateError.message} />;
+    }
     status = "failed";
     missionRow.status = "failed";
     missionRow.completed_at = new Date().toISOString();
@@ -248,31 +269,62 @@ export default async function MissionResultPage({ params }: { params: { id: stri
     );
   }
 
-  const [committeeResult, divisionResult, teamResult, recommendationResult] =
-    await Promise.all([
-      supabase
-        .from("committee_decisions")
-        .select("*")
-        .eq("mission_id", params.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("division_decisions")
-        .select("*")
-        .eq("mission_id", params.id)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("team_reports")
-        .select("id, division, team_name, market_view, portfolio_review, final_team_view")
-        .eq("mission_id", params.id)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("recommendations")
-        .select("id, source_type, source_name, action, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, securities(symbol, market)")
-        .eq("mission_id", params.id)
-        .order("created_at", { ascending: true })
-    ]);
+  let committeeResult;
+  let divisionResult;
+  let teamResult;
+  let recommendationResult;
+
+  try {
+    [committeeResult, divisionResult, teamResult, recommendationResult] =
+      await Promise.all([
+        supabase
+          .from("committee_decisions")
+          .select("*")
+          .eq("mission_id", params.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("division_decisions")
+          .select("*")
+          .eq("mission_id", params.id)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("team_reports")
+          .select("id, division, team_name, market_view, portfolio_review, final_team_view")
+          .eq("mission_id", params.id)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("recommendations")
+          .select("id, source_type, source_name, action, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, securities(symbol, market)")
+          .eq("mission_id", params.id)
+          .order("created_at", { ascending: true })
+      ]);
+  } catch (error) {
+    return (
+      <div className="space-y-5">
+        {detailSection}
+        {sourceSection}
+        <LoadErrorCard message={error instanceof Error ? error.message : "未知錯誤"} />
+      </div>
+    );
+  }
+
+  const resultError =
+    committeeResult.error ??
+    divisionResult.error ??
+    teamResult.error ??
+    recommendationResult.error;
+
+  if (resultError) {
+    return (
+      <div className="space-y-5">
+        {detailSection}
+        {sourceSection}
+        <LoadErrorCard message={resultError.message} />
+      </div>
+    );
+  }
   const committee = committeeResult.data as Record<string, unknown> | null;
   const divisions = (divisionResult.data ?? []) as Array<Record<string, unknown>>;
   const teams = (teamResult.data ?? []) as Parameters<typeof TeamReportTabs>[0]["reports"];
@@ -289,12 +341,22 @@ export default async function MissionResultPage({ params }: { params: { id: stri
     securities: { symbol: string; market: string } | null;
   }>;
   const recommendationIds = recommendations.map((recommendation) => recommendation.id);
-  const { data: outcomes } = recommendationIds.length
+  const { data: outcomes, error: outcomesError } = recommendationIds.length
     ? await supabase
         .from("recommendation_outcomes")
         .select("horizon_days")
         .in("recommendation_id", recommendationIds)
-    : { data: [] };
+    : { data: [], error: null };
+
+  if (outcomesError) {
+    return (
+      <div className="space-y-5">
+        {detailSection}
+        {sourceSection}
+        <LoadErrorCard message={outcomesError.message} />
+      </div>
+    );
+  }
   const outcomeHorizons = new Set(((outcomes ?? []) as Array<{ horizon_days: number }>).map((row) => row.horizon_days));
   const completedAt = missionRow.completed_at ? String(missionRow.completed_at) : null;
 
