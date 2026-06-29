@@ -4,14 +4,11 @@ import {
   softDeleteHolding,
   updateHolding
 } from "@/app/actions";
-import { FormField } from "@/components/form-field";
+import { HoldingForm } from "@/app/portfolio/holding-form";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Table, Td, Th } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import {
   formatCurrency,
   formatDateTime,
@@ -42,125 +39,6 @@ type HoldingWithQuote = Holding & {
   quote: Quote | null;
 };
 
-function HoldingForm({
-  action,
-  holding
-}: {
-  action: (formData: FormData) => Promise<void>;
-  holding?: Holding;
-}) {
-  const security = holding?.securities;
-
-  return (
-    <form action={action} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {holding ? <input type="hidden" name="id" value={holding.id} /> : null}
-      <FormField label="市場" htmlFor={`market-${holding?.id ?? "new"}`}>
-        <Select
-          id={`market-${holding?.id ?? "new"}`}
-          name="market"
-          defaultValue={security?.market ?? "TW"}
-          required
-        >
-          <option value="TW">台股</option>
-          <option value="US">美股</option>
-        </Select>
-      </FormField>
-      <FormField label="股票代號" htmlFor={`symbol-${holding?.id ?? "new"}`}>
-        <Input
-          id={`symbol-${holding?.id ?? "new"}`}
-          name="symbol"
-          defaultValue={security?.symbol ?? ""}
-          required
-        />
-      </FormField>
-      <FormField label="名稱" htmlFor={`name-${holding?.id ?? "new"}`}>
-        <Input
-          id={`name-${holding?.id ?? "new"}`}
-          name="name"
-          defaultValue={security?.name ?? ""}
-          required
-        />
-      </FormField>
-      <FormField label="類型" htmlFor={`security_type-${holding?.id ?? "new"}`}>
-        <Select
-          id={`security_type-${holding?.id ?? "new"}`}
-          name="security_type"
-          defaultValue={security?.security_type ?? "stock"}
-          required
-        >
-          <option value="stock">股票</option>
-          <option value="etf">ETF</option>
-        </Select>
-      </FormField>
-      <FormField label="持有股數" htmlFor={`shares-${holding?.id ?? "new"}`}>
-        <Input
-          id={`shares-${holding?.id ?? "new"}`}
-          name="shares"
-          type="number"
-          min="0"
-          step="0.0001"
-          defaultValue={holding?.shares ?? ""}
-          required
-        />
-      </FormField>
-      <FormField label="平均成本" htmlFor={`average_cost-${holding?.id ?? "new"}`}>
-        <Input
-          id={`average_cost-${holding?.id ?? "new"}`}
-          name="average_cost"
-          type="number"
-          min="0"
-          step="0.0001"
-          defaultValue={holding?.average_cost ?? ""}
-          required
-        />
-      </FormField>
-      <FormField label="成本幣別" htmlFor={`cost_currency-${holding?.id ?? "new"}`}>
-        <Select
-          id={`cost_currency-${holding?.id ?? "new"}`}
-          name="cost_currency"
-          defaultValue={holding?.cost_currency ?? "TWD"}
-          required
-        >
-          <option value="TWD">TWD</option>
-          <option value="USD">USD</option>
-        </Select>
-      </FormField>
-      <FormField label="策略" htmlFor={`strategy-${holding?.id ?? "new"}`}>
-        <Select
-          id={`strategy-${holding?.id ?? "new"}`}
-          name="strategy"
-          defaultValue={holding?.strategy ?? "長期"}
-          required
-        >
-          <option value="長期">長期</option>
-          <option value="波段">波段</option>
-          <option value="短線">短線</option>
-          <option value="觀察">觀察</option>
-        </Select>
-      </FormField>
-      <FormField label="建倉日期" htmlFor={`opened_at-${holding?.id ?? "new"}`}>
-        <Input
-          id={`opened_at-${holding?.id ?? "new"}`}
-          name="opened_at"
-          type="date"
-          defaultValue={holding?.opened_at ?? ""}
-        />
-      </FormField>
-      <div className="md:col-span-2">
-        <FormField label="備註" htmlFor={`notes-${holding?.id ?? "new"}`}>
-          <Textarea
-            id={`notes-${holding?.id ?? "new"}`}
-            name="notes"
-            defaultValue={holding?.notes ?? ""}
-          />
-        </FormField>
-      </div>
-      <div className="flex justify-end md:col-span-2">
-        <Button type="submit">{holding ? "儲存變更" : "新增持股"}</Button>
-      </div>
-    </form>
-  );
-}
 
 export default async function PortfolioPage() {
   const supabase = createSupabaseServerClient();
@@ -230,7 +108,7 @@ export default async function PortfolioPage() {
             </Button>
           }
         >
-          <HoldingForm action={createHolding} />
+          {(close) => <HoldingForm action={createHolding} onSuccess={close} />}
         </Dialog>
       </div>
 
@@ -325,7 +203,13 @@ export default async function PortfolioPage() {
                           </Button>
                         }
                       >
-                        <HoldingForm action={updateHolding} holding={holding} />
+                        {(close) => (
+                          <HoldingForm
+                            action={updateHolding}
+                            holding={holding}
+                            onSuccess={close}
+                          />
+                        )}
                       </Dialog>
                       <form action={softDeleteHolding}>
                         <input type="hidden" name="id" value={holding.id} />
