@@ -64,6 +64,23 @@ ${JSON.stringify(params.teamReports, null, 2)}
 - 優先選擇有具體 buyZone 和 stopLoss 的標的
 - 說明為何選擇這些標的而不是其他候選
 
+**Phase 6：Mission Decision 整合**
+
+你必須輸出 missionDecision 欄位，整合所有 team 的 missionAnalysis 結論。
+
+從 5 個 team reports 中，讀取每個 team 的 missionAnalysis 欄位，然後：
+- missionTitle：用一句話描述今日最重要的分析任務（30字以內）
+- suggestion：整合後的行動建議（buy/wait/hold/reduce/sell/reject）
+- summary：2-3 句，說明今日最需要關注的問題是什麼，為什麼
+- reason：你選擇此 suggestion 的具體理由（引用至少 2 個 team 的觀點）
+- buyZone：若 suggestion 是 buy/small_buy，給出具體買進區間；否則填 "N/A"
+- targetPrice：目標價；否則填 "N/A"
+- stopLoss：停損點；否則填 "N/A"
+- timeHorizon：short（1-4週）/ swing（1-3個月）/ long（6個月以上）
+- confidence：0-100
+- keyRisks：列出 2-4 個最主要的下行風險
+- conditionsToAct：列出 2-3 個需要成立才採取行動的具體條件
+
 ## 輸出格式
 
 ${DIVISION_DECISION_JSON_SCHEMA}
