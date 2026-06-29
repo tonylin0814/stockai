@@ -29,9 +29,10 @@ export class FinnhubProvider {
         c?: number;
         d?: number;
         dp?: number;
+        pc?: number;
         t?: number;
       };
-      const price = toNumber(data.c);
+      const price = toNumber(data.c) || toNumber(data.pc);
 
       if (!price) {
         return missingQuote(symbol, "US", "Finnhub");
