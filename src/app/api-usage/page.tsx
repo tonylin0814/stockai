@@ -14,6 +14,8 @@ type AgentRunRow = {
   created_at: string;
 };
 
+const TORONTO_TIME_ZONE = "America/Toronto";
+
 function formatUsd(value: number) {
   return `US$${value.toFixed(4)}`;
 }
@@ -29,6 +31,7 @@ function formatDateTime(value: string) {
 
   return date
     .toLocaleString("zh-TW", {
+      timeZone: TORONTO_TIME_ZONE,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -39,18 +42,32 @@ function formatDateTime(value: string) {
     .replace(/\//g, "-");
 }
 
+function torontoDateParts(value: string | Date) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TORONTO_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  return {
+    year: parts.find((part) => part.type === "year")?.value ?? "",
+    month: parts.find((part) => part.type === "month")?.value ?? "",
+    day: parts.find((part) => part.type === "day")?.value ?? ""
+  };
+}
+
 function isSameDay(value: string, today: Date) {
-  const date = new Date(value);
-  return (
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate()
-  );
+  const row = torontoDateParts(value);
+  const current = torontoDateParts(today);
+  return row.year === current.year && row.month === current.month && row.day === current.day;
 }
 
 function isSameMonth(value: string, today: Date) {
-  const date = new Date(value);
-  return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
+  const row = torontoDateParts(value);
+  const current = torontoDateParts(today);
+  return row.year === current.year && row.month === current.month;
 }
 
 function StatusCell({ status }: { status: string | null }) {
