@@ -83,6 +83,7 @@ function IndexCard({ title, quote }: { title: string; quote: Quote }) {
 }
 
 export default async function MarketsPage() {
+  const refreshedAt = new Date().toISOString();
   const supabase = createSupabaseServerClient();
   let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
 
@@ -155,12 +156,17 @@ export default async function MarketsPage() {
             持股、關注清單、匯率與大盤指數。
           </p>
         </div>
-        <form action={refreshMarketOverview}>
-          <Button type="submit">
-            <RefreshCw className="h-4 w-4" />
-            更新市場資料
-          </Button>
-        </form>
+        <div className="space-y-1 text-right">
+          <form action={refreshMarketOverview}>
+            <Button type="submit">
+              <RefreshCw className="h-4 w-4" />
+              更新市場資料
+            </Button>
+          </form>
+          <p className="text-xs text-slate-500">
+            最後更新：{formatDateTime(refreshedAt)}
+          </p>
+        </div>
       </div>
 
       <section className="space-y-3">
