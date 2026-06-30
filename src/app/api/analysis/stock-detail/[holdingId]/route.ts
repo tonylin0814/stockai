@@ -12,6 +12,18 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message.slice(0, 500) : "未知錯誤";
 }
 
+function missionSummary(dataPackage: Awaited<ReturnType<typeof buildMissionDataPackage>>) {
+  return {
+    packageDate: dataPackage.packageDate,
+    portfolioCount: dataPackage.portfolio.length,
+    watchlistCount: dataPackage.watchlist.length,
+    marketSnapshot: dataPackage.marketSnapshot,
+    dataQualitySummary: dataPackage.dataQualitySummary,
+    mission: dataPackage.mission,
+    webResearch: dataPackage.webResearch
+  };
+}
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: { holdingId: string } }
@@ -88,11 +100,19 @@ export async function POST(
 
     await supabase
       .from("missions")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        data_package: missionSummary(dataPackage)
+      })
       .eq("id", missionId)
       .eq("user_id", user.id);
 
-    return NextResponse.json({ missionId });
+    return NextResponse.json({
+      missionId,
+      webResearchArticles:
+        dataPackage.webResearch?.bySymbol?.[security.symbol]?.articles ?? []
+    });
   } catch (error) {
     const message = errorMessage(error);
 

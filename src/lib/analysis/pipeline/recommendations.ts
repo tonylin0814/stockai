@@ -23,6 +23,7 @@ type SourceRecommendation = {
   timeHorizon?: unknown;
   confidence?: unknown;
   keyRisks?: unknown;
+  technicalHighlights?: unknown;
 };
 
 function asRecord(value: unknown): SourceRecommendation {
@@ -78,6 +79,10 @@ function parsePositionSize(value: unknown) {
   }
 
   return parseFirstNumber(value);
+}
+
+function asStringArray(value: unknown) {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }
 
 async function upsertSecurity(params: {
@@ -167,7 +172,39 @@ async function buildRecommendationRow(params: {
     key_risks: Array.isArray(params.recommendation.keyRisks)
       ? params.recommendation.keyRisks
       : [],
+    technical_highlights: asStringArray(params.recommendation.technicalHighlights),
     status: "open"
+  };
+}
+
+function committeeFallbackRecommendation(
+  decision: CommitteeDecision,
+  divisionDecisions: Array<{ decision: DivisionDecision; divisionDecisionId: string }>
+): SourceRecommendation | null {
+  const firstRecommendation = decision.finalRecommendations[0]
+    ? asRecord(decision.finalRecommendations[0])
+    : null;
+  const divisionRecommendation = divisionDecisions
+    .flatMap((item) => item.decision.topRecommendations)
+    .map(asRecord)
+    .find((recommendation) => asString(recommendation.symbol));
+  const source = firstRecommendation ?? divisionRecommendation;
+
+  if (!source) return null;
+
+  return {
+    ...source,
+    action: decision.actionType || decision.finalAction || source.action,
+    reason: decision.reason || source.reason,
+    buyZone: decision.finalBuyZone || source.buyZone,
+    targetPrice: decision.finalTargetPrice || source.targetPrice,
+    stopLoss: decision.finalStopLoss || source.stopLoss,
+    positionSize: decision.finalPositionSize || source.positionSize,
+    confidence: decision.confidence,
+    keyRisks: decision.mostConservativeDivision
+      ? [`保守觀點：${decision.mostConservativeDivision}`, ...asStringArray(source.keyRisks)]
+      : source.keyRisks,
+    technicalHighlights: source.technicalHighlights
   };
 }
 
@@ -231,8 +268,19 @@ export async function writeRecommendations(params: {
     }
   }
 
-  if (params.committeeDecision?.decision.isActionAllowed) {
-    for (const recommendation of params.committeeDecision.decision.finalRecommendations) {
+  if (params.committeeDecision) {
+    const committeeRecommendations =
+      params.committeeDecision.decision.isActionAllowed &&
+      params.committeeDecision.decision.finalRecommendations.length
+        ? params.committeeDecision.decision.finalRecommendations.map(asRecord)
+        : [
+            committeeFallbackRecommendation(
+              params.committeeDecision.decision,
+              params.divisionDecisions
+            )
+          ].filter((item): item is SourceRecommendation => Boolean(item));
+
+    for (const recommendation of committeeRecommendations) {
       const row = await buildRecommendationRow({
         userId: params.userId,
         familyId: params.familyId,
@@ -240,8 +288,8 @@ export async function writeRecommendations(params: {
         missionId: params.missionId,
         sourceType: "committee",
         sourceId: params.committeeDecision.committeeDecisionId,
-        sourceName: "Cross-Division Investment Committee",
-        recommendation: asRecord(recommendation),
+        sourceName: "投資委員會",
+        recommendation,
         fallbackAction: params.committeeDecision.decision.actionType
       });
 

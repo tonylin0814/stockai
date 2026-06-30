@@ -41,6 +41,7 @@ export interface NewsItem {
   url: string;
   source: string;
   publishedAt: string;
+  sentiment?: number | null;
 }
 
 export interface Fundamentals {

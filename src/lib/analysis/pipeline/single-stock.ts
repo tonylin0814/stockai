@@ -23,6 +23,10 @@ const QUICK_SINGLE_STOCK_SCHEMA = `{
   "timeHorizon": "short | swing | long",
   "confidence": 0,
   "reason": "主要原因",
+  "technicalHighlights": [
+    "技術面重點，必須包含具體數字",
+    "若技術資料不足，請說明缺少哪些資料"
+  ],
   "keyRisks": ["主要風險"],
   "conditionsToAct": ["可以行動前需要看到的條件"]
 }`;
@@ -88,6 +92,17 @@ ${JSON.stringify(dataPackage.dataQualitySummary, null, 2)}
 
 請用繁體中文回答。輸出必須是有效 JSON，schema 如下：
 ${QUICK_SINGLE_STOCK_SCHEMA}
+
+## technicalHighlights 欄位寫作規則
+
+technicalHighlights 是技術面專屬摘要，每條 1 句話，必須包含具體數字。必填 2-5 條，涵蓋：
+- MA位置：現價相對 SMA20/SMA50/SMA200 的位置與百分比距離；若 SMA200 有資料，必須提及年線。
+- K線形態：若 candlePattern 不為 null，寫出形態名稱與含義。
+- 支撐/壓力：若有資料，寫出具體價位、強弱與用途。
+- 量能：若 volumeSignal 不為 normal/null，寫出量能訊號與含義。
+- RSI / MACD：若有資料，寫出數值與判斷。
+
+若某項技術資料為 null 或缺失，跳過該條，不得編造數字。
 
 規則：
 - 只回答這一檔股票，不要推薦其他股票。
@@ -156,7 +171,8 @@ function buildDecision(params: {
         positionSize: action === "small_buy" ? "小部位" : "不適用",
         timeHorizon: params.analysis.timeHorizon,
         confidence: params.analysis.confidence,
-        keyRisks: params.analysis.keyRisks
+        keyRisks: params.analysis.keyRisks,
+        technicalHighlights: params.analysis.technicalHighlights
       }
     ],
     confidence: params.analysis.confidence,
@@ -297,8 +313,21 @@ function buildConsensus(results: Array<Extract<QuickAnalysisResult, { status: "c
     : results.length >= 2
       ? "weak"
       : "none";
-  const isActionAllowed = actionType === "small_buy" || actionType === "buy";
+  const isActionAllowed =
+    consensusLevel === "strong" && (actionType === "small_buy" || actionType === "buy");
   const conservativeAnalysis = mostConservative.decision.missionDecision as MissionAnalysis;
+  const actionLabel = isActionAllowed
+    ? actionType === "buy"
+      ? "買進"
+      : "小部位介入"
+    : actionType === "sell"
+      ? "賣出"
+      : actionType === "reduce"
+        ? "減碼"
+        : "觀望";
+  const cleanReason = `委員會決定${actionLabel}，採用較保守的風險控管結論。${conservativeAnalysis.reason} 目前信心分數為 ${Math.round(
+    Math.min(averageConfidence, mostConservative.decision.confidence)
+  )}，若資料品質改善、價格進入合理區間，或技術訊號轉強，將重新評估行動時機。`;
 
   return CommitteeDecisionSchema.parse({
     finalAction: isActionAllowed ? "act" : "no_action",
@@ -330,7 +359,7 @@ function buildConsensus(results: Array<Extract<QuickAnalysisResult, { status: "c
     finalRecommendations: mostConservative.decision.topRecommendations,
     confidence: Math.round(Math.min(averageConfidence, mostConservative.decision.confidence)),
     isActionAllowed,
-    reason: `綜合 ${results.map((result) => result.decision.division).join("、")} 的快速分析，採用較保守結論：${actionType}。${conservativeAnalysis.reason}`,
+    reason: cleanReason,
     mostConservativeDivision: mostConservative.decision.division,
     mostAggressiveDivision: mostAggressive.decision.division,
     whatCouldChangeDecision: Array.from(

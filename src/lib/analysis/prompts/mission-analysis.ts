@@ -70,7 +70,18 @@ ${SCENARIO_ANALYSIS_GUIDE}
 ${AGENT_OUTPUT_JSON_SCHEMA}
 
 recommendations 應包含今日最值得關注的 1-2 個行動項目：
-{ symbol, action, reason, priority: "high|medium|low", conditionsToAct, scenarios }
+{ symbol, action, reason, priority: "high|medium|low", conditionsToAct, technicalHighlights, scenarios }
+
+## technicalHighlights 欄位寫作規則
+
+technicalHighlights 是技術面專屬摘要，每條 1 句話，必須包含具體數字。必填 2-5 條，涵蓋：
+1. MA位置：現價相對月線(SMA20)/季線(SMA50)/年線(SMA200)的位置與百分比距離。
+2. K線形態：若 candlePattern 不為 null，寫出形態名稱與含義。
+3. 支撐/壓力：若有資料，寫出具體價位、強弱與用途。
+4. 量能：若 volumeSignal 不為 normal/null，寫出量能訊號與含義。
+5. RSI / MACD：若有資料，寫出數值與判斷。
+
+若某項技術資料為 null 或缺失，跳過該條，不得編造數字。
 
 欄位說明：
 - summary：開頭必須是「每日例行分析 - [日期]」，然後描述今日最重要的發現

@@ -25,6 +25,20 @@ export type TechnicalSummary = {
   bollingerMiddle: number | null;
   bollingerLower: number | null;
   bollingerPosition: "above_upper" | "near_upper" | "middle" | "near_lower" | "below_lower" | null;
+  candlePattern:
+    | "hammer"
+    | "shooting_star"
+    | "doji"
+    | "bullish_engulfing"
+    | "bearish_engulfing"
+    | "morning_star"
+    | "evening_star"
+    | null;
+  nearestSupport: number | null;
+  nearestResistance: number | null;
+  supportStrength: "strong" | "weak" | null;
+  resistanceStrength: "strong" | "weak" | null;
+  volumeSignal: "breakout_volume" | "selloff_volume" | "drying_up" | "normal" | null;
   dataPoints: number;
 };
 
@@ -172,6 +186,151 @@ function computeBollinger(closes: number[], period = 20): {
   };
 }
 
+function detectCandlePattern(history: OHLCV[]): TechnicalSummary["candlePattern"] {
+  if (history.length < 3) return null;
+
+  const [prev2, prev1, cur] = history.slice(-3);
+  const body = (candle: OHLCV) => Math.abs(candle.close - candle.open);
+  const range = (candle: OHLCV) => candle.high - candle.low;
+  const isBull = (candle: OHLCV) => candle.close > candle.open;
+  const isBear = (candle: OHLCV) => candle.close < candle.open;
+  const lowerWick = (candle: OHLCV) => Math.min(candle.open, candle.close) - candle.low;
+  const upperWick = (candle: OHLCV) => candle.high - Math.max(candle.open, candle.close);
+
+  if (range(cur) > 0 && body(cur) / range(cur) < 0.1) return "doji";
+
+  if (
+    body(cur) > 0 &&
+    lowerWick(cur) >= 2 * body(cur) &&
+    upperWick(cur) <= body(cur) * 0.5
+  ) {
+    return "hammer";
+  }
+
+  if (
+    body(cur) > 0 &&
+    upperWick(cur) >= 2 * body(cur) &&
+    lowerWick(cur) <= body(cur) * 0.5
+  ) {
+    return "shooting_star";
+  }
+
+  if (isBear(prev1) && isBull(cur) && cur.open < prev1.close && cur.close > prev1.open) {
+    return "bullish_engulfing";
+  }
+
+  if (isBull(prev1) && isBear(cur) && cur.open > prev1.close && cur.close < prev1.open) {
+    return "bearish_engulfing";
+  }
+
+  if (
+    isBear(prev2) &&
+    body(prev1) < body(prev2) * 0.3 &&
+    isBull(cur) &&
+    cur.close > (prev2.open + prev2.close) / 2
+  ) {
+    return "morning_star";
+  }
+
+  if (
+    isBull(prev2) &&
+    body(prev1) < body(prev2) * 0.3 &&
+    isBear(cur) &&
+    cur.close < (prev2.open + prev2.close) / 2
+  ) {
+    return "evening_star";
+  }
+
+  return null;
+}
+
+function detectSupportResistance(
+  history: OHLCV[],
+  currentPrice: number
+): Pick<
+  TechnicalSummary,
+  "nearestSupport" | "nearestResistance" | "supportStrength" | "resistanceStrength"
+> {
+  if (history.length < 20) {
+    return {
+      nearestSupport: null,
+      nearestResistance: null,
+      supportStrength: null,
+      resistanceStrength: null
+    };
+  }
+
+  const window = history.slice(-60);
+  const swingHighs: number[] = [];
+  const swingLows: number[] = [];
+
+  for (let i = 2; i < window.length - 2; i += 1) {
+    const high = window[i].high;
+    const low = window[i].low;
+
+    if (
+      high > window[i - 1].high &&
+      high > window[i - 2].high &&
+      high > window[i + 1].high &&
+      high > window[i + 2].high
+    ) {
+      swingHighs.push(high);
+    }
+
+    if (
+      low < window[i - 1].low &&
+      low < window[i - 2].low &&
+      low < window[i + 1].low &&
+      low < window[i + 2].low
+    ) {
+      swingLows.push(low);
+    }
+  }
+
+  const supports = swingLows.filter((low) => low < currentPrice).sort((a, b) => b - a);
+  const resistances = swingHighs
+    .filter((high) => high > currentPrice)
+    .sort((a, b) => a - b);
+  const nearestSupport = supports[0] ?? null;
+  const nearestResistance = resistances[0] ?? null;
+  const tolerance = 0.03;
+
+  return {
+    nearestSupport,
+    nearestResistance,
+    supportStrength:
+      nearestSupport !== null
+        ? supports.filter((support) => Math.abs(support - nearestSupport) / nearestSupport < tolerance)
+            .length >= 2
+          ? "strong"
+          : "weak"
+        : null,
+    resistanceStrength:
+      nearestResistance !== null
+        ? resistances.filter(
+            (resistance) =>
+              Math.abs(resistance - nearestResistance) / nearestResistance < tolerance
+          ).length >= 2
+          ? "strong"
+          : "weak"
+        : null
+  };
+}
+
+function detectVolumeSignal(
+  history: OHLCV[],
+  avgVolume20d: number | null
+): TechnicalSummary["volumeSignal"] {
+  if (!avgVolume20d || history.length === 0) return null;
+
+  const last = history[history.length - 1];
+  const ratio = last.volume / avgVolume20d;
+
+  if (ratio > 2) return last.close >= last.open ? "breakout_volume" : "selloff_volume";
+  if (ratio < 0.5) return "drying_up";
+  return "normal";
+}
+
 export function computeTechnicals(history: OHLCV[]): TechnicalSummary {
   const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date));
   const closes = sorted.map((day) => day.close).filter((close) => close > 0);
@@ -204,6 +363,12 @@ export function computeTechnicals(history: OHLCV[]): TechnicalSummary {
       bollingerMiddle: null,
       bollingerLower: null,
       bollingerPosition: null,
+      candlePattern: null,
+      nearestSupport: null,
+      nearestResistance: null,
+      supportStrength: null,
+      resistanceStrength: null,
+      volumeSignal: null,
       dataPoints: 0
     };
   }
@@ -236,6 +401,9 @@ export function computeTechnicals(history: OHLCV[]): TechnicalSummary {
   const avgVolume20d = recentVolumes.length
     ? Math.round(recentVolumes.reduce((sum, volume) => sum + volume, 0) / recentVolumes.length)
     : null;
+  const candlePattern = detectCandlePattern(sorted);
+  const supportResistance = detectSupportResistance(sorted, current);
+  const volumeSignal = detectVolumeSignal(sorted, avgVolume20d);
 
   return {
     currentPrice: current,
@@ -256,6 +424,16 @@ export function computeTechnicals(history: OHLCV[]): TechnicalSummary {
     avgVolume20d,
     ...macd,
     ...bollinger,
+    candlePattern,
+    nearestSupport: supportResistance.nearestSupport
+      ? rounded(supportResistance.nearestSupport)
+      : null,
+    nearestResistance: supportResistance.nearestResistance
+      ? rounded(supportResistance.nearestResistance)
+      : null,
+    supportStrength: supportResistance.supportStrength,
+    resistanceStrength: supportResistance.resistanceStrength,
+    volumeSignal,
     dataPoints: n
   };
 }

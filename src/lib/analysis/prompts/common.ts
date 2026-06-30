@@ -184,7 +184,23 @@ export const TECHNICAL_ANALYSIS_GUIDE = `技術面分析（使用資料摘要中
 - 趨勢方向：uptrend/downtrend/sideways 已計算
 - 近期表現：1W/1M/3M 漲跌幅已提供
 - 52週位置：距52週高點百分比已提供（-5%以內=接近高點、-20%以下=明顯回撤）
-所有以上數值均在資料摘要「技術：」欄位中，直接使用，不得猜測或假設。`;
+所有以上數值均在資料摘要「技術：」欄位中，直接使用，不得猜測或假設。
+
+**K線形態判讀：**
+- hammer / morning_star → 底部反轉訊號，需配合成交量確認
+- shooting_star / evening_star → 頂部反轉訊號，注意壓力
+- bullish_engulfing / bearish_engulfing → 強力反轉，當日收盤方向優先
+- doji → 多空拉鋸，等待方向確認後再行動
+
+**支撐壓力判讀：**
+- 支撐(強) → 曾多次測試守穩，可作為停損參考點
+- 壓力(強) → 曾多次突破失敗，突破需放量確認
+- 現價距支撐/壓力的百分比自行計算，用來判斷風險報酬比
+
+**量能訊號：**
+- breakout_volume → 放量上漲，突破訊號可信度較高
+- selloff_volume → 放量下跌，賣壓沉重，避免逢低承接
+- drying_up → 縮量整理，通常為蓄勢，等待方向選擇`;
 
 export const FUNDAMENTAL_QUALITY_GUIDE = `基本面評估（分兩層）：
 
@@ -295,6 +311,24 @@ export function compactMarketSummary(dataPackage: DailyDataPackage): string {
     if (technicals.change1w !== null) parts.push(`1W=${technicals.change1w}%`);
     if (technicals.change1m !== null) parts.push(`1M=${technicals.change1m}%`);
     if (technicals.change3m !== null) parts.push(`3M=${technicals.change3m}%`);
+    if (technicals.candlePattern) parts.push(`K線形態=${technicals.candlePattern}`);
+    if (technicals.nearestSupport !== null) {
+      parts.push(
+        `支撐=${technicals.nearestSupport}${
+          technicals.supportStrength === "strong" ? "(強)" : "(弱)"
+        }`
+      );
+    }
+    if (technicals.nearestResistance !== null) {
+      parts.push(
+        `壓力=${technicals.nearestResistance}${
+          technicals.resistanceStrength === "strong" ? "(強)" : "(弱)"
+        }`
+      );
+    }
+    if (technicals.volumeSignal && technicals.volumeSignal !== "normal") {
+      parts.push(`量能=${technicals.volumeSignal}`);
+    }
 
     return parts.join(" ") || "無技術資料";
   }

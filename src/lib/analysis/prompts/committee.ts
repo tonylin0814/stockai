@@ -50,6 +50,21 @@ ${JSON.stringify(params.divisionDecisions, null, 2)}
 - finalScenarios.bull + finalScenarios.bear + finalScenarios.base probability 合計必須 = 100。
 - finalScenarios 的 action 必須對應最終委員會立場，不能和 finalAction / actionType 矛盾。
 
+## reason 欄位寫作規則
+
+reason 是給投資人看的最終決策摘要，必須：
+- 直接從結論開始，例如：「委員會決定觀望，等待更明確的進場訊號。」或「委員會達成共識，建議小部位介入。」
+- 不得提及內部系統名稱，不得出現「OpenAI」、「Anthropic」、「Division」、「GPT」、「Claude」等詞。
+- 語氣自然，像投資顧問在向客戶解釋決策，而非技術報告。
+- 長度 150-300 字，涵蓋：決策結論、主要理由 1-2 點、主要風險 1-2 點；若觀望，說明具體進場條件。
+- 若有相關價格、指標數值，直接引用，不要說「如資料所示」。
+
+觀望範例：
+「委員會決定觀望，現階段不建議追價買入。標的目前報 $XXX，雖然大盤環境偏多，但相對表現偏弱，且技術指標資料不足，無法確認趨勢動能。主要風險包括估值偏高與消息面不確定性。若價格回測支撐區並守穩，將重新評估介入時機。」
+
+買進範例：
+「委員會達成共識，建議小部位介入。現價 $XXX 位於合理買入區間，技術面出現明確轉強訊號，基本面與消息面也支持短線操作。停損設於 $XXX，目標 $XXX，風險報酬比約 1:X。」
+
 ## 輸出格式
 
 ${COMMITTEE_DECISION_JSON_SCHEMA}

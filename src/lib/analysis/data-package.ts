@@ -239,7 +239,7 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
       holdingRows.map((row) => {
         const security = row.securities;
         return security && isMarket(security.market)
-          ? provider.getHistory(security.symbol, security.market, 90)
+          ? provider.getHistory(security.symbol, security.market, 252)
           : Promise.resolve([]);
       })
     ),
@@ -247,7 +247,7 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
       watchlistRows.map((row) => {
         const security = row.securities;
         return security && isMarket(security.market)
-          ? provider.getHistory(security.symbol, security.market, 90)
+          ? provider.getHistory(security.symbol, security.market, 252)
           : Promise.resolve([]);
       })
     ),

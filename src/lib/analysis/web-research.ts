@@ -7,12 +7,20 @@ export type SymbolResearch = {
   riskNote: string;
   catalystNote: string;
   fetchedAt: string;
+  articles: WebResearchArticle[];
 };
 
 export type WebResearchResult = {
   bySymbol: Record<string, SymbolResearch>;
   totalCostUsd: number;
   symbolCount: number;
+};
+
+export type WebResearchArticle = {
+  title: string;
+  url: string;
+  snippet: string;
+  query: "earnings" | "analyst" | "risk" | "catalyst";
 };
 
 const SYNTHESIS_MODEL = "gpt-4o";
@@ -23,6 +31,7 @@ const NO_RECENT_INFO = "無最新資訊";
 type TavilyResult = {
   title?: string;
   content?: string;
+  url?: string;
 };
 
 type TavilyResponse = {
@@ -37,9 +46,12 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
   );
 }
 
-async function tavilySearch(query: string): Promise<string> {
+async function tavilySearch(
+  query: string,
+  queryType: WebResearchArticle["query"]
+): Promise<{ text: string; articles: WebResearchArticle[] }> {
   const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) return "";
+  if (!apiKey) return { text: "", articles: [] };
 
   try {
     const response = await fetch("https://api.tavily.com/search", {
@@ -55,10 +67,11 @@ async function tavilySearch(query: string): Promise<string> {
       })
     });
 
-    if (!response.ok) return "";
+    if (!response.ok) return { text: "", articles: [] };
 
     const data = (await response.json()) as TavilyResponse;
     const parts: string[] = [];
+    const articles: WebResearchArticle[] = [];
 
     if (data.answer) parts.push(data.answer);
 
@@ -66,11 +79,19 @@ async function tavilySearch(query: string): Promise<string> {
       if (result.content) {
         parts.push(`[${result.title ?? "search result"}] ${result.content.slice(0, 300)}`);
       }
+      if (result.title && result.url) {
+        articles.push({
+          title: result.title,
+          url: result.url,
+          snippet: result.content?.slice(0, 150) ?? "",
+          query: queryType
+        });
+      }
     }
 
-    return parts.join("\n\n");
+    return { text: parts.join("\n\n"), articles };
   } catch {
-    return "";
+    return { text: "", articles: [] };
   }
 }
 
@@ -93,7 +114,8 @@ async function synthesizeResearch(
     analystNote: "",
     riskNote: "",
     catalystNote: "",
-    fetchedAt
+    fetchedAt,
+    articles: []
   };
 
   if (!Object.values(rawSearchResults).some((value) => value.length > 0)) {
@@ -143,7 +165,8 @@ ${rawSearchResults.catalyst || "無結果"}
         analystNote: parseField(text, "分析師"),
         riskNote: parseField(text, "風險"),
         catalystNote: parseField(text, "催化劑"),
-        fetchedAt
+        fetchedAt,
+        articles: []
       },
       inputTokens,
       outputTokens
@@ -184,16 +207,33 @@ export async function runWebResearch(params: {
   for (const item of usSymbols) {
     try {
       const [earnings, analyst, risk, catalyst] = await Promise.all([
-        tavilySearch(`${item.symbol} ${item.name} next earnings date EPS estimate`),
-        tavilySearch(`${item.symbol} ${item.name} analyst rating price target`),
-        tavilySearch(`${item.symbol} ${item.name} risk downside concern`),
-        tavilySearch(`${item.symbol} ${item.name} positive news catalyst upcoming event`)
+        tavilySearch(
+          `${item.symbol} ${item.name} next earnings date EPS estimate`,
+          "earnings"
+        ),
+        tavilySearch(`${item.symbol} ${item.name} analyst rating price target`, "analyst"),
+        tavilySearch(`${item.symbol} ${item.name} risk downside concern`, "risk"),
+        tavilySearch(
+          `${item.symbol} ${item.name} positive news catalyst upcoming event`,
+          "catalyst"
+        )
       ]);
+      const articles = [
+        ...earnings.articles,
+        ...analyst.articles,
+        ...risk.articles,
+        ...catalyst.articles
+      ];
       const { research, inputTokens, outputTokens } = await synthesizeResearch(
         client,
         item.symbol,
         item.name,
-        { earnings, analyst, risk, catalyst }
+        {
+          earnings: earnings.text,
+          analyst: analyst.text,
+          risk: risk.text,
+          catalyst: catalyst.text
+        }
       );
 
       if (
@@ -205,7 +245,7 @@ export async function runWebResearch(params: {
         continue;
       }
 
-      bySymbol[item.symbol] = research;
+      bySymbol[item.symbol] = { ...research, articles };
       totalInputTokens += inputTokens;
       totalOutputTokens += outputTokens;
     } catch (error) {

@@ -14,6 +14,7 @@ import {
   formatNumber,
   formatSignedPercent
 } from "@/lib/format";
+import type { WebResearchArticle, WebResearchResult } from "@/lib/analysis/web-research";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { Quote } from "@/lib/market-data/types";
 import { getSymbolAccuracy } from "@/lib/performance/symbol-accuracy";
@@ -64,6 +65,26 @@ function asStringArray(value: unknown) {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }
 
+function sourceLabel(sourceType: string) {
+  if (sourceType === "committee") return "來源：投資委員會";
+  if (sourceType === "division") return "來源：AI 快速分析";
+  return "來源：AI 分析團隊";
+}
+
+function articleLabel(query: WebResearchArticle["query"]) {
+  if (query === "earnings") return "財報";
+  if (query === "analyst") return "分析師";
+  if (query === "risk") return "風險";
+  return "催化劑";
+}
+
+function articleBadgeClass(query: WebResearchArticle["query"]) {
+  if (query === "catalyst") return "bg-green-50 text-green-700";
+  if (query === "risk") return "bg-red-50 text-red-700";
+  if (query === "analyst") return "bg-blue-50 text-blue-700";
+  return "bg-slate-100 text-slate-600";
+}
+
 export default async function StockDetailPage({ params }: { params: { id: string } }) {
   const holdingId = params.id;
   const supabase = createSupabaseServerClient();
@@ -109,18 +130,34 @@ export default async function StockDetailPage({ params }: { params: { id: string
   const recommendationsQuery = supabase
     .from("recommendations")
     .select(
-      "id, action, reason, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, key_risks, time_horizon, source_type, source_name, recommendation_date, created_at, user_rating"
+      "id, action, reason, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, key_risks, technical_highlights, time_horizon, source_type, source_name, recommendation_date, created_at, user_rating"
     )
     .eq("user_id", user.id)
     .eq("security_id", security.id)
     .order("created_at", { ascending: false })
-    .limit(5);
-  const [quote, history, news, recommendationsResult, symbolAccuracy] = await Promise.all([
+    .limit(10);
+  const missionQuery = supabase
+    .from("missions")
+    .select("id, data_package")
+    .eq("user_id", user.id)
+    .contains("related_symbols", [security.symbol])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const [
+    quote,
+    history,
+    news,
+    recommendationsResult,
+    symbolAccuracy,
+    missionResult
+  ] = await Promise.all([
     provider.getQuote(security.symbol, security.market as "US" | "TW"),
-    provider.getHistory(security.symbol, security.market as "US" | "TW", 30),
+    provider.getHistory(security.symbol, security.market as "US" | "TW", 252),
     provider.getNews(security.symbol),
     recommendationsQuery,
-    getSymbolAccuracy(user.id, security.id)
+    getSymbolAccuracy(user.id, security.id),
+    missionQuery
   ]);
   const hasPrice = quote.qualityState !== "missing";
   const currentPrice = hasPrice ? quote.price : null;
@@ -134,8 +171,9 @@ export default async function StockDetailPage({ params }: { params: { id: string
   const { dayRange, bidAsk } = hasPrice
     ? formatMarketRef(quote)
     : { dayRange: null, bidAsk: null };
-  const recommendations = recommendationsResult.data ?? [];
-  const latestRec = (recommendations ?? [])[0] as
+  const recommendations = (recommendationsResult.data ?? []) as Array<Record<string, unknown>>;
+  const latestRec = (recommendations.find((row) => row.source_type === "committee") ??
+    recommendations[0]) as
     | {
         id: string;
         action: string;
@@ -146,6 +184,7 @@ export default async function StockDetailPage({ params }: { params: { id: string
         target_price: number | null;
         stop_loss: number | null;
         key_risks: unknown;
+        technical_highlights: unknown;
         time_horizon: string | null;
         source_type: string;
         source_name: string;
@@ -154,9 +193,21 @@ export default async function StockDetailPage({ params }: { params: { id: string
         user_rating: string | null;
       }
     | undefined;
+  const dataPackage = (missionResult.data as { data_package?: unknown } | null)?.data_package as
+    | { webResearch?: WebResearchResult }
+    | null
+    | undefined;
+  const tavilyArticles =
+    dataPackage?.webResearch?.bySymbol?.[security.symbol]?.articles ?? [];
   const refreshAction = refreshStockMarketData.bind(null, holdingId);
   const pnlClass =
     pnl === null ? "text-slate-500" : pnl < 0 ? "text-red-700" : "text-green-700";
+  const hasPriceTargets =
+    latestRec &&
+    (latestRec.buy_zone_low !== null ||
+      latestRec.buy_zone_high !== null ||
+      latestRec.target_price !== null ||
+      latestRec.stop_loss !== null);
 
   return (
     <div className="space-y-6">
@@ -251,42 +302,59 @@ export default async function StockDetailPage({ params }: { params: { id: string
                 {ACTION_LABEL[latestRec.action] ?? latestRec.action.toUpperCase()}
               </span>
               <span className="text-sm text-slate-600">信心度：{latestRec.confidence}%</span>
-              <span className="text-sm text-slate-500">
-                來源：{latestRec.source_name}（{latestRec.source_type}）
-              </span>
+              <span className="text-sm text-slate-500">{sourceLabel(latestRec.source_type)}</span>
               <span className="ml-auto text-xs text-slate-400">
                 更新時間：{formatDateTime(latestRec.created_at)}
               </span>
             </div>
-            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
-              <div>
-                <div className="text-slate-500">建議買進區間</div>
-                <div className="font-medium text-slate-900">
-                  {latestRec.buy_zone_low !== null && latestRec.buy_zone_high !== null
-                    ? `${formatNumber(latestRec.buy_zone_low, 2)} - ${formatNumber(
-                        latestRec.buy_zone_high,
-                        2
-                      )}`
-                    : "不適用"}
+            {hasPriceTargets ? (
+              <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+                <div>
+                  <div className="text-slate-500">建議買進區間</div>
+                  <div className="font-medium text-slate-900">
+                    {latestRec.buy_zone_low !== null && latestRec.buy_zone_high !== null
+                      ? `${formatNumber(latestRec.buy_zone_low, 2)} - ${formatNumber(
+                          latestRec.buy_zone_high,
+                          2
+                        )}`
+                      : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500">目標價</div>
+                  <div className="font-medium text-slate-900">
+                    {latestRec.target_price !== null
+                      ? formatNumber(latestRec.target_price, 2)
+                      : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500">停損點</div>
+                  <div
+                    className={`font-medium ${
+                      latestRec.stop_loss !== null ? "text-red-700" : "text-slate-400"
+                    }`}
+                  >
+                    {latestRec.stop_loss !== null ? formatNumber(latestRec.stop_loss, 2) : "—"}
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className="text-slate-500">目標價</div>
-                <div className="font-medium text-slate-900">
-                  {latestRec.target_price !== null
-                    ? formatNumber(latestRec.target_price, 2)
-                    : "不適用"}
+            ) : null}
+            {asStringArray(latestRec.technical_highlights).length > 0 ? (
+              <div className="rounded-md bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  技術面分析
                 </div>
+                <ul className="space-y-1">
+                  {asStringArray(latestRec.technical_highlights).map((point, index) => (
+                    <li key={index} className="flex items-start gap-2 text-sm text-slate-700">
+                      <span className="mt-0.5 text-blue-400">▸</span>
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div>
-                <div className="text-slate-500">停損點</div>
-                <div className="font-medium text-red-700">
-                  {latestRec.stop_loss !== null
-                    ? formatNumber(latestRec.stop_loss, 2)
-                    : "不適用"}
-                </div>
-              </div>
-            </div>
+            ) : null}
             <div>
               <div className="text-sm font-medium text-slate-700">分析理由</div>
               <p className="mt-1 text-sm text-slate-600">{latestRec.reason}</p>
@@ -358,7 +426,7 @@ export default async function StockDetailPage({ params }: { params: { id: string
 
       {history.length > 0 ? (
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-slate-950">近期走勢（30 日）</h2>
+          <h2 className="mb-4 text-lg font-semibold text-slate-950">近期走勢（252 日）</h2>
           <StockChart data={history} market={security.market as "US" | "TW"} />
 
           <details className="mt-4">
@@ -403,31 +471,104 @@ export default async function StockDetailPage({ params }: { params: { id: string
         </div>
       ) : null}
 
-      {news.length > 0 ? (
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-slate-950">最新新聞</h2>
-          <div className="space-y-3">
-            {news.slice(0, 8).map((item, index) => (
-              <div key={index} className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-950">最新新聞</h2>
+          {news.length + tavilyArticles.length > 0 ? (
+            <span className="text-xs text-slate-400">
+              {news.length + tavilyArticles.length} 則
+            </span>
+          ) : null}
+        </div>
+
+        {news.length === 0 && tavilyArticles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <p className="text-sm text-slate-500">目前無相關新聞</p>
+            <p className="mt-1 text-xs text-slate-400">
+              執行 AI 分析後，將透過網路搜尋取得最新報導。
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {news.slice(0, 5).map((item, index) => (
+              <div key={`fh-${index}`} className="py-3 first:pt-0">
                 <a
                   href={item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm font-medium text-blue-700 hover:underline"
+                  className="group block"
                 >
-                  {item.headline}
+                  <p className="text-sm font-medium leading-snug text-slate-900 group-hover:text-blue-700 group-hover:underline">
+                    {item.headline}
+                  </p>
                 </a>
                 {item.summary ? (
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.summary}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                    {item.summary}
+                  </p>
                 ) : null}
-                <div className="mt-1 text-xs text-slate-400">
-                  {item.source} · {formatDateTime(item.publishedAt)}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-slate-600">{item.source}</span>
+                  <span className="text-slate-300">·</span>
+                  <span className="text-xs text-slate-400">
+                    {formatDateTime(item.publishedAt)}
+                  </span>
+                  {item.sentiment !== undefined && item.sentiment !== null ? (
+                    <>
+                      <span className="text-slate-300">·</span>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                          item.sentiment > 0.1
+                            ? "bg-green-50 text-green-700"
+                            : item.sentiment < -0.1
+                              ? "bg-red-50 text-red-700"
+                              : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {item.sentiment > 0.1
+                          ? "正面"
+                          : item.sentiment < -0.1
+                            ? "負面"
+                            : "中性"}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+
+            {tavilyArticles.slice(0, 6).map((article, index) => (
+              <div key={`tv-${index}`} className="py-3">
+                <a
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block"
+                >
+                  <p className="text-sm font-medium leading-snug text-slate-900 group-hover:text-blue-700 group-hover:underline">
+                    {article.title}
+                  </p>
+                </a>
+                {article.snippet ? (
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                    {article.snippet}
+                  </p>
+                ) : null}
+                <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-xs font-medium ${articleBadgeClass(
+                      article.query
+                    )}`}
+                  >
+                    {articleLabel(article.query)}
+                  </span>
+                  <span>· AI 網路搜尋</span>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      ) : null}
+        )}
+      </div>
 
       {holding.notes ? (
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">

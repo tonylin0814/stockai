@@ -21,7 +21,8 @@ function missionSummary(dataPackage: Awaited<ReturnType<typeof buildMissionDataP
     watchlistCount: dataPackage.watchlist.length,
     marketSnapshot: dataPackage.marketSnapshot,
     dataQualitySummary: dataPackage.dataQualitySummary,
-    mission: dataPackage.mission
+    mission: dataPackage.mission,
+    webResearch: dataPackage.webResearch
   };
 }
 

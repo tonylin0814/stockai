@@ -93,6 +93,7 @@ export const MissionAnalysisSchema = z.object({
   timeHorizon: z.enum(["short", "swing", "long"]),
   confidence: z.number().min(0).max(100),
   reason: z.string(),
+  technicalHighlights: z.array(z.string()).default([]),
   keyRisks: z.array(z.string()),
   conditionsToAct: z.array(z.string()),
   scenarios: ScenariosSchema.optional()
@@ -239,6 +240,11 @@ export const TEAM_REPORT_JSON_SCHEMA = `{
     "timeHorizon": "short | swing | long",
     "confidence": 0,
     "reason": "原因",
+    "technicalHighlights": [
+      "現價高於月線(SMA20=152.3)，距月線 +4.9%，短線偏強",
+      "年線支撐在 141.2，當前距年線 +9.6%",
+      "RSI=62，偏強但未超買"
+    ],
     "keyRisks": ["主要風險"],
     "conditionsToAct": ["需要等待的條件"],
     "scenarios": ${SCENARIOS_JSON_EXAMPLE}

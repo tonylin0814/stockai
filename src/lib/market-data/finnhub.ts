@@ -91,6 +91,7 @@ export class FinnhubProvider {
         url?: string;
         source?: string;
         datetime?: number;
+        sentiment?: number;
       }>;
 
       return data.slice(0, 10).map((item) => ({
@@ -98,7 +99,8 @@ export class FinnhubProvider {
         summary: item.summary,
         url: item.url ?? "",
         source: item.source ?? "Finnhub",
-        publishedAt: item.datetime ? new Date(item.datetime * 1000).toISOString() : nowIso()
+        publishedAt: item.datetime ? new Date(item.datetime * 1000).toISOString() : nowIso(),
+        sentiment: item.sentiment ?? null
       }));
     } catch {
       return [];
