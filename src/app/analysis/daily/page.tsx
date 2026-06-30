@@ -61,6 +61,15 @@ type DataPackageSummary = {
   }>;
 };
 
+type AnalysisProgress = {
+  teamReports: number;
+  divisionDecisions: number;
+  committeeDecisions: number;
+  completedAgents: number;
+  failedAgents: number;
+  latestError: string | null;
+};
+
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -78,6 +87,25 @@ function asDataPackage(value: unknown): DataPackageSummary {
 function stageMessage(value: unknown) {
   const record = asRecord(value);
   return typeof record.stageMessage === "string" ? record.stageMessage : null;
+}
+
+function stageError(value: unknown) {
+  const record = asRecord(value);
+  return typeof record.error === "string" ? record.error : null;
+}
+
+function statusLabel(status: unknown) {
+  if (status === "completed") return "完成";
+  if (status === "running") return "執行中";
+  if (status === "failed") return "失敗";
+  return "尚未執行";
+}
+
+function statusClass(status: unknown) {
+  if (status === "completed") return "border-green-200 bg-green-50 text-green-900";
+  if (status === "running") return "border-blue-200 bg-blue-50 text-blue-900";
+  if (status === "failed") return "border-red-200 bg-red-50 text-red-900";
+  return "border-slate-200 bg-white text-slate-900";
 }
 
 function asPickArray(value: unknown): ScanPick[] {
@@ -279,6 +307,70 @@ export default async function DailyAnalysisPage({
   const runRecord = (run ?? null) as Record<string, unknown> | null;
   const dataPackage = asDataPackage(runRecord?.data_package);
   const snapshot = dataPackage.marketSnapshot ?? {};
+  const runId = typeof runRecord?.id === "string" ? runRecord.id : null;
+  let progress: AnalysisProgress = {
+    teamReports: 0,
+    divisionDecisions: 0,
+    committeeDecisions: 0,
+    completedAgents: 0,
+    failedAgents: 0,
+    latestError: null
+  };
+
+  if (runId) {
+    const [
+      teamCount,
+      divisionCount,
+      committeeCount,
+      completedAgentCount,
+      failedAgentCount,
+      latestFailedAgent
+    ] = await Promise.all([
+      supabase
+        .from("team_reports")
+        .select("id", { count: "exact", head: true })
+        .eq("daily_run_id", runId),
+      supabase
+        .from("division_decisions")
+        .select("id", { count: "exact", head: true })
+        .eq("daily_run_id", runId),
+      supabase
+        .from("committee_decisions")
+        .select("id", { count: "exact", head: true })
+        .eq("daily_run_id", runId),
+      supabase
+        .from("agent_runs")
+        .select("id", { count: "exact", head: true })
+        .eq("daily_run_id", runId)
+        .eq("status", "completed"),
+      supabase
+        .from("agent_runs")
+        .select("id", { count: "exact", head: true })
+        .eq("daily_run_id", runId)
+        .eq("status", "failed"),
+      supabase
+        .from("agent_runs")
+        .select("prompt_key, error_message")
+        .eq("daily_run_id", runId)
+        .eq("status", "failed")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ]);
+    const latestErrorRow = latestFailedAgent.data as
+      | { prompt_key?: string | null; error_message?: string | null }
+      | null;
+    progress = {
+      teamReports: teamCount.count ?? 0,
+      divisionDecisions: divisionCount.count ?? 0,
+      committeeDecisions: committeeCount.count ?? 0,
+      completedAgents: completedAgentCount.count ?? 0,
+      failedAgents: failedAgentCount.count ?? 0,
+      latestError: latestErrorRow?.error_message
+        ? `${latestErrorRow.prompt_key ?? "agent"}：${latestErrorRow.error_message}`
+        : null
+    };
+  }
   const { data: analysisData } = await supabase
     .from("market_analysis_runs")
     .select("*")
@@ -311,6 +403,57 @@ export default async function DailyAnalysisPage({
         </div>
       </div>
 
+      {runRecord ? (
+        <section className={`rounded-md border p-5 shadow-sm ${statusClass(runRecord.status)}`}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide opacity-70">今日分析狀態</p>
+              <h2 className="mt-1 text-lg font-semibold">{statusLabel(runRecord.status)}</h2>
+              <p className="mt-1 text-sm">
+                {runRecord.status === "completed"
+                  ? "全系統分析已完成，可以查看市場分析與歷史報告。"
+                  : runRecord.status === "running"
+                    ? stageMessage(runRecord.data_package) ?? "正在準備下一個分析階段。"
+                    : stageError(runRecord.data_package) ?? progress.latestError ?? "分析失敗，請查看 API 用量。"}
+              </p>
+            </div>
+            {runRecord.status === "completed" && runId ? (
+              <Link
+                href={`/reports/${runId}`}
+                className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100"
+              >
+                查看完整報告
+              </Link>
+            ) : null}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
+            <div className="rounded-md bg-white/70 p-3">
+              <div className="text-xs opacity-70">Team 報告</div>
+              <div className="mt-1 font-semibold">{progress.teamReports}</div>
+            </div>
+            <div className="rounded-md bg-white/70 p-3">
+              <div className="text-xs opacity-70">Division 決策</div>
+              <div className="mt-1 font-semibold">{progress.divisionDecisions}</div>
+            </div>
+            <div className="rounded-md bg-white/70 p-3">
+              <div className="text-xs opacity-70">委員會決策</div>
+              <div className="mt-1 font-semibold">{progress.committeeDecisions}</div>
+            </div>
+            <div className="rounded-md bg-white/70 p-3">
+              <div className="text-xs opacity-70">Agent 完成</div>
+              <div className="mt-1 font-semibold">{progress.completedAgents}</div>
+            </div>
+            <div className="rounded-md bg-white/70 p-3">
+              <div className="text-xs opacity-70">Agent 失敗</div>
+              <div className="mt-1 font-semibold">{progress.failedAgents}</div>
+            </div>
+          </div>
+          {progress.latestError && runRecord.status !== "completed" ? (
+            <p className="mt-3 break-words text-xs text-red-700">{progress.latestError.slice(0, 260)}</p>
+          ) : null}
+        </section>
+      ) : null}
+
       {runRecord?.status === "running" ? (
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <AnalysisProgressRunner />
@@ -326,7 +469,9 @@ export default async function DailyAnalysisPage({
       {runRecord?.status === "failed" ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-5">
           <h2 className="text-lg font-semibold text-red-900">每日分析失敗</h2>
-          <p className="mt-1 text-sm text-red-700">請檢查 API 用量頁的錯誤訊息後重新執行。</p>
+          <p className="mt-1 text-sm text-red-700">
+            {stageError(runRecord.data_package) ?? progress.latestError ?? "請檢查 API 用量頁的錯誤訊息後重新執行。"}
+          </p>
         </div>
       ) : null}
 

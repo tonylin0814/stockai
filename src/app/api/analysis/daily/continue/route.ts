@@ -3,12 +3,12 @@ import { buildDailyDataPackage, type DailyDataPackage } from "@/lib/analysis/dat
 import { runWebResearch } from "@/lib/analysis/web-research";
 import { runCommitteePipeline } from "@/lib/analysis/pipeline/committee";
 import type { DivisionPipelineResult } from "@/lib/analysis/pipeline/division";
-import { runDivisionPipeline } from "@/lib/analysis/pipeline/division";
+import { runDivisionManagerPipeline } from "@/lib/analysis/pipeline/division";
 import { runMarketAnalysis, type MarketAnalysisResult } from "@/lib/analysis/pipeline/market-analysis";
 import { writeRecommendations } from "@/lib/analysis/pipeline/recommendations";
 import { runTaiwanScan } from "@/lib/analysis/pipeline/tw-scan";
 import type { CommitteeDecision, DivisionDecision, TeamReport } from "@/lib/analysis/schemas";
-import type { Division } from "@/lib/analysis/pipeline/team";
+import { runTeamPipeline, type Division, type DivisionTeam } from "@/lib/analysis/pipeline/team";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -41,6 +41,7 @@ type DailyRunState = {
   stageMessage?: string;
   familyId?: string | null;
   divisionIndex?: number;
+  teamIndex?: number;
   dataPackage?: DailyDataPackage;
   divisionResults?: StoredDivisionResult[];
   committeeResult?: StoredCommitteeResult;
@@ -64,6 +65,19 @@ function packageSummary(dataPackage: DailyDataPackage) {
     dataQualitySummary: dataPackage.dataQualitySummary,
     upcomingEarnings: dataPackage.upcomingEarnings
   };
+}
+
+function rowToTeamReport(row: Record<string, unknown>, date: string): TeamReport {
+  return {
+    teamName: String(row.team_name ?? ""),
+    date,
+    leader: String(row.team_leader ?? ""),
+    marketView: row.market_view,
+    portfolioReview: row.portfolio_review,
+    missionAnalysis: row.mission_analysis,
+    marketScanRecommendations: row.market_scan_recommendations,
+    finalTeamView: row.final_team_view
+  } as TeamReport;
 }
 
 function toDivisionPipelineResults(results: StoredDivisionResult[]): DivisionPipelineResult[] {
@@ -175,6 +189,7 @@ export async function POST() {
         pipelineStage: "division",
         stageMessage: "資料包完成，正在執行 GPT / Anthropic 分析。",
         divisionIndex: 0,
+        teamIndex: 0,
         dataPackage,
         divisionResults: []
       });
@@ -201,6 +216,7 @@ export async function POST() {
 
       const divisions = (divisionsData ?? []) as Division[];
       const divisionIndex = state.divisionIndex ?? 0;
+      const teamIndex = state.teamIndex ?? 0;
       const division = divisions[divisionIndex];
 
       if (!division) {
@@ -212,11 +228,55 @@ export async function POST() {
         return NextResponse.json({ status: "running", stage: "committee", dailyRunId });
       }
 
-      const result = await runDivisionPipeline({
+      const { data: teamsData, error: teamsError } = await supabase
+        .from("division_teams")
+        .select("*")
+        .eq("division_id", division.id)
+        .eq("is_enabled", true)
+        .order("sort_order", { ascending: true });
+
+      if (teamsError) {
+        throw new Error(teamsError.message);
+      }
+
+      const teams = (teamsData ?? []) as DivisionTeam[];
+      const team = teams[teamIndex];
+
+      if (team) {
+        await runTeamPipeline({
+          team,
+          division,
+          dataPackage,
+          dailyRunId,
+          userId: user.id
+        });
+        const nextTeamIndex = teamIndex + 1;
+
+        await updateRunState(dailyRunId, {
+          ...state,
+          pipelineStage: "division",
+          stageMessage: `${division.name}：已完成 ${nextTeamIndex}/${teams.length} 個 team。`,
+          divisionIndex,
+          teamIndex: nextTeamIndex
+        });
+
+        return NextResponse.json({ status: "running", stage: "division", dailyRunId });
+      }
+
+      const { data: savedTeamReports } = await supabase
+        .from("team_reports")
+        .select("id, division, team_name, team_leader, market_view, portfolio_review, mission_analysis, market_scan_recommendations, final_team_view")
+        .eq("daily_run_id", dailyRunId)
+        .eq("division", division.name);
+      const teamReports = ((savedTeamReports ?? []) as Array<Record<string, unknown>>).map((row) =>
+        rowToTeamReport(row, dataPackage.packageDate)
+      );
+      const result = await runDivisionManagerPipeline({
         division,
         dataPackage,
         dailyRunId,
-        userId: user.id
+        userId: user.id,
+        teamReports
       });
       const storedResult: StoredDivisionResult =
         result.status === "completed"
@@ -234,8 +294,9 @@ export async function POST() {
         stageMessage:
           nextIndex >= divisions.length
             ? "Division 分析完成，正在進行委員會決策。"
-            : `已完成 ${nextIndex}/${divisions.length} 個 Division。`,
+            : `已完成 ${nextIndex}/${divisions.length} 個 Division，準備下一個 Division。`,
         divisionIndex: nextIndex,
+        teamIndex: 0,
         divisionResults: [...(state.divisionResults ?? []), storedResult]
       });
 
@@ -275,16 +336,7 @@ export async function POST() {
         .eq("daily_run_id", dailyRunId);
       const teamReports =
         ((savedTeamReports ?? []) as Array<Record<string, unknown>>).map((row) => ({
-          report: {
-            teamName: String(row.team_name ?? ""),
-            date: dataPackage.packageDate,
-            leader: String(row.team_leader ?? ""),
-            marketView: row.market_view,
-            portfolioReview: row.portfolio_review,
-            missionAnalysis: row.mission_analysis,
-            marketScanRecommendations: row.market_scan_recommendations,
-            finalTeamView: row.final_team_view
-          } as TeamReport,
+          report: rowToTeamReport(row, dataPackage.packageDate),
           teamReportId: String(row.id),
           division: String(row.division ?? "")
         })) ?? [];

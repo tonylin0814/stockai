@@ -75,9 +75,10 @@ export async function runDivisionPipeline(params: {
   }
 
   const teams = (teamsData ?? []) as DivisionTeam[];
-  const teamResults = await Promise.all(
-    teams.map((team) =>
-      runTeamPipeline({
+  const teamResults = [];
+  for (const team of teams) {
+    teamResults.push(
+      await runTeamPipeline({
         team,
         division: params.division,
         dataPackage: params.dataPackage,
@@ -85,13 +86,29 @@ export async function runDivisionPipeline(params: {
         userId: params.userId,
         missionId: params.missionId
       })
-    )
-  );
+    );
+  }
   const completedTeamResults = teamResults.filter(
     (result): result is Extract<typeof result, { status: "completed" }> =>
       result.status === "completed"
   );
   const teamReports = completedTeamResults.map((result) => result.report);
+  return runDivisionManagerPipeline({
+    ...params,
+    teamReports
+  });
+}
+
+export async function runDivisionManagerPipeline(params: {
+  division: Division;
+  dataPackage: DailyDataPackage;
+  dailyRunId?: string | null;
+  userId: string;
+  missionId?: string;
+  teamReports: TeamReport[];
+}): Promise<DivisionPipelineResult> {
+  const supabase = createSupabaseServiceClient();
+  const teamReports = params.teamReports;
   const prompt = buildDivisionManagerPrompt({
     divisionName: params.division.name,
     managerName: params.division.manager_name,
