@@ -29,6 +29,17 @@ type WatchlistRow = {
   securities: { symbol: string; market: string; name: string } | null;
 };
 
+type SimPositionRow = {
+  id: string;
+  symbol: string;
+  market: string;
+  name: string;
+  shares: number;
+  avg_cost_price: number;
+  current_price: number | null;
+  sim_portfolios: { division: string; market: string } | null;
+};
+
 type FxPair = { label: string; base: string; quote: string };
 
 function signClass(value: number | null | undefined) {
@@ -108,9 +119,10 @@ export default async function MarketsPage({
 
   let holdings: HoldingRow[] = [];
   let watchlistItems: WatchlistRow[] = [];
+  let simPositions: SimPositionRow[] = [];
 
   if (user) {
-    const [holdingsResult, watchlistResult] = await Promise.all([
+    const [holdingsResult, watchlistResult, simPositionsResult] = await Promise.all([
       supabase
         .from("portfolio_holdings")
         .select("id, shares, average_cost, cost_currency, securities(symbol, market, name)")
@@ -121,11 +133,18 @@ export default async function MarketsPage({
         .from("watchlist_items")
         .select("id, target_buy_price, reason, securities(symbol, market, name)")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("sim_positions")
+        .select("id, symbol, market, name, shares, avg_cost_price, current_price, sim_portfolios!inner(division, market, user_id)")
+        .eq("sim_portfolios.user_id", user.id)
+        .eq("status", "open")
+        .order("opened_at", { ascending: false })
     ]);
 
     holdings = (holdingsResult.data ?? []) as unknown as HoldingRow[];
     watchlistItems = (watchlistResult.data ?? []) as unknown as WatchlistRow[];
+    simPositions = (simPositionsResult.data ?? []) as unknown as SimPositionRow[];
   }
 
   const fxPairs: FxPair[] = [
@@ -150,6 +169,11 @@ export default async function MarketsPage({
       item.securities && isMarket(item.securities.market)
         ? provider.getQuote(item.securities.symbol, item.securities.market)
         : Promise.resolve(null)
+    ),
+    ...simPositions.map((position) =>
+      isMarket(position.market)
+        ? provider.getQuote(position.symbol, position.market)
+        : Promise.resolve(null)
     )
   ]);
   const fxRates = rest.slice(0, fxPairs.length) as number[];
@@ -157,8 +181,12 @@ export default async function MarketsPage({
     fxPairs.length,
     fxPairs.length + holdings.length
   ) as (Quote | null)[];
-  const watchQuotes = rest.slice(fxPairs.length + holdings.length) as (Quote | null)[];
-  const marketDataUpdatedAt = latestQuoteTime([dow, nasdaq, taiex, ...holdingQuotes, ...watchQuotes]);
+  const watchQuotes = rest.slice(
+    fxPairs.length + holdings.length,
+    fxPairs.length + holdings.length + watchlistItems.length
+  ) as (Quote | null)[];
+  const simQuotes = rest.slice(fxPairs.length + holdings.length + watchlistItems.length) as (Quote | null)[];
+  const marketDataUpdatedAt = latestQuoteTime([dow, nasdaq, taiex, ...holdingQuotes, ...watchQuotes, ...simQuotes]);
 
   let lastAnalysisAt: string | null = null;
   if (user) {
@@ -183,21 +211,22 @@ export default async function MarketsPage({
             持股、關注清單、匯率與大盤指數。
           </p>
         </div>
-        <div className="space-y-3 text-right">
-          <div className="space-y-1">
+        <div className="space-y-2 text-right">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <RunAnalysisButton label="執行全系統分析" />
-            <p className="text-xs text-slate-500">
-              上一次全系統分析：{lastAnalysisAt ? formatDateTime(lastAnalysisAt) : "—"}
-            </p>
+            <form action={refreshMarketDataForPage}>
+              <input type="hidden" name="returnTo" value="/markets" />
+              <PendingSubmitButton
+                idleLabel="更新市場資料"
+                pendingLabel="更新中..."
+                icon="refresh"
+                variant="secondary"
+              />
+            </form>
           </div>
-          <form action={refreshMarketDataForPage}>
-            <input type="hidden" name="returnTo" value="/markets" />
-            <PendingSubmitButton
-              idleLabel="更新市場資料"
-              pendingLabel="更新中..."
-              icon="refresh"
-            />
-          </form>
+          <p className="text-xs text-slate-500">
+            上一次全系統分析：{lastAnalysisAt ? formatDateTime(lastAnalysisAt) : "—"}
+          </p>
           {searchParams?.updated === "1" ? (
             <p className="text-xs text-green-700">市場資料已更新。</p>
           ) : null}
@@ -263,6 +292,77 @@ export default async function MarketsPage({
                         : "—"}
                     </Td>
                     <Td>{formatNumber(holding.average_cost, 2)}</Td>
+                    <Td className={signClass(pnl)}>
+                      {pnl !== null ? formatSignedNumber(pnl, 2) : "—"}
+                    </Td>
+                    <Td className={signClass(returnPct)}>
+                      {returnPct !== null ? formatSignedPercent(returnPct) : "—"}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold text-slate-950">模擬交易持股</h2>
+        {simPositions.length === 0 ? (
+          <EmptyState
+            message="尚未建立模擬持股。"
+            linkHref="/performance/simulation"
+            linkLabel="前往模擬交易"
+          />
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <Th>Division</Th>
+                <Th>代號</Th>
+                <Th>名稱</Th>
+                <Th>市場</Th>
+                <Th>股數</Th>
+                <Th>現價</Th>
+                <Th>今日漲跌%</Th>
+                <Th>成本</Th>
+                <Th>未實現損益</Th>
+                <Th>報酬率</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {simPositions.map((position, index) => {
+                const quote = simQuotes[index];
+                const price =
+                  quote && quote.qualityState !== "missing"
+                    ? quote.price
+                    : position.current_price;
+                const costTotal = Number(position.avg_cost_price) * Number(position.shares);
+                const marketValue = price !== null ? Number(price) * Number(position.shares) : null;
+                const pnl = marketValue !== null ? marketValue - costTotal : null;
+                const returnPct = pnl !== null && costTotal > 0 ? (pnl / costTotal) * 100 : null;
+
+                return (
+                  <tr key={position.id}>
+                    <Td>{position.sim_portfolios?.division === "anthropic" ? "Anthropic" : "GPT"}</Td>
+                    <Td>
+                      <Link
+                        href="/performance/simulation"
+                        className="font-medium text-blue-700 hover:underline"
+                      >
+                        {position.symbol}
+                      </Link>
+                    </Td>
+                    <Td>{position.name}</Td>
+                    <Td>{position.market}</Td>
+                    <Td>{formatNumber(Number(position.shares), 2)}</Td>
+                    <Td>{price !== null ? formatNumber(Number(price), 2) : "—"}</Td>
+                    <Td className={signClass(quote?.changePct)}>
+                      {quote && quote.qualityState !== "missing"
+                        ? formatSignedPercent(quote.changePct)
+                        : "—"}
+                    </Td>
+                    <Td>{formatNumber(Number(position.avg_cost_price), 2)}</Td>
                     <Td className={signClass(pnl)}>
                       {pnl !== null ? formatSignedNumber(pnl, 2) : "—"}
                     </Td>

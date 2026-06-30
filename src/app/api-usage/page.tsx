@@ -79,6 +79,38 @@ function isSameMonth(value: string, today: Date) {
   return row.year === current.year && row.month === current.month;
 }
 
+function providerGroup(row: AgentRunRow) {
+  const provider = `${row.model_provider ?? ""} ${row.model_name ?? ""}`.toLowerCase();
+  if (provider.includes("anthropic") || provider.includes("claude")) return "anthropic";
+  if (provider.includes("openai") || provider.includes("gpt")) return "openai";
+  return "other";
+}
+
+function providerCosts(rows: AgentRunRow[]) {
+  return rows.reduce(
+    (totals, row) => {
+      const cost = Number(row.estimated_cost_usd) || 0;
+      const group = providerGroup(row);
+      if (group === "anthropic") totals.anthropic += cost;
+      else if (group === "openai") totals.openai += cost;
+      else totals.other += cost;
+      return totals;
+    },
+    { openai: 0, anthropic: 0, other: 0 }
+  );
+}
+
+function CostBreakdown({ rows }: { rows: AgentRunRow[] }) {
+  const costs = providerCosts(rows);
+
+  return (
+    <p className="mt-2 text-xs text-slate-500">
+      GPT {formatUsd(costs.openai)} ｜ Anth {formatUsd(costs.anthropic)}
+      {costs.other > 0 ? ` ｜ 其他 ${formatUsd(costs.other)}` : ""}
+    </p>
+  );
+}
+
 function runContext(row: AgentRunRow) {
   if (row.mission_id) return `任務 ${row.mission_id.slice(0, 8)}`;
   if (row.daily_run_id) return `每日 ${row.daily_run_id.slice(0, 8)}`;
@@ -130,6 +162,8 @@ export default async function ApiUsagePage({ searchParams }: PageProps) {
   }
 
   const today = new Date();
+  const todayRows = rows.filter((row) => isSameDay(row.created_at, today));
+  const monthRows = rows.filter((row) => isSameMonth(row.created_at, today));
   const todayCost = rows
     .filter((row) => isSameDay(row.created_at, today))
     .reduce((sum, row) => sum + (Number(row.estimated_cost_usd) || 0), 0);
@@ -154,14 +188,17 @@ export default async function ApiUsagePage({ searchParams }: PageProps) {
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-600">今日費用</p>
           <p className="mt-1 text-xl font-semibold text-slate-950">{formatUsd(todayCost)}</p>
+          <CostBreakdown rows={todayRows} />
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-600">本月費用</p>
           <p className="mt-1 text-xl font-semibold text-slate-950">{formatUsd(monthCost)}</p>
+          <CostBreakdown rows={monthRows} />
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-600">累計費用</p>
           <p className="mt-1 text-xl font-semibold text-slate-950">{formatUsd(totalCost)}</p>
+          <CostBreakdown rows={rows} />
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-600">累計執行</p>

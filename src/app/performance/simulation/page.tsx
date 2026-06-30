@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { refreshMarketDataForPage } from "@/app/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { SimScoreCard } from "@/components/sim-score-card";
 import { SimulationActionButtons } from "@/components/simulation-action-buttons";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -99,8 +101,9 @@ function money(value: number, market: "US" | "TW") {
 export default async function SimulationPage({
   searchParams
 }: {
-  searchParams?: { division?: string; action?: string };
+  searchParams?: { division?: string; action?: string; updated?: string };
 }) {
+  const refreshedAt = new Date().toISOString();
   const division: Division = searchParams?.division === "anthropic" ? "anthropic" : "gpt";
   const actionFilter = searchParams?.action === "buy" || searchParams?.action === "sell" ? searchParams.action : "all";
   const supabase = createSupabaseServerClient();
@@ -212,7 +215,26 @@ export default async function SimulationPage({
             GPT Division 與 Anthropic Division 各自管理美股與台股虛擬資金。
           </p>
         </div>
-        <SimulationActionButtons />
+        <div className="space-y-2 text-right">
+          <SimulationActionButtons />
+          <form action={refreshMarketDataForPage}>
+            <input
+              type="hidden"
+              name="returnTo"
+              value={`/performance/simulation?division=${division}&action=${actionFilter}`}
+            />
+            <PendingSubmitButton
+              idleLabel="更新市場資料"
+              pendingLabel="更新中..."
+              icon="refresh"
+              variant="secondary"
+            />
+          </form>
+          {searchParams?.updated === "1" ? (
+            <p className="text-xs text-green-700">市場資料已更新。</p>
+          ) : null}
+          <p className="text-xs text-slate-500">市場資料更新：{formatDateTime(refreshedAt)}</p>
+        </div>
       </div>
 
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
