@@ -2,10 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { BarChart3, FileText, Play } from "lucide-react";
+import { BarChart3, FileText, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type ActionKey = "trade" | "report" | "weekly";
+type ActionKey = "trade" | "report" | "weekly" | "reset";
 
 const actions: Record<
   ActionKey,
@@ -28,6 +28,12 @@ const actions: Record<
     loading: "評估中...",
     path: "/api/simulation/weekly-eval",
     icon: BarChart3
+  },
+  reset: {
+    label: "重置交易",
+    loading: "重置中...",
+    path: "/api/simulation/reset",
+    icon: RotateCcw
   }
 };
 
