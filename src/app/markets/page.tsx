@@ -105,11 +105,9 @@ export default async function MarketsPage() {
   }
 
   const fxPairs: FxPair[] = [
-    { label: "人民幣 → 美元", base: "CNY", quote: "USD" },
-    { label: "美元 → 加幣", base: "USD", quote: "CAD" },
-    { label: "台幣 → 美元", base: "TWD", quote: "USD" },
-    { label: "台幣 → 加幣", base: "TWD", quote: "CAD" },
-    { label: "台幣 → 日圓", base: "TWD", quote: "JPY" }
+    { label: "美元 → 人民幣", base: "USD", quote: "CNY" },
+    { label: "美元 → 台幣", base: "USD", quote: "TWD" },
+    { label: "加幣 → 台幣", base: "CAD", quote: "TWD" }
   ];
   const provider = getMarketDataProvider();
   const [dow, nasdaq, taiex, ...rest] = await Promise.all([
@@ -282,7 +280,7 @@ export default async function MarketsPage() {
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-slate-950">匯率</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {fxPairs.map((pair, index) => (
             <div
               key={pair.label}
