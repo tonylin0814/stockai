@@ -266,32 +266,21 @@ export default async function SimulationPage({
 
       <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">資產分幣別</p>
-          <p className="mt-2 text-sm font-semibold text-slate-950">{money(usAssets, "US")}</p>
-          <p className="text-sm font-semibold text-slate-950">{money(twAssets, "TW")}</p>
-          <p className="mt-2 text-xs text-slate-500">
-            已投入 {money(usInvested, "US")} / {money(twInvested, "TW")}
-          </p>
+          <p className="text-sm text-slate-500">總資產分幣別</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">{money(usAssets, "US")}</p>
+          <p className="text-lg font-semibold text-slate-950">{money(twAssets, "TW")}</p>
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">美股資產</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">
-            {money(usAssets, "US")}
-          </p>
-          <div className="mt-2 space-y-1 text-xs text-slate-500">
-            <p>現金 {money(usCash, "US")}</p>
-            <p>持股市值 {money(usInvested, "US")}</p>
-          </div>
+          <p className="text-sm text-slate-500">現金資產</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">{money(usCash, "US")}</p>
+          <p className="text-lg font-semibold text-slate-950">{money(twCash, "TW")}</p>
+          <p className="mt-2 text-xs text-slate-500">尚未投入市場的模擬資金</p>
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">台股資產</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">
-            {money(twAssets, "TW")}
-          </p>
-          <div className="mt-2 space-y-1 text-xs text-slate-500">
-            <p>現金 {money(twCash, "TW")}</p>
-            <p>持股市值 {money(twInvested, "TW")}</p>
-          </div>
+          <p className="text-sm text-slate-500">股票資產</p>
+          <p className="mt-2 text-lg font-semibold text-slate-950">{money(usInvested, "US")}</p>
+          <p className="text-lg font-semibold text-slate-950">{money(twInvested, "TW")}</p>
+          <p className="mt-2 text-xs text-slate-500">目前持倉的市值</p>
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">本週積分</p>
