@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { notFound } from "next/navigation";
 import { refreshStockMarketData } from "@/app/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { QualityBadge } from "@/components/quality-badge";
 import RecommendationRating from "@/components/recommendation-rating";
 import { StockChart } from "@/components/stock-chart";
@@ -85,7 +86,13 @@ function articleBadgeClass(query: WebResearchArticle["query"]) {
   return "bg-slate-100 text-slate-600";
 }
 
-export default async function StockDetailPage({ params }: { params: { id: string } }) {
+export default async function StockDetailPage({
+  params,
+  searchParams
+}: {
+  params: { id: string };
+  searchParams?: { updated?: string };
+}) {
   const holdingId = params.id;
   const supabase = createSupabaseServerClient();
   const {
@@ -230,12 +237,19 @@ export default async function StockDetailPage({ params }: { params: { id: string
           </div>
         </div>
         <div className="flex flex-wrap items-start gap-2">
-          <form action={refreshAction}>
-            <Button type="submit" variant="secondary">
-              <RefreshCw className="h-4 w-4" />
-              更新市場資料
-            </Button>
-          </form>
+          <div className="space-y-1">
+            <form action={refreshAction}>
+              <PendingSubmitButton
+                idleLabel="更新市場資料"
+                pendingLabel="更新中..."
+                icon={RefreshCw}
+                variant="secondary"
+              />
+            </form>
+            {searchParams?.updated === "1" ? (
+              <p className="text-xs text-green-700">市場資料已更新。</p>
+            ) : null}
+          </div>
           <StockQuickAnalysisButton holdingId={holdingId} />
         </div>
       </div>

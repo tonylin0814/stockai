@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { addMarketPickToWatchlist } from "@/app/actions";
 import { formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -182,12 +183,13 @@ function PickCard({ pick }: { pick: ScanPick }) {
         <input type="hidden" name="name" value={pick.name} />
         <input type="hidden" name="targetPrice" value={String(pick.targetPrice)} />
         <input type="hidden" name="reason" value={pick.reason} />
-        <button
-          type="submit"
-          className="w-full rounded-md border border-slate-200 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          加入關注清單
-        </button>
+        <PendingSubmitButton
+          idleLabel="加入關注清單"
+          pendingLabel="加入中..."
+          variant="secondary"
+          size="sm"
+          className="w-full text-xs"
+        />
       </form>
     </div>
   );

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LogIn } from "lucide-react";
 import { signIn } from "@/app/actions";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/form-field";
 
@@ -36,10 +36,12 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
             autoComplete="current-password"
           />
         </FormField>
-        <Button type="submit" className="w-full">
-          <LogIn className="h-4 w-4" />
-          登入
-        </Button>
+        <PendingSubmitButton
+          idleLabel="登入"
+          pendingLabel="登入中..."
+          icon={LogIn}
+          className="w-full"
+        />
       </form>
       <p className="mt-4 text-center text-sm text-slate-600">
         還沒有帳號？{" "}

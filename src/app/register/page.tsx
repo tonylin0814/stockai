@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { signUp } from "@/app/actions";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/form-field";
 
@@ -40,10 +40,12 @@ export default function RegisterPage({ searchParams }: RegisterPageProps) {
             autoComplete="new-password"
           />
         </FormField>
-        <Button type="submit" className="w-full">
-          <UserPlus className="h-4 w-4" />
-          建立帳號
-        </Button>
+        <PendingSubmitButton
+          idleLabel="建立帳號"
+          pendingLabel="建立中..."
+          icon={UserPlus}
+          className="w-full"
+        />
       </form>
       <p className="mt-4 text-center text-sm text-slate-600">
         已經有帳號？{" "}

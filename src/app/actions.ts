@@ -765,10 +765,10 @@ export async function updateUserSettings(_prev: unknown, formData: FormData) {
 
 export async function refreshStockMarketData(holdingId: string) {
   revalidatePath(`/portfolio/${holdingId}`);
-  redirect(`/portfolio/${holdingId}`);
+  redirect(`/portfolio/${holdingId}?updated=1`);
 }
 
 export async function refreshMarketOverview() {
   revalidatePath("/markets");
-  redirect("/markets");
+  redirect("/markets?updated=1");
 }

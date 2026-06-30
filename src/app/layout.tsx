@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { signOut } from "@/app/actions";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import "./globals.css";
 
@@ -54,10 +54,13 @@ export default async function RootLayout({
                   </Link>
                 ))}
                 <form action={signOut}>
-                  <Button type="submit" variant="ghost" size="sm">
-                    <LogOut className="h-4 w-4" />
-                    登出
-                  </Button>
+                  <PendingSubmitButton
+                    idleLabel="登出"
+                    pendingLabel="登出中..."
+                    icon={LogOut}
+                    variant="ghost"
+                    size="sm"
+                  />
                 </form>
               </nav>
             </div>

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Filter, X } from "lucide-react";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -52,10 +53,12 @@ export function PerformanceHistoryFilters() {
       <Input type="date" name="from" defaultValue={params.get("from") ?? ""} aria-label="開始日期" />
       <Input type="date" name="to" defaultValue={params.get("to") ?? ""} aria-label="結束日期" />
       <div className="flex gap-2">
-        <Button type="submit" className="flex-1">
-          <Filter className="h-4 w-4" />
-          篩選
-        </Button>
+        <PendingSubmitButton
+          idleLabel="篩選"
+          pendingLabel="篩選中..."
+          icon={Filter}
+          className="flex-1"
+        />
         <Button type="button" variant="secondary" size="icon" onClick={clearFilters} aria-label="清除篩選">
           <X className="h-4 w-4" />
         </Button>

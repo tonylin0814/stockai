@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { refreshMarketOverview } from "@/app/actions";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { QualityBadge } from "@/components/quality-badge";
-import { Button } from "@/components/ui/button";
 import { Table, Td, Th } from "@/components/ui/table";
 import {
   formatDateTime,
@@ -82,7 +82,11 @@ function IndexCard({ title, quote }: { title: string; quote: Quote }) {
   );
 }
 
-export default async function MarketsPage() {
+export default async function MarketsPage({
+  searchParams
+}: {
+  searchParams?: { updated?: string };
+}) {
   const refreshedAt = new Date().toISOString();
   const supabase = createSupabaseServerClient();
   let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
@@ -158,11 +162,15 @@ export default async function MarketsPage() {
         </div>
         <div className="space-y-1 text-right">
           <form action={refreshMarketOverview}>
-            <Button type="submit">
-              <RefreshCw className="h-4 w-4" />
-              更新市場資料
-            </Button>
+            <PendingSubmitButton
+              idleLabel="更新市場資料"
+              pendingLabel="更新中..."
+              icon={RefreshCw}
+            />
           </form>
+          {searchParams?.updated === "1" ? (
+            <p className="text-xs text-green-700">市場資料已更新。</p>
+          ) : null}
           <p className="text-xs text-slate-500">
             最後更新：{formatDateTime(refreshedAt)}
           </p>
