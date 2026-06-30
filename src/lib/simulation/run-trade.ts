@@ -4,6 +4,8 @@ import { callModel, inputSummary, validateOrRepair } from "@/lib/analysis/pipeli
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { Quote } from "@/lib/market-data/types";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { TW_SCAN_UNIVERSE } from "@/lib/analysis/tw-universe";
+import { US_UNIVERSE_UNDER_50, US_UNIVERSE_50_TO_100, US_UNIVERSE_100_TO_200 } from "@/lib/analysis/us-universe";
 
 type Division = "gpt" | "anthropic";
 type Market = "US" | "TW";
@@ -73,6 +75,11 @@ const TradingResponseSchema = z.object({
 type TradeDecision = z.infer<typeof TradeDecisionSchema>;
 
 const divisions: Division[] = ["gpt", "anthropic"];
+const US_SCAN_UNIVERSE = [
+  ...US_UNIVERSE_UNDER_50,
+  ...US_UNIVERSE_50_TO_100,
+  ...US_UNIVERSE_100_TO_200
+];
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -148,54 +155,64 @@ async function ensurePortfolio(
   return data as Portfolio;
 }
 
-async function loadCandidates(
+async function reconcilePortfolioCash(
   supabase: ReturnType<typeof createSupabaseServiceClient>,
-  userId: string,
-  market: Market
+  portfolio: Portfolio
 ) {
-  const fallback =
-    market === "US"
-      ? [
-          { symbol: "NVDA", name: "NVIDIA Corp." },
-          { symbol: "AAPL", name: "Apple Inc." },
-          { symbol: "MSFT", name: "Microsoft Corp." }
-        ]
-      : [
-          { symbol: "2330", name: "台積電" },
-          { symbol: "2454", name: "聯發科" },
-          { symbol: "2409", name: "友達" }
-        ];
+  const { data: trades } = await supabase
+    .from("sim_trades")
+    .select("action, total_amount")
+    .eq("portfolio_id", portfolio.id);
+  const currentCash = (trades ?? []).reduce(
+    (cash, trade: { action: string; total_amount: number }) => {
+      const amount = Number(trade.total_amount ?? 0);
+      return trade.action === "sell" ? cash + amount : cash - amount;
+    },
+    Number(portfolio.starting_cash)
+  );
 
-  const [{ data: holdings }, { data: watchlist }] = await Promise.all([
-    supabase
-      .from("portfolio_holdings")
-      .select("securities(symbol, market, name)")
-      .eq("user_id", userId)
-      .eq("is_active", true),
-    supabase
-      .from("watchlist_items")
-      .select("securities(symbol, market, name)")
-      .eq("user_id", userId)
-  ]);
+  if (Math.abs(currentCash - Number(portfolio.current_cash)) > 0.01) {
+    await supabase
+      .from("sim_portfolios")
+      .update({ current_cash: currentCash })
+      .eq("id", portfolio.id);
+    return { ...portfolio, current_cash: currentCash };
+  }
 
-  const rows = [...(holdings ?? []), ...(watchlist ?? [])]
-    .map((row: Record<string, unknown>) => row.securities as Record<string, unknown> | null)
-    .filter((security): security is Record<string, unknown> => Boolean(security))
-    .filter((security) => security.market === market)
-    .map((security) => ({
-      symbol: String(security.symbol),
-      name: String(security.name ?? security.symbol)
-    }));
+  return portfolio;
+}
 
-  const seen = new Set<string>();
-  return [...rows, ...fallback]
-    .filter((candidate) => {
-      const key = candidate.symbol.toUpperCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 6);
+async function loadPortfolioById(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  portfolioId: string
+) {
+  const { data, error } = await supabase
+    .from("sim_portfolios")
+    .select("*")
+    .eq("id", portfolioId)
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "讀取模擬投資組合失敗。");
+  return data as Portfolio;
+}
+
+async function loadOpenPositions(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  portfolioId: string
+) {
+  const { data } = await supabase
+    .from("sim_positions")
+    .select("*")
+    .eq("portfolio_id", portfolioId)
+    .eq("status", "open");
+  return (data ?? []) as Position[];
+}
+
+function loadCandidates(market: Market) {
+  // Use the broad market universe so AIs make independent judgements,
+  // not influenced by the user's personal watchlist or portfolio.
+  const universe = market === "US" ? [...US_UNIVERSE_UNDER_50, ...US_UNIVERSE_50_TO_100, ...US_UNIVERSE_100_TO_200] : TW_SCAN_UNIVERSE;
+  const shuffled = [...universe].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 8);
 }
 
 async function quoteWithTechnicals(symbol: string, name: string, market: Market) {
@@ -393,7 +410,10 @@ export async function runTradeForUser(
       continue;
     }
 
-    const portfolio = await ensurePortfolio(supabase, userId, division, market);
+    const portfolio = await reconcilePortfolioCash(
+      supabase,
+      await ensurePortfolio(supabase, userId, division, market)
+    );
     const { data: existingSession } = await supabase
       .from("sim_trades")
       .select("id")
@@ -411,7 +431,7 @@ export async function runTradeForUser(
       .eq("portfolio_id", portfolio.id)
       .eq("status", "open");
     const positions = (positionsData ?? []) as Position[];
-    const candidates = await loadCandidates(supabase, userId, market);
+    const candidates = loadCandidates(market);
     const candidateQuotes = await Promise.all(
       candidates.map((candidate) => quoteWithTechnicals(candidate.symbol, candidate.name, market))
     );
@@ -483,10 +503,12 @@ export async function runTradeForUser(
       const normalizedDecision = { ...decision, market };
       const quote = quoteMap.get(normalizedDecision.symbol);
       if (!quote) continue;
+      const freshPortfolio = await loadPortfolioById(supabase, portfolio.id);
+      const freshPositions = await loadOpenPositions(supabase, portfolio.id);
       const ok = await executeTrade({
         supabase,
-        portfolio,
-        positions,
+        portfolio: freshPortfolio,
+        positions: freshPositions,
         decision: normalizedDecision,
         quote,
         sessionDate,

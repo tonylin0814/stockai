@@ -3,7 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { SimScoreCard } from "@/components/sim-score-card";
 import { SimulationActionButtons } from "@/components/simulation-action-buttons";
 import { Table, Td, Th } from "@/components/ui/table";
-import { formatCurrency, formatDateTime, formatNumber, formatSignedPercent } from "@/lib/format";
+import { formatDateTime, formatNumber, formatSignedPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -39,6 +39,11 @@ type Trade = {
   outcome_pct: number | null;
   conviction: number | null;
   executed_at: string;
+};
+type CashTrade = {
+  action: string;
+  total_amount: number;
+  sim_portfolios: { market: "US" | "TW" } | null;
 };
 type DailyReport = {
   report_date: string;
@@ -77,12 +82,22 @@ function positionPct(position: Position) {
   return avg > 0 ? ((current - avg) / avg) * 100 : 0;
 }
 
-function portfolioTotal(portfolio: Portfolio | undefined, positions: Position[]) {
-  return Number(portfolio?.current_cash ?? 0) + positions.reduce((sum, position) => sum + positionValue(position), 0);
+function portfolioCash(portfolio: Portfolio | undefined, trades: CashTrade[], market: "US" | "TW") {
+  if (!portfolio) return 0;
+  return trades
+    .filter((trade) => trade.sim_portfolios?.market === market)
+    .reduce((cash, trade) => {
+      const amount = Number(trade.total_amount ?? 0);
+      return trade.action === "sell" ? cash + amount : cash - amount;
+    }, Number(portfolio.starting_cash));
+}
+
+function portfolioTotal(cash: number, positions: Position[]) {
+  return cash + positions.reduce((sum, position) => sum + positionValue(position), 0);
 }
 
 function money(value: number, market: "US" | "TW") {
-  return formatCurrency(value, market === "US" ? "USD" : "TWD");
+  return `${market === "US" ? "US$" : "NT$"}${formatNumber(value, market === "US" ? 2 : 0)}`;
 }
 
 export default async function SimulationPage({
@@ -106,7 +121,8 @@ export default async function SimulationPage({
     latestScoreResult,
     scoresResult,
     weeklyEvalsResult,
-    allScoresResult
+    allScoresResult,
+    cashTradesResult
   ] = await Promise.all([
     supabase.from("sim_portfolios").select("*").eq("user_id", user.id).eq("division", division),
     supabase
@@ -156,7 +172,12 @@ export default async function SimulationPage({
       .from("sim_scores")
       .select("division, total_score, badges")
       .eq("user_id", user.id)
-      .order("score_date", { ascending: false })
+      .order("score_date", { ascending: false }),
+    supabase
+      .from("sim_trades")
+      .select("action, total_amount, sim_portfolios!inner(division, market, user_id)")
+      .eq("sim_portfolios.user_id", user.id)
+      .eq("sim_portfolios.division", division)
   ]);
 
   const portfolios = (portfoliosResult.data ?? []) as Portfolio[];
@@ -173,6 +194,7 @@ export default async function SimulationPage({
     total_score: number;
     badges: unknown;
   }>;
+  const cashTrades = (cashTradesResult.data ?? []) as unknown as CashTrade[];
   const gptScore = allScores.find((score) => score.division === "gpt")?.total_score ?? null;
   const antScore = allScores.find((score) => score.division === "anthropic")?.total_score ?? null;
   const gptWins = allScores.filter(
@@ -185,8 +207,10 @@ export default async function SimulationPage({
   const twPortfolio = portfolios.find((portfolio) => portfolio.market === "TW");
   const usPositions = positions.filter((position) => position.market === "US");
   const twPositions = positions.filter((position) => position.market === "TW");
-  const usAssets = portfolioTotal(usPortfolio, usPositions);
-  const twAssets = portfolioTotal(twPortfolio, twPositions);
+  const usCash = portfolioCash(usPortfolio, cashTrades, "US");
+  const twCash = portfolioCash(twPortfolio, cashTrades, "TW");
+  const usAssets = portfolioTotal(usCash, usPositions);
+  const twAssets = portfolioTotal(twCash, twPositions);
 
   return (
     <div className="space-y-6">
@@ -251,7 +275,7 @@ export default async function SimulationPage({
 
       <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">雙市場資產</p>
+          <p className="text-sm text-slate-500">資產分幣別</p>
           <p className="mt-2 text-sm font-semibold text-slate-950">{money(usAssets, "US")}</p>
           <p className="text-sm font-semibold text-slate-950">{money(twAssets, "TW")}</p>
         </div>
@@ -309,7 +333,9 @@ export default async function SimulationPage({
               <div key={market} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="font-semibold text-slate-950">{market === "US" ? "美股" : "台股"}</h3>
-                  <p className="text-sm text-slate-500">現金 {money(Number(portfolio?.current_cash ?? 0), market)}</p>
+                  <p className="text-sm text-slate-500">
+                    現金 {money(market === "US" ? usCash : twCash, market)}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   {list.map((position) => {
