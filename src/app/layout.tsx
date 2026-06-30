@@ -18,7 +18,7 @@ const navLinks = [
   { href: "/analysis/daily", label: "分析" },
   { href: "/performance", label: "績效" },
   { href: "/missions", label: "任務" },
-  { href: "/paper-trades", label: "模擬交易" },
+  { href: "/performance/simulation", label: "模擬交易" },
   { href: "/reports", label: "報告" },
   { href: "/settings", label: "設定" },
   { href: "/api-usage", label: "API 用量" }
