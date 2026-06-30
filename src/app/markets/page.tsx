@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
+import { refreshMarketOverview } from "@/app/actions";
 import { QualityBadge } from "@/components/quality-badge";
+import { Button } from "@/components/ui/button";
 import { Table, Td, Th } from "@/components/ui/table";
 import { formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
@@ -135,11 +138,19 @@ export default async function MarketsPage() {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-950">市場總覽</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          持股、關注清單、匯率與大盤指數。
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-950">市場總覽</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            持股、關注清單、匯率與大盤指數。
+          </p>
+        </div>
+        <form action={refreshMarketOverview}>
+          <Button type="submit">
+            <RefreshCw className="h-4 w-4" />
+            更新市場資料
+          </Button>
+        </form>
       </div>
 
       <section className="space-y-3">

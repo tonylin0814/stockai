@@ -767,3 +767,8 @@ export async function refreshStockMarketData(holdingId: string) {
   revalidatePath(`/portfolio/${holdingId}`);
   redirect(`/portfolio/${holdingId}`);
 }
+
+export async function refreshMarketOverview() {
+  revalidatePath("/markets");
+  redirect("/markets");
+}

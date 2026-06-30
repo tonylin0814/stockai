@@ -12,10 +12,9 @@ export const metadata: Metadata = {
 };
 
 const navLinks = [
-  { href: "/dashboard", label: "總覽" },
+  { href: "/markets", label: "總覽" },
   { href: "/portfolio", label: "投資組合" },
   { href: "/watchlist", label: "關注清單" },
-  { href: "/markets", label: "市場" },
   { href: "/analysis/daily", label: "分析" },
   { href: "/performance", label: "績效" },
   { href: "/missions", label: "任務" },
@@ -41,7 +40,7 @@ export default async function RootLayout({
         {user ? (
           <header className="border-b border-slate-200 bg-white">
             <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
-              <Link href="/dashboard" className="font-semibold text-slate-950">
+              <Link href="/markets" className="font-semibold text-slate-950">
                 台美股投資決策系統
               </Link>
               <nav className="flex flex-wrap items-center gap-2">
