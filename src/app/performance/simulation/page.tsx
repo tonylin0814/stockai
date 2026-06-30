@@ -233,7 +233,7 @@ export default async function SimulationPage({
           {searchParams?.updated === "1" ? (
             <p className="text-xs text-green-700">市場資料已更新。</p>
           ) : null}
-          <p className="text-xs text-slate-500">市場資料更新：{formatDateTime(refreshedAt)}</p>
+          <p className="text-xs text-slate-500">本頁重新抓取：{formatDateTime(refreshedAt)}</p>
         </div>
       </div>
 

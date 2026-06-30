@@ -14,6 +14,9 @@ import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { Quote } from "@/lib/market-data/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type HoldingRow = {
   id: string;
   shares: number;
@@ -230,9 +233,10 @@ export default async function MarketsPage({
           {searchParams?.updated === "1" ? (
             <p className="text-xs text-green-700">市場資料已更新。</p>
           ) : null}
-          <p className="text-xs text-slate-500">
-            市場資料更新：{marketDataUpdatedAt ? formatDateTime(marketDataUpdatedAt) : formatDateTime(refreshedAt)}
-          </p>
+          <div className="space-y-0.5 text-xs text-slate-500">
+            <p>本頁重新抓取：{formatDateTime(refreshedAt)}</p>
+            <p>資料來源時間：{marketDataUpdatedAt ? formatDateTime(marketDataUpdatedAt) : "—"}</p>
+          </div>
         </div>
       </div>
 
