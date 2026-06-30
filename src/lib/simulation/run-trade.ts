@@ -27,10 +27,26 @@ type Position = {
   stop_flagged: boolean;
 };
 
+function normalizeMarket(value: unknown): Market {
+  if (typeof value !== "string") return "US";
+  const text = value.toUpperCase().trim();
+  if (
+    text === "TW" ||
+    text.includes("TW") ||
+    text.includes("台") ||
+    text.includes("TAIWAN") ||
+    text.includes("TAIEX") ||
+    text.includes("TWSE")
+  ) {
+    return "TW";
+  }
+  return "US";
+}
+
 const TradeDecisionSchema = z.object({
   action: z.enum(["buy", "sell", "hold"]),
   symbol: z.string(),
-  market: z.enum(["US", "TW"]),
+  market: z.preprocess((value) => normalizeMarket(value), z.enum(["US", "TW"]).catch("US")),
   name: z.string().optional(),
   shares: z.coerce.number().optional(),
   thesis: z.string().optional(),
@@ -458,13 +474,14 @@ export async function runTradeForUser(
     let executed = 0;
 
     for (const decision of parsed.decisions) {
-      const quote = quoteMap.get(decision.symbol);
+      const normalizedDecision = { ...decision, market };
+      const quote = quoteMap.get(normalizedDecision.symbol);
       if (!quote) continue;
       const ok = await executeTrade({
         supabase,
         portfolio,
         positions,
-        decision,
+        decision: normalizedDecision,
         quote,
         sessionDate,
         maxPositionPct: Number(config.max_position_pct ?? 0.4),
