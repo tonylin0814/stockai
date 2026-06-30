@@ -17,7 +17,7 @@ async function readResponse(response: Response, setError: (message: string) => v
 }
 
 export function RunAnalysisButton({
-  label = "執行今日分析",
+  label = "執行全系統分析",
   redirectTo
 }: {
   label?: string;

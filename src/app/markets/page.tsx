@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { refreshMarketOverview } from "@/app/actions";
+import { refreshMarketDataForPage } from "@/app/actions";
+import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { QualityBadge } from "@/components/quality-badge";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -37,6 +38,14 @@ function signClass(value: number | null | undefined) {
 
 function isMarket(value: string | undefined): value is "US" | "TW" {
   return value === "US" || value === "TW";
+}
+
+function latestQuoteTime(quotes: Array<Quote | null | undefined>) {
+  return quotes
+    .map((quote) => quote?.sourceUpdatedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
 }
 
 function EmptyState({
@@ -149,6 +158,21 @@ export default async function MarketsPage({
     fxPairs.length + holdings.length
   ) as (Quote | null)[];
   const watchQuotes = rest.slice(fxPairs.length + holdings.length) as (Quote | null)[];
+  const marketDataUpdatedAt = latestQuoteTime([dow, nasdaq, taiex, ...holdingQuotes, ...watchQuotes]);
+
+  let lastAnalysisAt: string | null = null;
+  if (user) {
+    const { data: lastRun } = await supabase
+      .from("daily_runs")
+      .select("completed_at, started_at, created_at")
+      .eq("user_id", user.id)
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const run = lastRun as { completed_at?: string | null; started_at?: string | null; created_at?: string | null } | null;
+    lastAnalysisAt = run?.completed_at ?? run?.started_at ?? run?.created_at ?? null;
+  }
 
   return (
     <div className="space-y-10">
@@ -159,8 +183,15 @@ export default async function MarketsPage({
             持股、關注清單、匯率與大盤指數。
           </p>
         </div>
-        <div className="space-y-1 text-right">
-          <form action={refreshMarketOverview}>
+        <div className="space-y-3 text-right">
+          <div className="space-y-1">
+            <RunAnalysisButton label="執行全系統分析" />
+            <p className="text-xs text-slate-500">
+              上一次全系統分析：{lastAnalysisAt ? formatDateTime(lastAnalysisAt) : "—"}
+            </p>
+          </div>
+          <form action={refreshMarketDataForPage}>
+            <input type="hidden" name="returnTo" value="/markets" />
             <PendingSubmitButton
               idleLabel="更新市場資料"
               pendingLabel="更新中..."
@@ -171,7 +202,7 @@ export default async function MarketsPage({
             <p className="text-xs text-green-700">市場資料已更新。</p>
           ) : null}
           <p className="text-xs text-slate-500">
-            最後更新：{formatDateTime(refreshedAt)}
+            市場資料更新：{marketDataUpdatedAt ? formatDateTime(marketDataUpdatedAt) : formatDateTime(refreshedAt)}
           </p>
         </div>
       </div>

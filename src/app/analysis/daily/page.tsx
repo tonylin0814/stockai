@@ -1,9 +1,9 @@
 import Link from "next/link";
+import { addMarketPickToWatchlist, refreshMarketDataForPage } from "@/app/actions";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
-import { addMarketPickToWatchlist } from "@/app/actions";
-import { formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
+import { formatDateTime, formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type Market = "TW" | "US";
@@ -32,12 +32,14 @@ type MarketAnalysisRow = {
   picks_under_100: unknown;
   picks_under_200: unknown;
   etf_picks: unknown;
+  created_at?: string | null;
 };
 
 type QuoteSnapshot = {
   price?: number;
   change?: number;
   changePct?: number;
+  sourceUpdatedAt?: string;
 };
 
 type DataPackageSummary = {
@@ -198,7 +200,7 @@ function PickCard({ pick }: { pick: ScanPick }) {
 function EmptyAnalysis() {
   return (
     <div className="rounded-md border border-slate-200 bg-white p-6 text-center text-sm text-slate-400">
-      尚未產生此區間推薦。請執行今日分析取得最新結果。
+      尚未產生此區間推薦。請執行市場分析取得最新結果。
     </div>
   );
 }
@@ -247,7 +249,7 @@ function buildUpcomingEvents(market: Market, dataPackage: DataPackageSummary) {
 export default async function DailyAnalysisPage({
   searchParams
 }: {
-  searchParams: { market?: string };
+  searchParams: { market?: string; updated?: string };
 }) {
   const activeMarket: Market = searchParams.market === "US" ? "US" : "TW";
   const supabase = createSupabaseServerClient();
@@ -269,22 +271,24 @@ export default async function DailyAnalysisPage({
   const runRecord = (run ?? null) as Record<string, unknown> | null;
   const dataPackage = asDataPackage(runRecord?.data_package);
   const snapshot = dataPackage.marketSnapshot ?? {};
-  const { data: analysisData } = runRecord
-    ? await supabase
-        .from("market_analysis_runs")
-        .select("*")
-        .eq("daily_run_id", String(runRecord.id))
-        .eq("market", activeMarket)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    : { data: null };
+  const { data: analysisData } = await supabase
+    .from("market_analysis_runs")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("market", activeMarket)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   const analysisRow = (analysisData ?? null) as MarketAnalysisRow | null;
   const currency = activeMarket === "TW" ? "NT$" : "US$";
   const events = buildUpcomingEvents(activeMarket, dataPackage);
   const primaryIndex = activeMarket === "TW" ? snapshot.taiex : snapshot.sp500;
   const secondaryIndex = activeMarket === "TW" ? null : snapshot.nasdaq;
   const vix = snapshot.vix;
+  const marketDataUpdatedAt = [primaryIndex?.sourceUpdatedAt, secondaryIndex?.sourceUpdatedAt, vix?.sourceUpdatedAt]
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
 
   return (
     <div className="space-y-8">
@@ -293,7 +297,29 @@ export default async function DailyAnalysisPage({
           <h1 className="text-2xl font-semibold text-slate-950">市場分析</h1>
           <p className="mt-1 text-sm text-slate-600">台灣與美國市場今日回顧與精選推薦。</p>
         </div>
-        <RunAnalysisButton />
+        <div className="space-y-3 text-right">
+          <div className="space-y-1">
+            <RunAnalysisButton label="執行市場分析" />
+            <p className="text-xs text-slate-500">
+              上一次市場分析：{analysisRow?.created_at ? formatDateTime(analysisRow.created_at) : "—"}
+            </p>
+          </div>
+          <form action={refreshMarketDataForPage}>
+            <input type="hidden" name="returnTo" value={`/analysis/daily?market=${activeMarket}`} />
+            <PendingSubmitButton
+              idleLabel="更新市場資料"
+              pendingLabel="更新中..."
+              icon="refresh"
+              variant="secondary"
+            />
+          </form>
+          {searchParams.updated === "1" ? (
+            <p className="text-xs text-green-700">市場資料已更新。</p>
+          ) : null}
+          <p className="text-xs text-slate-500">
+            市場資料更新：{marketDataUpdatedAt ? formatDateTime(marketDataUpdatedAt) : "—"}
+          </p>
+        </div>
       </div>
 
       {runRecord?.status === "running" ? (

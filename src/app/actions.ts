@@ -772,3 +772,14 @@ export async function refreshMarketOverview() {
   revalidatePath("/markets");
   redirect("/markets?updated=1");
 }
+
+export async function refreshMarketDataForPage(formData: FormData) {
+  const returnTo = getString(formData, "returnTo") || "/markets";
+  const url = new URL(returnTo, "https://local.app");
+  const allowedPaths = new Set(["/markets", "/portfolio", "/analysis/daily"]);
+  const pathname = allowedPaths.has(url.pathname) ? url.pathname : "/markets";
+
+  revalidatePath(pathname);
+  url.searchParams.set("updated", "1");
+  redirect(`${pathname}${url.search}`);
+}
