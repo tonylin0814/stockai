@@ -86,7 +86,7 @@ export async function POST(
     missionId = (mission as { id: string }).id;
     const dataPackage = await buildMissionDataPackage(user.id, missionId);
 
-    if (security.market === "US") {
+    if (security.market === "US" && process.env.ANALYSIS_ENABLE_WEB_RESEARCH === "true") {
       dataPackage.webResearch = await runWebResearch({
         symbols: [{ symbol: security.symbol, name: security.name, market: "US" }]
       });

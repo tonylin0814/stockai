@@ -52,6 +52,15 @@ function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function envNumber(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function maxTeamsPerDivision() {
+  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 2)));
+}
+
 function asState(value: unknown): DailyRunState {
   return value && typeof value === "object" ? (value as DailyRunState) : {};
 }
@@ -169,20 +178,23 @@ export async function POST() {
   try {
     if (stage === "data_package") {
       const dataPackage = await buildDailyDataPackage(user.id);
-      dataPackage.webResearch = await runWebResearch({
-        symbols: [
-          ...dataPackage.portfolio.map((item) => ({
-            symbol: item.symbol,
-            name: item.name,
-            market: item.market
-          })),
-          ...dataPackage.watchlist.map((item) => ({
-            symbol: item.symbol,
-            name: item.name,
-            market: item.market
-          }))
-        ]
-      });
+      dataPackage.webResearch =
+        process.env.ANALYSIS_ENABLE_WEB_RESEARCH === "true"
+          ? await runWebResearch({
+              symbols: [
+                ...dataPackage.portfolio.map((item) => ({
+                  symbol: item.symbol,
+                  name: item.name,
+                  market: item.market
+                })),
+                ...dataPackage.watchlist.map((item) => ({
+                  symbol: item.symbol,
+                  name: item.name,
+                  market: item.market
+                }))
+              ]
+            })
+          : null;
 
       await updateRunState(dailyRunId, {
         ...state,
@@ -239,7 +251,7 @@ export async function POST() {
         throw new Error(teamsError.message);
       }
 
-      const teams = (teamsData ?? []) as DivisionTeam[];
+      const teams = ((teamsData ?? []) as DivisionTeam[]).slice(0, maxTeamsPerDivision());
       const team = teams[teamIndex];
 
       if (team) {

@@ -23,9 +23,9 @@ export type WebResearchArticle = {
   query: "earnings" | "analyst" | "risk" | "catalyst";
 };
 
-const SYNTHESIS_MODEL = "gpt-4o";
-const GPT4O_INPUT_COST_PER_1M = 5;
-const GPT4O_OUTPUT_COST_PER_1M = 15;
+const SYNTHESIS_MODEL = process.env.WEB_RESEARCH_MODEL ?? "gpt-4o-mini";
+const SYNTHESIS_INPUT_COST_PER_1M = SYNTHESIS_MODEL.includes("mini") ? 0.15 : 5;
+const SYNTHESIS_OUTPUT_COST_PER_1M = SYNTHESIS_MODEL.includes("mini") ? 0.6 : 15;
 const NO_RECENT_INFO = "無最新資訊";
 
 type TavilyResult = {
@@ -41,8 +41,8 @@ type TavilyResponse = {
 
 function estimateCost(inputTokens: number, outputTokens: number): number {
   return (
-    (inputTokens / 1_000_000) * GPT4O_INPUT_COST_PER_1M +
-    (outputTokens / 1_000_000) * GPT4O_OUTPUT_COST_PER_1M
+    (inputTokens / 1_000_000) * SYNTHESIS_INPUT_COST_PER_1M +
+    (outputTokens / 1_000_000) * SYNTHESIS_OUTPUT_COST_PER_1M
   );
 }
 
@@ -257,7 +257,7 @@ export async function runWebResearch(params: {
 
   const totalCostUsd = estimateCost(totalInputTokens, totalOutputTokens);
   console.log(
-    `[web-research] Done. ${usSymbols.length} symbols, gpt-4o cost: $${totalCostUsd.toFixed(
+    `[web-research] Done. ${usSymbols.length} symbols, ${SYNTHESIS_MODEL} cost: $${totalCostUsd.toFixed(
       4
     )} (${totalInputTokens} in / ${totalOutputTokens} out tokens)`
   );

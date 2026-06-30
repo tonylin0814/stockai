@@ -190,7 +190,7 @@ export async function runMarketAnalysis(params: {
     params.marketSnapshot,
     tiers
   );
-  const model = process.env.MARKET_ANALYSIS_MODEL ?? "gpt-4o";
+  const model = process.env.MARKET_ANALYSIS_MODEL ?? "gpt-4o-mini";
   const startedAt = new Date().toISOString();
   const modelResult = await callModel({
     provider: "OpenAI",

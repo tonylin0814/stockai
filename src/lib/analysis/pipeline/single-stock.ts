@@ -57,6 +57,11 @@ function normalizeAction(suggestion: MissionAnalysis["suggestion"]) {
   return suggestion;
 }
 
+function getAnalysisModel(provider: string, configuredModel: string): string {
+  if (process.env.ANALYSIS_ECONOMY_MODE === "false") return configuredModel;
+  return provider === "Anthropic" ? "claude-haiku-4-5-20251001" : "gpt-4o-mini";
+}
+
 function actionRank(action: DivisionDecision["decisionAction"]) {
   const ranks: Record<DivisionDecision["decisionAction"], number> = {
     avoid: 0,
@@ -135,7 +140,10 @@ async function getQuickModels() {
     throw new Error("找不到可用的快速分析模型。");
   }
 
-  return models;
+  return models.map((model) => ({
+    ...model,
+    model_name: getAnalysisModel(model.model_provider, model.model_name)
+  }));
 }
 
 function buildDecision(params: {
@@ -384,16 +392,17 @@ export async function runSingleStockMission(params: {
   const supabase = createSupabaseServiceClient();
   const familyId = await getFamilyId(params.userId);
   const models = await getQuickModels();
-  const results = await Promise.all(
-    models.map((model) =>
-      runQuickModel({
+  const results: QuickAnalysisResult[] = [];
+  for (const model of models) {
+    results.push(
+      await runQuickModel({
         userId: params.userId,
         missionId: params.missionId,
         dataPackage: params.dataPackage,
         model
       })
-    )
-  );
+    );
+  }
   const completed = results.filter(
     (result): result is Extract<QuickAnalysisResult, { status: "completed" }> =>
       result.status === "completed"

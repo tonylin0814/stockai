@@ -63,23 +63,27 @@ export async function assertAnalysisBudget(params: {
   userId: string;
   dailyRunId?: string | null;
   missionId?: string | null;
+  projectedCostUsd?: number;
 }) {
   const limits = getAnalysisCostLimits();
   const { dailyCost, runCost } = await getCost(params);
+  const projectedCost = Math.max(0, Number(params.projectedCostUsd) || 0);
+  const projectedDailyCost = dailyCost + projectedCost;
+  const projectedRunCost = runCost + projectedCost;
 
-  if (dailyCost >= limits.daily) {
+  if (projectedDailyCost > limits.daily) {
     throw new Error(
-      `今日 API 成本已達上限 US$${limits.daily.toFixed(2)}，目前約 US$${dailyCost.toFixed(
+      `今日 API 成本會超過上限 US$${limits.daily.toFixed(2)}，目前約 US$${dailyCost.toFixed(
         4
-      )}。已停止新的分析以避免繼續花費。`
+      )}，下一步預估約 US$${projectedCost.toFixed(4)}。已停止新的分析以避免繼續花費。`
     );
   }
 
-  if ((params.dailyRunId || params.missionId) && runCost >= limits.run) {
+  if ((params.dailyRunId || params.missionId) && projectedRunCost > limits.run) {
     throw new Error(
-      `本次分析成本已達上限 US$${limits.run.toFixed(2)}，目前約 US$${runCost.toFixed(
+      `本次分析成本會超過上限 US$${limits.run.toFixed(2)}，目前約 US$${runCost.toFixed(
         4
-      )}。已停止後續模型呼叫。`
+      )}，下一步預估約 US$${projectedCost.toFixed(4)}。已停止後續模型呼叫。`
     );
   }
 }

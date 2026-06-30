@@ -32,6 +32,11 @@ function getRepairModel(provider: string): string {
   return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
 }
 
+function getAnalysisModel(provider: string, configuredModel: string): string {
+  if (process.env.ANALYSIS_ECONOMY_MODE === "false") return configuredModel;
+  return provider === "Anthropic" ? "claude-haiku-4-5-20251001" : "gpt-4o-mini";
+}
+
 async function getCommitteeModelProvider(divisionName: string) {
   const supabase = createSupabaseServiceClient();
   const { data, error } = await supabase
@@ -73,6 +78,7 @@ export async function runCommitteePipeline(params: {
   }
 
   const model = await getCommitteeModelProvider(completed[0].decision.division);
+  const committeeModel = getAnalysisModel(model.model_provider, model.model_name);
   const prompt = buildCommitteePrompt({
     divisionDecisions: completed.map((result) => result.decision)
   });
@@ -86,7 +92,7 @@ export async function runCommitteePipeline(params: {
   try {
     const modelResult = await callModel({
       provider: model.model_provider,
-      model: model.model_name,
+      model: committeeModel,
       prompt,
       budget: {
         userId: params.userId,
@@ -165,7 +171,7 @@ export async function runCommitteePipeline(params: {
       dailyRunId: params.dailyRunId,
       missionId: params.missionId,
       provider: model.model_provider,
-      model: model.model_name,
+      model: committeeModel,
       promptKey: "committee",
       inputSummary: inputSummary(prompt),
       output: safeguardedDecision,
@@ -190,7 +196,7 @@ export async function runCommitteePipeline(params: {
       dailyRunId: params.dailyRunId,
       missionId: params.missionId,
       provider: model.model_provider,
-      model: model.model_name,
+      model: committeeModel,
       promptKey: "committee",
       inputSummary: inputSummary(prompt),
       output: {

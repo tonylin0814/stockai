@@ -15,6 +15,19 @@ const MODEL_COST_PER_1M: Record<string, { input: number; output: number }> = {
   "claude-haiku-4-5-20251001": { input: 0.8, output: 4 }
 };
 
+function envNumber(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function approximateTokens(text: string) {
+  return Math.ceil(text.length / 4);
+}
+
+function maxOutputTokens() {
+  return Math.round(envNumber("ANALYSIS_MAX_OUTPUT_TOKENS", 2500));
+}
+
 function estimateCostUsd(model: string, promptTokens: number, completionTokens: number): number {
   const pricing = MODEL_COST_PER_1M[model] ?? { input: 5, output: 20 };
   return (
@@ -104,9 +117,14 @@ export async function callModel(params: {
     dailyRunId?: string | null;
     missionId?: string | null;
   };
+  maxOutputTokens?: number;
 }): Promise<ModelCallResult> {
+  const outputLimit = Math.round(params.maxOutputTokens ?? maxOutputTokens());
   if (params.budget) {
-    await assertAnalysisBudget(params.budget);
+    await assertAnalysisBudget({
+      ...params.budget,
+      projectedCostUsd: estimateCostUsd(params.model, approximateTokens(params.prompt), outputLimit)
+    });
   }
 
   if (params.provider === "OpenAI") {
@@ -117,7 +135,7 @@ export async function callModel(params: {
       ...(params.prompt.includes("---JSON_START---")
         ? {}
         : { response_format: { type: "json_object" as const } }),
-      max_completion_tokens: 16000
+      max_completion_tokens: outputLimit
     });
     const promptTokens = response.usage?.prompt_tokens ?? 0;
     const completionTokens = response.usage?.completion_tokens ?? 0;
@@ -135,7 +153,7 @@ export async function callModel(params: {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await client.messages.create({
       model: params.model,
-      max_tokens: 16000,
+      max_tokens: outputLimit,
       messages: [{ role: "user", content: params.prompt }]
     });
     const text = response.content
@@ -183,7 +201,8 @@ export async function validateOrRepair<T>(params: {
       provider: params.provider,
       model: params.model,
       prompt: repairPrompt,
-      budget: params.budget
+      budget: params.budget,
+      maxOutputTokens: Math.min(1500, maxOutputTokens())
     });
 
     return {

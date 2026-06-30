@@ -99,25 +99,28 @@ export async function POST(
     ]);
 
     const dataPackage = await buildMissionDataPackage(user.id, missionId);
-    dataPackage.webResearch = await runWebResearch({
-      symbols: [
-        ...dataPackage.portfolio.map((item) => ({
-          symbol: item.symbol,
-          name: item.name,
-          market: item.market
-        })),
-        ...dataPackage.watchlist.map((item) => ({
-          symbol: item.symbol,
-          name: item.name,
-          market: item.market
-        })),
-        ...dataPackage.mission.relatedSecurities.map((item) => ({
-          symbol: item.symbol,
-          name: item.name,
-          market: item.market
-        }))
-      ]
-    });
+    dataPackage.webResearch =
+      process.env.ANALYSIS_ENABLE_WEB_RESEARCH === "true"
+        ? await runWebResearch({
+            symbols: [
+              ...dataPackage.portfolio.map((item) => ({
+                symbol: item.symbol,
+                name: item.name,
+                market: item.market
+              })),
+              ...dataPackage.watchlist.map((item) => ({
+                symbol: item.symbol,
+                name: item.name,
+                market: item.market
+              })),
+              ...dataPackage.mission.relatedSecurities.map((item) => ({
+                symbol: item.symbol,
+                name: item.name,
+                market: item.market
+              }))
+            ]
+          })
+        : null;
 
     if (dataPackage.mission.missionType === "single_stock") {
       const result = await runSingleStockMission({
@@ -154,17 +157,18 @@ export async function POST(
     if (divisionsError) throw new Error(divisionsError.message);
 
     const divisions = (divisionsData ?? []) as Division[];
-    const divisionResults = await Promise.all(
-      divisions.map((division) =>
-        runDivisionPipeline({
+    const divisionResults = [];
+    for (const division of divisions) {
+      divisionResults.push(
+        await runDivisionPipeline({
           division,
           dataPackage,
           dailyRunId: null,
           userId: user.id,
           missionId
         })
-      )
-    );
+      );
+    }
     const committeeResult = await runCommitteePipeline({
       divisionResults,
       dataPackage,

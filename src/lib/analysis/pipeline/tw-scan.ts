@@ -56,7 +56,7 @@ export async function runTaiwanScan(params: {
     taiexChangePct: params.dataPackage.marketSnapshot.taiex.changePct,
     vix: params.dataPackage.marketSnapshot.vix.price
   });
-  const model = process.env.TW_SCAN_MODEL ?? "gpt-4o";
+  const model = process.env.TW_SCAN_MODEL ?? "gpt-4o-mini";
   const startedAt = new Date().toISOString();
 
   try {

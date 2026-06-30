@@ -97,6 +97,15 @@ function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function envNumber(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function maxTeamsPerDivision() {
+  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 2)));
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -471,8 +480,12 @@ export default async function DailyAnalysisPage({
     const latestErrorRow = latestFailedAgent.data as
       | { prompt_key?: string | null; error_message?: string | null }
       | null;
+    const expectedTeams = Math.min(
+      enabledTeamCount.count ?? 0,
+      (enabledDivisionCount.count ?? 0) * maxTeamsPerDivision()
+    );
     progress = {
-      expectedTeamReports: enabledTeamCount.count ?? 0,
+      expectedTeamReports: expectedTeams,
       expectedDivisionDecisions: enabledDivisionCount.count ?? 0,
       teamReports: teamCount.count ?? 0,
       divisionDecisions: divisionCount.count ?? 0,

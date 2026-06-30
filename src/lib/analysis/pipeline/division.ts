@@ -39,6 +39,20 @@ function getRepairModel(provider: string): string {
   return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
 }
 
+function getAnalysisModel(provider: string, configuredModel: string): string {
+  if (process.env.ANALYSIS_ECONOMY_MODE === "false") return configuredModel;
+  return provider === "Anthropic" ? "claude-haiku-4-5-20251001" : "gpt-4o-mini";
+}
+
+function envNumber(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function maxTeamsPerDivision() {
+  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 2)));
+}
+
 function dataPackageSummary(dataPackage: DailyDataPackage) {
   return {
     packageDate: dataPackage.packageDate,
@@ -74,7 +88,7 @@ export async function runDivisionPipeline(params: {
     };
   }
 
-  const teams = (teamsData ?? []) as DivisionTeam[];
+  const teams = ((teamsData ?? []) as DivisionTeam[]).slice(0, maxTeamsPerDivision());
   const teamResults = [];
   for (const team of teams) {
     teamResults.push(
@@ -117,6 +131,10 @@ export async function runDivisionManagerPipeline(params: {
     decisionMemory: params.dataPackage.decisionMemory
   });
   const startedAt = new Date().toISOString();
+  const analysisModel = getAnalysisModel(
+    params.division.model_provider,
+    params.division.model_name
+  );
   let tokenCount = 0;
   let promptTokens = 0;
   let completionTokens = 0;
@@ -125,7 +143,7 @@ export async function runDivisionManagerPipeline(params: {
   try {
     const modelResult = await callModel({
       provider: params.division.model_provider,
-      model: params.division.model_name,
+      model: analysisModel,
       prompt,
       budget: {
         userId: params.userId,
@@ -165,7 +183,7 @@ export async function runDivisionManagerPipeline(params: {
         division: decision.division,
         division_manager: decision.divisionManager,
         model_provider: params.division.model_provider,
-        model_name: params.division.model_name,
+        model_name: analysisModel,
         decision_action: decision.decisionAction,
         confidence: decision.confidence,
         market_summary: decision.marketSummary,
@@ -188,7 +206,7 @@ export async function runDivisionManagerPipeline(params: {
       dailyRunId: params.dailyRunId,
       missionId: params.missionId,
       provider: params.division.model_provider,
-      model: params.division.model_name,
+      model: analysisModel,
       promptKey: "divisionManager",
       inputSummary: inputSummary(prompt),
       output: decision,
@@ -214,7 +232,7 @@ export async function runDivisionManagerPipeline(params: {
       dailyRunId: params.dailyRunId,
       missionId: params.missionId,
       provider: params.division.model_provider,
-      model: params.division.model_name,
+      model: analysisModel,
       promptKey: "divisionManager",
       inputSummary: inputSummary(prompt),
       output: {
