@@ -1,42 +1,89 @@
+import Link from "next/link";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { TeamReportTabs } from "@/components/team-report-tabs";
-import { Table, Td, Th } from "@/components/ui/table";
-import { addScanPickToWatchlist } from "@/app/actions";
-import { formatNumber } from "@/lib/format";
+import { addMarketPickToWatchlist } from "@/app/actions";
+import { formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-function srcLabel(t: string) {
-  return t === "committee" ? "投資委員會" : t === "division" ? "AI 快速分析" : "AI 分析團隊";
-}
+type Market = "TW" | "US";
+
+type ScanPick = {
+  symbol: string;
+  name: string;
+  market: Market;
+  signal: "bull" | "bear" | "neutral";
+  currentPrice: number;
+  entryPoint: number;
+  targetPrice: number;
+  stopLoss: number;
+  upsidePct: number;
+  confidence: number;
+  reason: string;
+  volumeAlert: boolean;
+};
+
+type MarketAnalysisRow = {
+  id: string;
+  market: Market;
+  sentiment: string | null;
+  sentiment_reason: string | null;
+  picks_under_50: unknown;
+  picks_under_100: unknown;
+  picks_under_200: unknown;
+  etf_picks: unknown;
+};
+
+type QuoteSnapshot = {
+  price?: number;
+  change?: number;
+  changePct?: number;
+};
+
+type DataPackageSummary = {
+  marketSnapshot?: {
+    taiex?: QuoteSnapshot;
+    sp500?: QuoteSnapshot;
+    nasdaq?: QuoteSnapshot;
+    vix?: QuoteSnapshot;
+    usdTwd?: number;
+  };
+  upcomingEarnings?: Array<{
+    symbol?: string;
+    name?: string;
+    date?: string;
+    daysUntil?: number;
+  }>;
+};
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function consensusClass(level: string | null) {
-  if (level === "strong") return "border-green-200 bg-green-50 text-green-800";
-  if (level === "weak") return "border-yellow-200 bg-yellow-50 text-yellow-800";
-  return "border-red-200 bg-red-50 text-red-800";
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
-type ScanPick = {
-  id: string;
-  symbol: string;
-  market: string;
-  name: string;
-  signal: string;
-  current_price: number | null;
-  target_price: number | null;
-  stop_loss: number | null;
-  upside_pct: number | null;
-  confidence: number | null;
-  time_horizon: string | null;
-  reason: string | null;
-  key_risks: string[] | null;
-  scan_summary: string | null;
-  added_to_watchlist: boolean;
-};
+function asDataPackage(value: unknown): DataPackageSummary {
+  return asRecord(value) as DataPackageSummary;
+}
+
+function asPickArray(value: unknown): ScanPick[] {
+  return Array.isArray(value) ? (value as ScanPick[]) : [];
+}
+
+function sentimentLabel(sentiment: string | null | undefined) {
+  if (sentiment === "bull") return "市場偏多";
+  if (sentiment === "bear") return "市場偏空";
+  return "市場中性";
+}
+
+function sentimentClass(sentiment: string | null | undefined) {
+  if (sentiment === "bull") return "bg-green-100 text-green-800";
+  if (sentiment === "bear") return "bg-red-100 text-red-800";
+  return "bg-slate-100 text-slate-700";
+}
 
 function signalLabel(signal: string) {
   if (signal === "bull") return "做多";
@@ -50,332 +97,307 @@ function signalClass(signal: string) {
   return "bg-slate-100 text-slate-700";
 }
 
-function horizonLabel(value: string | null) {
-  if (value === "short") return "短線";
-  if (value === "swing") return "波段";
-  if (value === "long") return "長線";
-  return "—";
+function IndexMiniCard({
+  title,
+  value,
+  change,
+  changePct
+}: {
+  title: string;
+  value: string;
+  change?: number | null;
+  changePct?: number | null;
+}) {
+  const changeClass =
+    change === null || change === undefined || change === 0
+      ? "text-slate-500"
+      : change > 0
+        ? "text-green-700"
+        : "text-red-700";
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <div className="text-xs text-slate-500">{title}</div>
+      <div className="mt-1 text-lg font-semibold text-slate-950">{value}</div>
+      {change !== undefined || changePct !== undefined ? (
+        <div className={`mt-1 text-xs ${changeClass}`}>
+          {change !== null && change !== undefined ? formatSignedNumber(change, 2) : "—"}{" "}
+          {changePct !== null && changePct !== undefined ? formatSignedPercent(changePct) : ""}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-function ScanPickCard({ pick }: { pick: ScanPick }) {
-  const upside = pick.upside_pct;
-  const upsideColor = upside !== null && upside >= 0 ? "text-green-700" : "text-red-700";
-
+function PickCard({ pick }: { pick: ScanPick }) {
   return (
     <div className="space-y-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-lg font-semibold text-slate-950">{pick.symbol}</div>
-          <div className="text-sm text-slate-500">{pick.name}</div>
+          <div className="text-base font-semibold text-slate-950">{pick.symbol}</div>
+          <div className="text-xs text-slate-500">{pick.name}</div>
         </div>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${signalClass(pick.signal)}`}>
           {signalLabel(pick.signal)}
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-center">
+      <div className="grid grid-cols-3 gap-2 text-center text-xs">
         <div className="rounded-md bg-slate-50 p-2">
-          <div className="text-xs text-slate-500">現價</div>
-          <div className="text-sm font-semibold text-slate-950">
-            {pick.current_price !== null ? formatNumber(pick.current_price, 2) : "—"}
-          </div>
+          <div className="text-slate-500">現價</div>
+          <div className="font-semibold text-slate-950">{formatNumber(pick.currentPrice, 2)}</div>
+        </div>
+        <div className="rounded-md bg-blue-50 p-2">
+          <div className="text-slate-500">進場點</div>
+          <div className="font-semibold text-blue-800">{formatNumber(pick.entryPoint, 2)}</div>
         </div>
         <div className="rounded-md bg-green-50 p-2">
-          <div className="text-xs text-slate-500">目標價</div>
-          <div className="text-sm font-semibold text-green-800">
-            {pick.target_price !== null ? formatNumber(pick.target_price, 2) : "—"}
-          </div>
-        </div>
-        <div className="rounded-md bg-red-50 p-2">
-          <div className="text-xs text-slate-500">停損</div>
-          <div className="text-sm font-semibold text-red-800">
-            {pick.stop_loss !== null ? formatNumber(pick.stop_loss, 2) : "—"}
-          </div>
+          <div className="text-slate-500">目標價</div>
+          <div className="font-semibold text-green-800">{formatNumber(pick.targetPrice, 2)}</div>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        {upside !== null ? (
-          <span className={`font-semibold ${upsideColor}`}>
-            {upside >= 0 ? "+" : ""}
-            {formatNumber(upside, 1)}% 空間
-          </span>
-        ) : (
-          <span className="text-slate-500">空間 —</span>
-        )}
-        <span className="text-slate-300">|</span>
-        <span className="text-slate-600">信心 {pick.confidence ?? "—"}%</span>
-        <span className="text-slate-300">|</span>
-        <span className="text-slate-600">{horizonLabel(pick.time_horizon)}</span>
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="text-red-600">停損 {formatNumber(pick.stopLoss, 2)}</span>
+        <span className={pick.upsidePct >= 0 ? "font-semibold text-green-700" : "font-semibold text-red-700"}>
+          {pick.upsidePct >= 0 ? "+" : ""}
+          {formatNumber(pick.upsidePct, 1)}% 空間
+        </span>
+        <span className="text-slate-500">信心 {pick.confidence}%</span>
       </div>
 
-      {pick.reason ? (
-        <p className="border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-600">
-          {pick.reason}
-        </p>
+      {pick.volumeAlert ? (
+        <div className="rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800">
+          今日量能放大
+        </div>
       ) : null}
 
-      <form action={addScanPickToWatchlist}>
-        <input type="hidden" name="pickId" value={pick.id} />
+      <p className="border-t border-slate-100 pt-2 text-xs leading-relaxed text-slate-600">
+        {pick.reason}
+      </p>
+
+      <form action={addMarketPickToWatchlist}>
         <input type="hidden" name="symbol" value={pick.symbol} />
+        <input type="hidden" name="market" value={pick.market} />
         <input type="hidden" name="name" value={pick.name} />
+        <input type="hidden" name="targetPrice" value={String(pick.targetPrice)} />
+        <input type="hidden" name="reason" value={pick.reason} />
         <button
           type="submit"
-          disabled={pick.added_to_watchlist}
-          className="w-full rounded-md border border-slate-200 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+          className="w-full rounded-md border border-slate-200 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
-          {pick.added_to_watchlist ? "已加入關注清單" : "加入關注清單"}
+          加入關注清單
         </button>
       </form>
     </div>
   );
 }
 
-export default async function DailyAnalysisPage() {
-  const supabase = createSupabaseServerClient();
-  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+function EmptyAnalysis() {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-6 text-center text-sm text-slate-400">
+      尚未產生此區間推薦。請執行今日分析取得最新結果。
+    </div>
+  );
+}
 
-  try {
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
-  } catch {
-    user = null;
-  }
+function PickSection({ title, picks }: { title: string; picks: ScanPick[] }) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+      {picks.length === 0 ? (
+        <EmptyAnalysis />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {picks.map((pick) => (
+            <PickCard key={`${pick.market}-${pick.symbol}`} pick={pick} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function buildUpcomingEvents(market: Market, dataPackage: DataPackageSummary) {
+  const earnings = (dataPackage.upcomingEarnings ?? [])
+    .filter((event) => (market === "US" ? !/^\d/.test(event.symbol ?? "") : /^\d/.test(event.symbol ?? "")))
+    .slice(0, 3)
+    .map((event) => ({
+      title: `${event.symbol ?? ""} 財報`,
+      detail: event.name ?? "",
+      date: event.date ?? ""
+    }));
+  const recurring =
+    market === "TW"
+      ? [
+          { title: "台灣出口數據", detail: "月度公布", date: "每月" },
+          { title: "央行理監事會議", detail: "季度會議", date: "季度" }
+        ]
+      : [
+          { title: "FOMC 會議", detail: "利率決策", date: "每6週" },
+          { title: "CPI 通膨數據", detail: "月度公布", date: "每月" },
+          { title: "非農就業報告", detail: "每月第一個週五", date: "每月" }
+        ];
+
+  return [...earnings, ...recurring].slice(0, 5);
+}
+
+export default async function DailyAnalysisPage({
+  searchParams
+}: {
+  searchParams: { market?: string };
+}) {
+  const activeMarket: Market = searchParams.market === "US" ? "US" : "TW";
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
 
   if (!user) return null;
 
   const today = todayIsoDate();
-  let run: Record<string, unknown> | null = null;
-
-  try {
-    const result = await supabase
-      .from("daily_runs")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("run_date", today)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    run = (result.data as Record<string, unknown> | null) ?? null;
-  } catch {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-6">
-        <h1 className="text-2xl font-semibold text-red-900">每日分析讀取失敗</h1>
-        <p className="mt-2 text-sm text-red-700">請稍後重新整理頁面或重新執行分析。</p>
-      </div>
-    );
-  }
-
-  if (!run) {
-    return (
-      <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-950">每日分析</h1>
-        <p className="mt-2 text-sm text-slate-600">今日尚未執行分析。</p>
-        <div className="mt-4">
-          <RunAnalysisButton />
-        </div>
-      </div>
-    );
-  }
-
-  const runId = String(run.id);
-
-  if (run.status === "running") {
-    return (
-      <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
-        <AutoRefresh />
-        <h1 className="text-2xl font-semibold text-slate-950">每日分析</h1>
-        <p className="mt-2 text-sm text-slate-600">分析執行中…頁面每 10 秒自動更新。</p>
-      </div>
-    );
-  }
-
-  if (run.status === "failed") {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-6">
-        <h1 className="text-2xl font-semibold text-red-900">每日分析失敗</h1>
-        <p className="mt-2 text-sm text-red-700">請檢查伺服器紀錄後重新執行。</p>
-        <div className="mt-4">
-          <RunAnalysisButton label="重新執行分析" />
-        </div>
-      </div>
-    );
-  }
-
-  let committeeResult;
-  let divisionResult;
-  let teamResult;
-  let recommendationResult;
-  let scanPickResult;
-
-  try {
-    [committeeResult, divisionResult, teamResult, recommendationResult, scanPickResult] =
-      await Promise.all([
-        supabase
-          .from("committee_decisions")
-          .select("*")
-          .eq("daily_run_id", runId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from("division_decisions")
-          .select("*")
-          .eq("daily_run_id", runId)
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("team_reports")
-          .select("id, division, team_name, market_view, portfolio_review, final_team_view")
-          .eq("daily_run_id", runId)
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("recommendations")
-          .select("id, source_type, source_name, action, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, securities(symbol, market)")
-          .eq("daily_run_id", runId)
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("daily_scan_picks")
-          .select("*")
-          .eq("daily_run_id", runId)
-          .order("confidence", { ascending: false })
-      ]);
-  } catch {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-6">
-        <h1 className="text-2xl font-semibold text-red-900">每日分析結果讀取失敗</h1>
-        <p className="mt-2 text-sm text-red-700">資料庫暫時無法回傳完整結果，請稍後重新整理。</p>
-      </div>
-    );
-  }
-  const committee = committeeResult.data as Record<string, unknown> | null;
-  const divisions = (divisionResult.data ?? []) as Array<Record<string, unknown>>;
-  const teams = (teamResult.data ?? []) as Parameters<typeof TeamReportTabs>[0]["reports"];
-  const recommendations = (recommendationResult.data ?? []) as unknown as Array<{
-    id: string;
-    source_type: string;
-    source_name: string;
-    action: string;
-    confidence: number;
-    buy_zone_low: number | null;
-    buy_zone_high: number | null;
-    target_price: number | null;
-    stop_loss: number | null;
-    securities: { symbol: string; market: string } | null;
-  }>;
-  const scanPicks = (scanPickResult.data ?? []) as unknown as ScanPick[];
-  const scanSummary = scanPicks[0]?.scan_summary ?? "今日尚無台股掃描摘要。";
+  const { data: run } = await supabase
+    .from("daily_runs")
+    .select("id, status, run_date, data_package, created_at")
+    .eq("user_id", user.id)
+    .eq("run_date", today)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const runRecord = (run ?? null) as Record<string, unknown> | null;
+  const dataPackage = asDataPackage(runRecord?.data_package);
+  const snapshot = dataPackage.marketSnapshot ?? {};
+  const { data: analysisData } = runRecord
+    ? await supabase
+        .from("market_analysis_runs")
+        .select("*")
+        .eq("daily_run_id", String(runRecord.id))
+        .eq("market", activeMarket)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+  const analysisRow = (analysisData ?? null) as MarketAnalysisRow | null;
+  const currency = activeMarket === "TW" ? "NT$" : "US$";
+  const events = buildUpcomingEvents(activeMarket, dataPackage);
+  const primaryIndex = activeMarket === "TW" ? snapshot.taiex : snapshot.sp500;
+  const secondaryIndex = activeMarket === "TW" ? null : snapshot.nasdaq;
+  const vix = snapshot.vix;
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-950">每日分析</h1>
-        <p className="mt-1 text-sm text-slate-600">今日分析結果與建議。</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-950">市場分析</h1>
+          <p className="mt-1 text-sm text-slate-600">台灣與美國市場今日回顧與精選推薦。</p>
+        </div>
+        <RunAnalysisButton />
+      </div>
+
+      {runRecord?.status === "running" ? (
+        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+          <AutoRefresh />
+          <p className="text-sm text-slate-600">分析執行中，頁面每 10 秒自動更新。</p>
+        </div>
+      ) : null}
+
+      {runRecord?.status === "failed" ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-5">
+          <h2 className="text-lg font-semibold text-red-900">每日分析失敗</h2>
+          <p className="mt-1 text-sm text-red-700">請檢查 API 用量頁的錯誤訊息後重新執行。</p>
+        </div>
+      ) : null}
+
+      <div className="flex w-fit gap-1 rounded-md border border-slate-200 bg-slate-100 p-1">
+        {[
+          { market: "TW", label: "台灣市場" },
+          { market: "US", label: "美國市場" }
+        ].map((item) => (
+          <Link
+            key={item.market}
+            href={`?market=${item.market}`}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              activeMarket === item.market
+                ? "bg-white text-slate-950 shadow-sm"
+                : "text-slate-600 hover:text-slate-950"
+            }`}
+          >
+            {item.label}
+          </Link>
+        ))}
       </div>
 
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-slate-950">委員會決策</h2>
-          <span
-            className={`rounded-md border px-2 py-1 text-sm font-medium ${consensusClass(
-              String(committee?.consensus_level ?? "none")
-            )}`}
-          >
-            {String(committee?.consensus_level ?? "none")}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-950">
+            {activeMarket === "TW" ? "台灣大盤" : "美國大盤"}
+          </h2>
+          <span className={`rounded-full px-3 py-1 text-sm font-medium ${sentimentClass(analysisRow?.sentiment)}`}>
+            {sentimentLabel(analysisRow?.sentiment)}
           </span>
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <p>Final action：{String(committee?.final_action ?? "—")}</p>
-          <p>Action type：{String(committee?.action_type ?? "—")}</p>
-          <p>允許行動：{committee?.is_action_allowed ? "是" : "否"}</p>
-          <p>信心分數：{String(committee?.confidence ?? "—")}</p>
-        </div>
-        <p className="mt-4 text-sm text-slate-700">
-          {String(committee?.decision_summary ?? "—")}
+        <p className="mt-2 text-sm text-slate-600">
+          {analysisRow?.sentiment_reason ?? "尚未產生今日市場情緒摘要。"}
         </p>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">Division 比較</h2>
-        <Table>
-          <thead>
-            <tr>
-              <Th>Division</Th>
-              <Th>Manager</Th>
-              <Th>建議</Th>
-              <Th>信心</Th>
-              <Th>支持 Teams</Th>
-              <Th>反對 Teams</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {divisions.map((division) => (
-              <tr key={String(division.id)}>
-                <Td>{String(division.division ?? "—")}</Td>
-                <Td>{String(division.division_manager ?? "—")}</Td>
-                <Td>{String(division.decision_action ?? "—")}</Td>
-                <Td>{String(division.confidence ?? "—")}</Td>
-                <Td>{Array.isArray(division.supporting_teams) ? division.supporting_teams.join(", ") : "—"}</Td>
-                <Td>{Array.isArray(division.opposing_teams) ? division.opposing_teams.join(", ") : "—"}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">Team Reports</h2>
-        <TeamReportTabs reports={teams} />
-      </section>
-
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-950">今日台股機會</h2>
-          <p className="mt-1 text-sm text-slate-500">{scanSummary}</p>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <IndexMiniCard
+            title={activeMarket === "TW" ? "加權指數" : "S&P 500"}
+            value={primaryIndex?.price !== undefined ? formatNumber(primaryIndex.price, 2) : "—"}
+            change={primaryIndex?.change ?? null}
+            changePct={primaryIndex?.changePct ?? null}
+          />
+          {activeMarket === "TW" ? (
+            <IndexMiniCard
+              title="美元/台幣"
+              value={snapshot.usdTwd !== undefined ? formatNumber(snapshot.usdTwd, 4) : "—"}
+            />
+          ) : (
+            <IndexMiniCard
+              title="NASDAQ"
+              value={secondaryIndex?.price !== undefined ? formatNumber(secondaryIndex.price, 2) : "—"}
+              change={secondaryIndex?.change ?? null}
+              changePct={secondaryIndex?.changePct ?? null}
+            />
+          )}
+          <IndexMiniCard
+            title="VIX"
+            value={vix?.price !== undefined ? formatNumber(vix.price, 2) : "—"}
+            change={vix?.change ?? null}
+            changePct={vix?.changePct ?? null}
+          />
         </div>
-        {scanPicks.length === 0 ? (
-          <p className="text-sm text-slate-400">今日無符合條件的台股機會。</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {scanPicks.map((pick) => (
-              <ScanPickCard key={pick.id} pick={pick} />
-            ))}
-          </div>
-        )}
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">今日建議</h2>
-        <Table>
-          <thead>
-            <tr>
-              <Th>代號</Th>
-              <Th>市場</Th>
-              <Th>來源</Th>
-              <Th>行動</Th>
-              <Th>信心</Th>
-              <Th>買進區間</Th>
-              <Th>目標價</Th>
-              <Th>停損</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {recommendations.map((recommendation) => (
-              <tr key={recommendation.id}>
-                <Td>{recommendation.securities?.symbol ?? "—"}</Td>
-                <Td>{recommendation.securities?.market ?? "—"}</Td>
-                <Td>{srcLabel(recommendation.source_type)}</Td>
-                <Td>{recommendation.action}</Td>
-                <Td>{recommendation.confidence}</Td>
-                <Td>
-                  {recommendation.buy_zone_low ?? "—"} - {recommendation.buy_zone_high ?? "—"}
-                </Td>
-                <Td>{recommendation.target_price ?? "—"}</Td>
-                <Td>{recommendation.stop_loss ?? "—"}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+        <h2 className="text-lg font-semibold text-slate-950">近期重要事項</h2>
+        <div className="divide-y divide-slate-100 rounded-md border border-slate-200 bg-white">
+          {events.map((event, index) => (
+            <div key={`${event.title}-${index}`} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <span className="text-sm font-medium text-slate-950">{event.title}</span>
+                {event.detail ? (
+                  <span className="ml-2 text-xs text-slate-500">{event.detail}</span>
+                ) : null}
+              </div>
+              <span className="text-xs font-medium text-slate-400">{event.date}</span>
+            </div>
+          ))}
+        </div>
       </section>
+
+      <PickSection
+        title={`選股推薦 - ${currency}50 以下`}
+        picks={asPickArray(analysisRow?.picks_under_50)}
+      />
+      <PickSection
+        title={`選股推薦 - ${currency}100 以下`}
+        picks={asPickArray(analysisRow?.picks_under_100)}
+      />
+      <PickSection
+        title={`選股推薦 - ${currency}200 以下`}
+        picks={asPickArray(analysisRow?.picks_under_200)}
+      />
+      <PickSection title="ETF 推薦" picks={asPickArray(analysisRow?.etf_picks)} />
     </div>
   );
 }

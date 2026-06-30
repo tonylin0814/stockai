@@ -439,6 +439,68 @@ export async function addScanPickToWatchlist(formData: FormData) {
   revalidatePath("/watchlist");
 }
 
+export async function addMarketPickToWatchlist(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const schema = z.object({
+    symbol: requiredText.transform((value) => value.toUpperCase()),
+    market: marketSchema,
+    name: requiredText,
+    targetPrice: z.coerce.number().positive().nullable(),
+    reason: optionalText
+  });
+  const input = schema.parse({
+    symbol: getString(formData, "symbol"),
+    market: getString(formData, "market"),
+    name: getString(formData, "name"),
+    targetPrice: getString(formData, "targetPrice") ? getNumber(formData, "targetPrice") : null,
+    reason: getString(formData, "reason")
+  });
+  const { data: security, error: securityError } = await supabase
+    .from("securities")
+    .upsert(
+      {
+        symbol: input.symbol,
+        market: input.market,
+        name: input.name,
+        security_type: "stock",
+        currency: input.market === "TW" ? "TWD" : "USD"
+      },
+      { onConflict: "symbol,market" }
+    )
+    .select("id")
+    .single();
+
+  if (securityError || !security) {
+    throw new Error(securityError?.message ?? "無法建立股票資料");
+  }
+
+  const securityId = (security as { id: string }).id;
+  const { data: existing } = await supabase
+    .from("watchlist_items")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("security_id", securityId)
+    .maybeSingle();
+
+  if (!existing) {
+    const { error } = await supabase.from("watchlist_items").insert({
+      user_id: user.id,
+      security_id: securityId,
+      reason: input.reason ? `市場分析推薦：${input.reason}` : "市場分析推薦",
+      target_buy_price: input.targetPrice,
+      status: "觀察中",
+      visibility: "private"
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  revalidatePath("/analysis/daily");
+  revalidatePath("/watchlist");
+}
+
 export async function createMission(formData: FormData) {
   const { supabase, user } = await requireUser();
   const schema = z.object({

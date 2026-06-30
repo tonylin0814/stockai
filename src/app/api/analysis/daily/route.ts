@@ -6,6 +6,7 @@ import { getFamilyId } from "@/lib/analysis/pipeline/db";
 import { runCommitteePipeline } from "@/lib/analysis/pipeline/committee";
 import { runDivisionPipeline } from "@/lib/analysis/pipeline/division";
 import { writeRecommendations } from "@/lib/analysis/pipeline/recommendations";
+import { runMarketAnalysis } from "@/lib/analysis/pipeline/market-analysis";
 import { runTaiwanScan } from "@/lib/analysis/pipeline/tw-scan";
 import type { TeamReport } from "@/lib/analysis/schemas";
 import type { Division } from "@/lib/analysis/pipeline/team";
@@ -24,7 +25,8 @@ function packageSummary(dataPackage: Awaited<ReturnType<typeof buildDailyDataPac
     portfolioCount: dataPackage.portfolio.length,
     watchlistCount: dataPackage.watchlist.length,
     marketSnapshot: dataPackage.marketSnapshot,
-    dataQualitySummary: dataPackage.dataQualitySummary
+    dataQualitySummary: dataPackage.dataQualitySummary,
+    upcomingEarnings: dataPackage.upcomingEarnings
   };
 }
 
@@ -195,6 +197,64 @@ export async function POST() {
       userId: user.id,
       dailyRunId
     });
+
+    const excludeSymbols = new Set([
+      ...dataPackage.portfolio.map((item) => item.symbol),
+      ...dataPackage.watchlist.map((item) => item.symbol)
+    ]);
+    const [twMarketAnalysis, usMarketAnalysis] = await Promise.all([
+      runMarketAnalysis({
+        market: "TW",
+        excludeSymbols,
+        marketSnapshot: {
+          indexPrice: dataPackage.marketSnapshot.taiex.price,
+          indexChangePct: dataPackage.marketSnapshot.taiex.changePct,
+          vix: dataPackage.marketSnapshot.vix.price
+        },
+        userId: user.id,
+        dailyRunId
+      }),
+      runMarketAnalysis({
+        market: "US",
+        excludeSymbols,
+        marketSnapshot: {
+          indexPrice: dataPackage.marketSnapshot.sp500.price,
+          indexChangePct: dataPackage.marketSnapshot.sp500.changePct,
+          vix: dataPackage.marketSnapshot.vix.price
+        },
+        userId: user.id,
+        dailyRunId
+      })
+    ]);
+
+    const { error: marketAnalysisSaveError } = await supabase.from("market_analysis_runs").insert([
+      {
+        user_id: user.id,
+        daily_run_id: dailyRunId,
+        market: "TW",
+        sentiment: twMarketAnalysis.sentiment,
+        sentiment_reason: twMarketAnalysis.sentimentReason,
+        picks_under_50: twMarketAnalysis.picksUnder50,
+        picks_under_100: twMarketAnalysis.picksUnder100,
+        picks_under_200: twMarketAnalysis.picksUnder200,
+        etf_picks: twMarketAnalysis.etfPicks
+      },
+      {
+        user_id: user.id,
+        daily_run_id: dailyRunId,
+        market: "US",
+        sentiment: usMarketAnalysis.sentiment,
+        sentiment_reason: usMarketAnalysis.sentimentReason,
+        picks_under_50: usMarketAnalysis.picksUnder50,
+        picks_under_100: usMarketAnalysis.picksUnder100,
+        picks_under_200: usMarketAnalysis.picksUnder200,
+        etf_picks: usMarketAnalysis.etfPicks
+      }
+    ]);
+
+    if (marketAnalysisSaveError) {
+      throw new Error(marketAnalysisSaveError.message);
+    }
 
     await supabase
       .from("daily_runs")
