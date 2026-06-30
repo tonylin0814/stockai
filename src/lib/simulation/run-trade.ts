@@ -60,8 +60,14 @@ const TradeDecisionSchema = z.object({
 
 const TradingResponseSchema = z.object({
   decisions: z.array(TradeDecisionSchema).default([]),
-  noActionReason: z.string().optional(),
-  marketAssessment: z.string().optional()
+  noActionReason: z.preprocess(
+    (value) => (value === null || value === undefined ? undefined : String(value)),
+    z.string().optional()
+  ),
+  marketAssessment: z.preprocess(
+    (value) => (value === null || value === undefined ? undefined : String(value)),
+    z.string().optional()
+  )
 });
 
 type TradeDecision = z.infer<typeof TradeDecisionSchema>;
