@@ -2,7 +2,13 @@ import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { TeamReportTabs } from "@/components/team-report-tabs";
 import { Table, Td, Th } from "@/components/ui/table";
+import { addScanPickToWatchlist } from "@/app/actions";
+import { formatNumber } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+function srcLabel(t: string) {
+  return t === "committee" ? "投資委員會" : t === "division" ? "AI 快速分析" : "AI 分析團隊";
+}
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -12,6 +18,117 @@ function consensusClass(level: string | null) {
   if (level === "strong") return "border-green-200 bg-green-50 text-green-800";
   if (level === "weak") return "border-yellow-200 bg-yellow-50 text-yellow-800";
   return "border-red-200 bg-red-50 text-red-800";
+}
+
+type ScanPick = {
+  id: string;
+  symbol: string;
+  market: string;
+  name: string;
+  signal: string;
+  current_price: number | null;
+  target_price: number | null;
+  stop_loss: number | null;
+  upside_pct: number | null;
+  confidence: number | null;
+  time_horizon: string | null;
+  reason: string | null;
+  key_risks: string[] | null;
+  scan_summary: string | null;
+  added_to_watchlist: boolean;
+};
+
+function signalLabel(signal: string) {
+  if (signal === "bull") return "做多";
+  if (signal === "bear") return "偏空";
+  return "觀察";
+}
+
+function signalClass(signal: string) {
+  if (signal === "bull") return "bg-green-100 text-green-800";
+  if (signal === "bear") return "bg-red-100 text-red-800";
+  return "bg-slate-100 text-slate-700";
+}
+
+function horizonLabel(value: string | null) {
+  if (value === "short") return "短線";
+  if (value === "swing") return "波段";
+  if (value === "long") return "長線";
+  return "—";
+}
+
+function ScanPickCard({ pick }: { pick: ScanPick }) {
+  const upside = pick.upside_pct;
+  const upsideColor = upside !== null && upside >= 0 ? "text-green-700" : "text-red-700";
+
+  return (
+    <div className="space-y-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-slate-950">{pick.symbol}</div>
+          <div className="text-sm text-slate-500">{pick.name}</div>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${signalClass(pick.signal)}`}>
+          {signalLabel(pick.signal)}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-md bg-slate-50 p-2">
+          <div className="text-xs text-slate-500">現價</div>
+          <div className="text-sm font-semibold text-slate-950">
+            {pick.current_price !== null ? formatNumber(pick.current_price, 2) : "—"}
+          </div>
+        </div>
+        <div className="rounded-md bg-green-50 p-2">
+          <div className="text-xs text-slate-500">目標價</div>
+          <div className="text-sm font-semibold text-green-800">
+            {pick.target_price !== null ? formatNumber(pick.target_price, 2) : "—"}
+          </div>
+        </div>
+        <div className="rounded-md bg-red-50 p-2">
+          <div className="text-xs text-slate-500">停損</div>
+          <div className="text-sm font-semibold text-red-800">
+            {pick.stop_loss !== null ? formatNumber(pick.stop_loss, 2) : "—"}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {upside !== null ? (
+          <span className={`font-semibold ${upsideColor}`}>
+            {upside >= 0 ? "+" : ""}
+            {formatNumber(upside, 1)}% 空間
+          </span>
+        ) : (
+          <span className="text-slate-500">空間 —</span>
+        )}
+        <span className="text-slate-300">|</span>
+        <span className="text-slate-600">信心 {pick.confidence ?? "—"}%</span>
+        <span className="text-slate-300">|</span>
+        <span className="text-slate-600">{horizonLabel(pick.time_horizon)}</span>
+      </div>
+
+      {pick.reason ? (
+        <p className="border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-600">
+          {pick.reason}
+        </p>
+      ) : null}
+
+      <form action={addScanPickToWatchlist}>
+        <input type="hidden" name="pickId" value={pick.id} />
+        <input type="hidden" name="symbol" value={pick.symbol} />
+        <input type="hidden" name="name" value={pick.name} />
+        <button
+          type="submit"
+          disabled={pick.added_to_watchlist}
+          className="w-full rounded-md border border-slate-200 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+        >
+          {pick.added_to_watchlist ? "已加入關注清單" : "加入關注清單"}
+        </button>
+      </form>
+    </div>
+  );
 }
 
 export default async function DailyAnalysisPage() {
@@ -89,9 +206,10 @@ export default async function DailyAnalysisPage() {
   let divisionResult;
   let teamResult;
   let recommendationResult;
+  let scanPickResult;
 
   try {
-    [committeeResult, divisionResult, teamResult, recommendationResult] =
+    [committeeResult, divisionResult, teamResult, recommendationResult, scanPickResult] =
       await Promise.all([
         supabase
           .from("committee_decisions")
@@ -114,7 +232,12 @@ export default async function DailyAnalysisPage() {
           .from("recommendations")
           .select("id, source_type, source_name, action, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, securities(symbol, market)")
           .eq("daily_run_id", runId)
-          .order("created_at", { ascending: true })
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("daily_scan_picks")
+          .select("*")
+          .eq("daily_run_id", runId)
+          .order("confidence", { ascending: false })
       ]);
   } catch {
     return (
@@ -139,6 +262,8 @@ export default async function DailyAnalysisPage() {
     stop_loss: number | null;
     securities: { symbol: string; market: string } | null;
   }>;
+  const scanPicks = (scanPickResult.data ?? []) as unknown as ScanPick[];
+  const scanSummary = scanPicks[0]?.scan_summary ?? "今日尚無台股掃描摘要。";
 
   return (
     <div className="space-y-8">
@@ -202,6 +327,22 @@ export default async function DailyAnalysisPage() {
         <TeamReportTabs reports={teams} />
       </section>
 
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-950">今日台股機會</h2>
+          <p className="mt-1 text-sm text-slate-500">{scanSummary}</p>
+        </div>
+        {scanPicks.length === 0 ? (
+          <p className="text-sm text-slate-400">今日無符合條件的台股機會。</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {scanPicks.map((pick) => (
+              <ScanPickCard key={pick.id} pick={pick} />
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-slate-950">今日建議</h2>
         <Table>
@@ -222,7 +363,7 @@ export default async function DailyAnalysisPage() {
               <tr key={recommendation.id}>
                 <Td>{recommendation.securities?.symbol ?? "—"}</Td>
                 <Td>{recommendation.securities?.market ?? "—"}</Td>
-                <Td>{recommendation.source_type} / {recommendation.source_name}</Td>
+                <Td>{srcLabel(recommendation.source_type)}</Td>
                 <Td>{recommendation.action}</Td>
                 <Td>{recommendation.confidence}</Td>
                 <Td>

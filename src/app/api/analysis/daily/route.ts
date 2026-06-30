@@ -6,6 +6,7 @@ import { getFamilyId } from "@/lib/analysis/pipeline/db";
 import { runCommitteePipeline } from "@/lib/analysis/pipeline/committee";
 import { runDivisionPipeline } from "@/lib/analysis/pipeline/division";
 import { writeRecommendations } from "@/lib/analysis/pipeline/recommendations";
+import { runTaiwanScan } from "@/lib/analysis/pipeline/tw-scan";
 import type { TeamReport } from "@/lib/analysis/schemas";
 import type { Division } from "@/lib/analysis/pipeline/team";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -187,6 +188,12 @@ export async function POST() {
               committeeDecisionId: committeeResult.committeeDecisionId
             }
           : null
+    });
+
+    await runTaiwanScan({
+      dataPackage,
+      userId: user.id,
+      dailyRunId
     });
 
     await supabase

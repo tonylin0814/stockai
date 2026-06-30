@@ -3,6 +3,7 @@ export const PROMPT_VERSIONS = {
   portfolioReview: "v1",
   missionAnalysis: "v1",
   marketScan: "v1",
+  twScan: "v1",
   teamLeader: "v1",
   divisionManager: "v1",
   committee: "v1"
@@ -13,6 +14,7 @@ export const PROMPT_VERSION_NOTES = {
   portfolioReview: "Initial prompt — v1",
   missionAnalysis: "Initial prompt — v1",
   marketScan: "Initial prompt — v1",
+  twScan: "Taiwan daily scan — v1",
   teamLeader: "Initial prompt — v1",
   divisionManager: "Initial prompt — v1",
   committee: "Initial prompt — v1"

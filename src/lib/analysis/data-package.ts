@@ -1,5 +1,6 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { buildDecisionMemory } from "@/lib/analysis/decision-memory";
+import { TW_SCAN_UNIVERSE } from "@/lib/analysis/tw-universe";
 import { computeTechnicals } from "@/lib/market-data/indicators";
 import {
   getUpcomingEarnings,
@@ -52,6 +53,20 @@ export type WatchlistItem = {
   news: NewsItem[];
 };
 
+export type TwScanItem = {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePct: number;
+  volume: number | null;
+  sma20: number | null;
+  sma60: number | null;
+  rsi14: number | null;
+  weekHigh52: number | null;
+  weekLow52: number | null;
+};
+
 export type DailyDataPackage = {
   packageDate: string;
   userId: string;
@@ -75,6 +90,7 @@ export type DailyDataPackage = {
   decisionMemory: string;
   upcomingEarnings: EarningsEvent[];
   webResearch: WebResearchResult | null;
+  twScanUniverse: TwScanItem[];
 };
 
 type HoldingRow = {
@@ -123,6 +139,17 @@ function summarizeQuality(quotes: Array<{ label: string; quote: Quote }>) {
       .filter((item) => item.quote.qualityState === "missing")
       .map((item) => `${item.label} 缺少資料`)
   };
+}
+
+function averageClose(history: Array<{ close: number }>, period: number) {
+  const closes = history.map((day) => day.close).filter((close) => close > 0);
+
+  if (closes.length < period) {
+    return null;
+  }
+
+  const slice = closes.slice(-period);
+  return Math.round((slice.reduce((sum, close) => sum + close, 0) / period) * 100) / 100;
 }
 
 async function logQualityIssues(
@@ -352,6 +379,52 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     ];
   });
 
+  const excludedSymbols = new Set([
+    ...holdingRows.map((row) => row.securities?.symbol).filter(Boolean),
+    ...watchlistRows.map((row) => row.securities?.symbol).filter(Boolean)
+  ]);
+  const scanCandidates = TW_SCAN_UNIVERSE.filter(
+    (candidate) => !excludedSymbols.has(candidate.symbol)
+  );
+  const [scanQuotes, scanHistories] = await Promise.all([
+    Promise.all(
+      scanCandidates.map((candidate) =>
+        provider.getQuote(candidate.symbol, "TW").catch(() => null)
+      )
+    ),
+    Promise.all(
+      scanCandidates.map((candidate) =>
+        provider.getHistory(candidate.symbol, "TW", 252).catch(() => [])
+      )
+    )
+  ]);
+  const twScanUniverse: TwScanItem[] = scanCandidates.flatMap((candidate, index) => {
+    const quote = scanQuotes[index];
+
+    if (!quote || quote.qualityState === "missing" || quote.price === 0) {
+      return [];
+    }
+
+    const history = scanHistories[index] ?? [];
+    const technicals = computeTechnicals(history);
+
+    return [
+      {
+        symbol: candidate.symbol,
+        name: candidate.name,
+        price: quote.price,
+        change: quote.change,
+        changePct: quote.changePct,
+        volume: quote.volume ?? null,
+        sma20: technicals.sma20,
+        sma60: averageClose(history, 60),
+        rsi14: technicals.rsi14,
+        weekHigh52: technicals.high52w,
+        weekLow52: technicals.low52w
+      }
+    ];
+  });
+
   const quoteItems = [
     ...portfolio.map((item) => ({ label: `portfolio ${item.symbol}`, quote: item.quote })),
     ...watchlist.map((item) => ({ label: `watchlist ${item.symbol}`, quote: item.quote })),
@@ -394,6 +467,7 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     dataQualitySummary,
     decisionMemory,
     upcomingEarnings,
-    webResearch: null
+    webResearch: null,
+    twScanUniverse
   };
 }

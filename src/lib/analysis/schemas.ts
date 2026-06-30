@@ -19,6 +19,11 @@ const FlexibleTopRecommendationsSchema = z
   )
   .default([]);
 
+const NumericStringSchema = z.preprocess((value) => {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return value;
+}, z.string().min(1));
+
 export const ActionSchema = z.enum([
   "buy",
   "small_buy",
@@ -103,13 +108,16 @@ export const MarketScanRecommendationSchema = z.object({
   symbol: z.string(),
   market: z.enum(["US", "TW"]),
   name: z.string(),
+  signal: z.enum(["bull", "bear", "neutral"]).default("neutral"),
+  currentPrice: z.coerce.number().default(0),
   reason: z.string(),
-  buyZone: z.string(),
-  targetPrice: z.string(),
-  stopLoss: z.string(),
+  buyZone: z.string().default("—"),
+  targetPrice: NumericStringSchema,
+  stopLoss: NumericStringSchema,
+  upsidePct: z.coerce.number().default(0),
   timeHorizon: z.enum(["short", "swing", "long"]),
   confidence: z.number().min(0).max(100),
-  keyRisks: z.array(z.string()),
+  keyRisks: z.array(z.string()).default([]),
   scenarios: ScenariosSchema.optional()
 });
 
@@ -174,6 +182,7 @@ export type MissionAnalysis = z.infer<typeof MissionAnalysisSchema>;
 export type TeamReport = z.infer<typeof TeamReportSchema>;
 export type DivisionDecision = z.infer<typeof DivisionDecisionSchema>;
 export type CommitteeDecision = z.infer<typeof CommitteeDecisionSchema>;
+export type TwScanPick = z.infer<typeof MarketScanRecommendationSchema>;
 
 const SCENARIOS_JSON_EXAMPLE = `{
         "bull": {
@@ -254,10 +263,13 @@ export const TEAM_REPORT_JSON_SCHEMA = `{
       "symbol": "2330",
       "market": "TW",
       "name": "台積電",
-      "reason": "推薦理由",
+      "signal": "bull",
+      "currentPrice": 920,
+      "reason": "現價 920 高於 SMA50=905，RSI=58 尚未過熱，目標 1050 代表約 +14.1%，停損 870。",
       "buyZone": "建議買進區間",
-      "targetPrice": "目標價",
-      "stopLoss": "停損點",
+      "targetPrice": "1050",
+      "stopLoss": "870",
+      "upsidePct": 14.1,
       "timeHorizon": "short | swing | long",
       "confidence": 0,
       "keyRisks": ["主要風險"],

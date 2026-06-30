@@ -371,6 +371,74 @@ export async function deleteWatchlistItem(formData: FormData) {
   revalidatePath("/watchlist");
 }
 
+export async function addScanPickToWatchlist(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const schema = z.object({
+    pickId: z.string().uuid(),
+    symbol: requiredText.transform((value) => value.toUpperCase()),
+    name: requiredText
+  });
+  const input = schema.parse({
+    pickId: getString(formData, "pickId"),
+    symbol: getString(formData, "symbol"),
+    name: getString(formData, "name")
+  });
+
+  const { data: security, error: securityError } = await supabase
+    .from("securities")
+    .upsert(
+      {
+        symbol: input.symbol,
+        market: "TW",
+        name: input.name,
+        security_type: "stock",
+        currency: "TWD"
+      },
+      { onConflict: "symbol,market" }
+    )
+    .select("id")
+    .single();
+
+  if (securityError || !security) {
+    throw new Error(securityError?.message ?? "無法建立股票資料");
+  }
+
+  const securityId = (security as { id: string }).id;
+  const { data: existing } = await supabase
+    .from("watchlist_items")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("security_id", securityId)
+    .maybeSingle();
+
+  if (!existing) {
+    const { error } = await supabase.from("watchlist_items").insert({
+      user_id: user.id,
+      security_id: securityId,
+      reason: "每日台股掃描推薦",
+      status: "觀察中",
+      visibility: "private"
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  const { error: updateError } = await supabase
+    .from("daily_scan_picks")
+    .update({ added_to_watchlist: true })
+    .eq("id", input.pickId)
+    .eq("user_id", user.id);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath("/analysis/daily");
+  revalidatePath("/watchlist");
+}
+
 export async function createMission(formData: FormData) {
   const { supabase, user } = await requireUser();
   const schema = z.object({
