@@ -3,6 +3,8 @@ import type { Quote } from "@/lib/market-data/types";
 
 const TWSE_TAIEX_URL = "https://openapi.twse.com.tw/v1/exchangeReport/FMTQIK";
 const TWSE_STOCK_DAY_ALL_URL = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL";
+const TWSE_TAIEX_MIS_URL =
+  "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0";
 
 function parseTwseNumber(value: unknown) {
   return toNumber(String(value ?? "").replace(/,/g, ""));
@@ -21,7 +23,64 @@ function parseTwseDate(value: unknown) {
 }
 
 export class TwseProvider {
+  private async getTaiexFromMis(): Promise<Quote> {
+    const response = await fetch(`${TWSE_TAIEX_MIS_URL}&_=${Date.now()}`, {
+      headers: {
+        accept: "application/json",
+        referer: "https://mis.twse.com.tw/stock/index.jsp",
+        "user-agent": "Mozilla/5.0"
+      },
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      return missingQuote("TAIEX", "TW", "TWSE MIS");
+    }
+
+    const data = (await response.json()) as {
+      msgArray?: Array<Record<string, unknown>>;
+    };
+    const row = data.msgArray?.[0];
+
+    if (!row) {
+      return missingQuote("TAIEX", "TW", "TWSE MIS");
+    }
+
+    const price = parseTwseNumber(row.z);
+    const previousClose = parseTwseNumber(row.y);
+
+    if (!price) {
+      return missingQuote("TAIEX", "TW", "TWSE MIS");
+    }
+
+    const sourceTime = parseTwseNumber(row.tlong);
+    const sourceUpdatedAt = sourceTime ? new Date(sourceTime).toISOString() : parseTwseDate(row.d);
+    const change = previousClose ? price - previousClose : 0;
+
+    return {
+      symbol: "TAIEX",
+      market: "TW",
+      price,
+      change,
+      changePct: previousClose ? (change / previousClose) * 100 : 0,
+      dayHigh: parseTwseNumber(row.h) || undefined,
+      dayLow: parseTwseNumber(row.l) || undefined,
+      dayOpen: parseTwseNumber(row.o) || undefined,
+      source: "TWSE MIS",
+      qualityState: "delayed",
+      sourceUpdatedAt
+    };
+  }
+
   async getTaiex(): Promise<Quote> {
+    const liveQuote = await this.getTaiexFromMis().catch(() =>
+      missingQuote("TAIEX", "TW", "TWSE MIS")
+    );
+
+    if (liveQuote.qualityState !== "missing") {
+      return liveQuote;
+    }
+
     try {
       const response = await fetch(TWSE_TAIEX_URL, { cache: "no-store" });
 

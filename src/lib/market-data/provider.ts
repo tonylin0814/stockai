@@ -108,8 +108,10 @@ class CompositeProvider implements MarketDataProvider {
 
   async getIndex(symbol: string, market: "US" | "TW"): Promise<Quote> {
     if (market === "TW") {
-      const yahooQuote = await this.yahoo.getIndexQuoteFromChart("^TWII", "TW");
-      return yahooQuote.qualityState === "missing" ? this.twse.getTaiex() : yahooQuote;
+      const twseQuote = await this.twse.getTaiex();
+      return twseQuote.qualityState === "missing"
+        ? this.yahoo.getIndexQuoteFromChart("^TWII", "TW")
+        : twseQuote;
     }
 
     const quote = await this.getQuote(symbol, "US");
