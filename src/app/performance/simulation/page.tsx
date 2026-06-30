@@ -7,6 +7,9 @@ import { formatDateTime, formatNumber, formatSignedPercent } from "@/lib/format"
 import { cn } from "@/lib/utils";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type Division = "gpt" | "anthropic";
 type Portfolio = {
   id: string;
@@ -83,6 +86,10 @@ function portfolioCash(portfolio: Portfolio | undefined) {
 
 function portfolioTotal(portfolio: Portfolio | undefined, positions: Position[]) {
   return portfolioCash(portfolio) + positions.reduce((sum, position) => sum + positionValue(position), 0);
+}
+
+function positionsTotal(positions: Position[]) {
+  return positions.reduce((sum, position) => sum + positionValue(position), 0);
 }
 
 function money(value: number, market: "US" | "TW") {
@@ -193,6 +200,8 @@ export default async function SimulationPage({
   const twCash = portfolioCash(twPortfolio);
   const usAssets = portfolioTotal(usPortfolio, usPositions);
   const twAssets = portfolioTotal(twPortfolio, twPositions);
+  const usInvested = positionsTotal(usPositions);
+  const twInvested = positionsTotal(twPositions);
 
   return (
     <div className="space-y-6">
@@ -260,18 +269,29 @@ export default async function SimulationPage({
           <p className="text-sm text-slate-500">資產分幣別</p>
           <p className="mt-2 text-sm font-semibold text-slate-950">{money(usAssets, "US")}</p>
           <p className="text-sm font-semibold text-slate-950">{money(twAssets, "TW")}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            已投入 {money(usInvested, "US")} / {money(twInvested, "TW")}
+          </p>
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">美股資產</p>
           <p className="mt-2 text-2xl font-semibold text-slate-950">
             {money(usAssets, "US")}
           </p>
+          <div className="mt-2 space-y-1 text-xs text-slate-500">
+            <p>現金 {money(usCash, "US")}</p>
+            <p>持股市值 {money(usInvested, "US")}</p>
+          </div>
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">台股資產</p>
           <p className="mt-2 text-2xl font-semibold text-slate-950">
             {money(twAssets, "TW")}
           </p>
+          <div className="mt-2 space-y-1 text-xs text-slate-500">
+            <p>現金 {money(twCash, "TW")}</p>
+            <p>持股市值 {money(twInvested, "TW")}</p>
+          </div>
         </div>
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">本週積分</p>

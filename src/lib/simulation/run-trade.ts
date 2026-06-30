@@ -29,6 +29,18 @@ type Position = {
   stop_flagged: boolean;
 };
 
+type SupabaseMutationResult = { error: { message?: string } | null };
+
+async function requireMutation(
+  resultPromise: PromiseLike<SupabaseMutationResult>,
+  fallbackMessage: string
+) {
+  const result = await resultPromise;
+  if (result.error) {
+    throw new Error(result.error.message ?? fallbackMessage);
+  }
+}
+
 function normalizeMarket(value: unknown): Market {
   if (typeof value !== "string") return "US";
   const text = value.toUpperCase().trim();
@@ -293,10 +305,13 @@ async function executeTrade(params: {
       const newShares = Number(existing.shares) + shares;
       const newAvgCost =
         (Number(existing.shares) * Number(existing.avg_cost_price) + totalAmount) / newShares;
-      await params.supabase
-        .from("sim_positions")
-        .update({ shares: newShares, avg_cost_price: newAvgCost, current_price: params.quote.price })
-        .eq("id", existing.id);
+      await requireMutation(
+        params.supabase
+          .from("sim_positions")
+          .update({ shares: newShares, avg_cost_price: newAvgCost, current_price: params.quote.price })
+          .eq("id", existing.id),
+        "更新模擬持倉失敗。"
+      );
     } else {
       const { data: created, error } = await params.supabase
         .from("sim_positions")
@@ -315,31 +330,37 @@ async function executeTrade(params: {
       positionId = (created as { id: string }).id;
     }
 
-    await params.supabase
-      .from("sim_portfolios")
-      .update({ current_cash: Number(params.portfolio.current_cash) - totalAmount })
-      .eq("id", params.portfolio.id);
+    await requireMutation(
+      params.supabase
+        .from("sim_portfolios")
+        .update({ current_cash: Number(params.portfolio.current_cash) - totalAmount })
+        .eq("id", params.portfolio.id),
+      "更新模擬現金失敗。"
+    );
 
-    await params.supabase.from("sim_trades").insert({
-      portfolio_id: params.portfolio.id,
-      position_id: positionId,
-      action: "buy",
-      symbol: decision.symbol,
-      market: decision.market,
-      name: decision.name ?? decision.symbol,
-      shares,
-      price_per_share: params.quote.price,
-      total_amount: totalAmount,
-      thesis: decision.thesis ?? "模型未提供詳細投資論點。",
-      technical_basis: decision.technicalBasis ?? "模型未提供技術依據。",
-      fundamental_basis: decision.fundamentalBasis ?? null,
-      risk_factors: decision.riskFactors ?? "模型未提供風險說明。",
-      target_price: decision.targetPrice ?? null,
-      stop_loss: decision.stopLoss ?? null,
-      conviction: decision.conviction ?? null,
-      session_date: params.sessionDate,
-      ai_model: params.aiModel
-    });
+    await requireMutation(
+      params.supabase.from("sim_trades").insert({
+        portfolio_id: params.portfolio.id,
+        position_id: positionId,
+        action: "buy",
+        symbol: decision.symbol,
+        market: decision.market,
+        name: decision.name ?? decision.symbol,
+        shares,
+        price_per_share: params.quote.price,
+        total_amount: totalAmount,
+        thesis: decision.thesis ?? "模型未提供詳細投資論點。",
+        technical_basis: decision.technicalBasis ?? "模型未提供技術依據。",
+        fundamental_basis: decision.fundamentalBasis ?? null,
+        risk_factors: decision.riskFactors ?? "模型未提供風險說明。",
+        target_price: decision.targetPrice ?? null,
+        stop_loss: decision.stopLoss ?? null,
+        conviction: decision.conviction ?? null,
+        session_date: params.sessionDate,
+        ai_model: params.aiModel
+      }),
+      "建立模擬交易紀錄失敗。"
+    );
     return true;
   }
 
@@ -351,46 +372,58 @@ async function executeTrade(params: {
   const pnlPct = costBasis > 0 ? pnl / costBasis : 0;
 
   if (sharesToSell >= Number(existing.shares)) {
-    await params.supabase
-      .from("sim_positions")
-      .update({
-        status: "closed",
-        closed_at: new Date().toISOString(),
-        current_price: params.quote.price
-      })
-      .eq("id", existing.id);
+    await requireMutation(
+      params.supabase
+        .from("sim_positions")
+        .update({
+          status: "closed",
+          closed_at: new Date().toISOString(),
+          current_price: params.quote.price
+        })
+        .eq("id", existing.id),
+      "關閉模擬持倉失敗。"
+    );
   } else {
-    await params.supabase
-      .from("sim_positions")
-      .update({ shares: Number(existing.shares) - sharesToSell, current_price: params.quote.price })
-      .eq("id", existing.id);
+    await requireMutation(
+      params.supabase
+        .from("sim_positions")
+        .update({ shares: Number(existing.shares) - sharesToSell, current_price: params.quote.price })
+        .eq("id", existing.id),
+      "更新模擬持倉失敗。"
+    );
   }
 
-  await params.supabase
-    .from("sim_portfolios")
-    .update({ current_cash: Number(params.portfolio.current_cash) + proceeds })
-    .eq("id", params.portfolio.id);
+  await requireMutation(
+    params.supabase
+      .from("sim_portfolios")
+      .update({ current_cash: Number(params.portfolio.current_cash) + proceeds })
+      .eq("id", params.portfolio.id),
+    "更新模擬現金失敗。"
+  );
 
-  await params.supabase.from("sim_trades").insert({
-    portfolio_id: params.portfolio.id,
-    position_id: existing.id,
-    action: "sell",
-    symbol: decision.symbol,
-    market: decision.market,
-    name: existing.name,
-    shares: sharesToSell,
-    price_per_share: params.quote.price,
-    total_amount: proceeds,
-    thesis: decision.thesis ?? "模型未提供賣出論點。",
-    technical_basis: decision.technicalBasis ?? "模型未提供技術依據。",
-    fundamental_basis: decision.fundamentalBasis ?? null,
-    risk_factors: decision.riskFactors ?? "模型未提供風險說明。",
-    conviction: decision.conviction ?? null,
-    outcome_pnl: pnl,
-    outcome_pct: pnlPct,
-    session_date: params.sessionDate,
-    ai_model: params.aiModel
-  });
+  await requireMutation(
+    params.supabase.from("sim_trades").insert({
+      portfolio_id: params.portfolio.id,
+      position_id: existing.id,
+      action: "sell",
+      symbol: decision.symbol,
+      market: decision.market,
+      name: existing.name,
+      shares: sharesToSell,
+      price_per_share: params.quote.price,
+      total_amount: proceeds,
+      thesis: decision.thesis ?? "模型未提供賣出論點。",
+      technical_basis: decision.technicalBasis ?? "模型未提供技術依據。",
+      fundamental_basis: decision.fundamentalBasis ?? null,
+      risk_factors: decision.riskFactors ?? "模型未提供風險說明。",
+      conviction: decision.conviction ?? null,
+      outcome_pnl: pnl,
+      outcome_pct: pnlPct,
+      session_date: params.sessionDate,
+      ai_model: params.aiModel
+    }),
+    "建立模擬交易紀錄失敗。"
+  );
   return true;
 }
 
