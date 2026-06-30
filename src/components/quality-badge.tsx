@@ -9,6 +9,14 @@ const badgeClasses: Record<DataQualityState, string> = {
   conflicting: "border-orange-200 bg-orange-50 text-orange-700"
 };
 
+const badgeLabels: Record<DataQualityState, string> = {
+  fresh: "最新",
+  delayed: "延遲報價",
+  stale: "過期",
+  missing: "缺資料",
+  conflicting: "資料衝突"
+};
+
 export function QualityBadge({ state }: { state: DataQualityState }) {
   return (
     <span
@@ -17,7 +25,7 @@ export function QualityBadge({ state }: { state: DataQualityState }) {
         badgeClasses[state]
       )}
     >
-      {state}
+      {badgeLabels[state]}
     </span>
   );
 }

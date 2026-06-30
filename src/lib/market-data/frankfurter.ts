@@ -3,7 +3,7 @@ export class FrankfurterProvider {
     try {
       const params = new URLSearchParams({ from: base, to: quote });
       const response = await fetch(`https://api.frankfurter.app/latest?${params}`, {
-        next: { revalidate: 300 }
+        cache: "no-store"
       });
 
       if (response.ok) {
@@ -19,7 +19,7 @@ export class FrankfurterProvider {
 
       const fallbackResponse = await fetch(
         `https://api.frankfurter.dev/v2/rate/${encodeURIComponent(base)}/${encodeURIComponent(quote)}`,
-        { next: { revalidate: 300 } }
+        { cache: "no-store" }
       );
 
       if (!fallbackResponse.ok) {

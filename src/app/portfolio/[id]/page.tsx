@@ -258,6 +258,9 @@ export default async function StockDetailPage({ params }: { params: { id: string
             ) : null}
             <QualityBadge state={quote.qualityState} />
           </div>
+          <div className="mt-1 text-xs text-slate-500">
+            資料時間：{formatDateTime(quote.sourceUpdatedAt)}
+          </div>
         </div>
 
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">

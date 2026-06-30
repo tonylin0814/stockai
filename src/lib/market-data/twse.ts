@@ -23,7 +23,7 @@ function parseTwseDate(value: unknown) {
 export class TwseProvider {
   async getTaiex(): Promise<Quote> {
     try {
-      const response = await fetch(TWSE_TAIEX_URL, { next: { revalidate: 300 } });
+      const response = await fetch(TWSE_TAIEX_URL, { cache: "no-store" });
 
       if (!response.ok) {
         return missingQuote("TAIEX", "TW", "TWSE OpenAPI");
@@ -70,7 +70,7 @@ export class TwseProvider {
 
   async getStockQuote(symbol: string): Promise<Quote> {
     try {
-      const response = await fetch(TWSE_STOCK_DAY_ALL_URL, { next: { revalidate: 300 } });
+      const response = await fetch(TWSE_STOCK_DAY_ALL_URL, { cache: "no-store" });
 
       if (!response.ok) {
         return missingQuote(symbol, "TW", "TWSE OpenAPI");

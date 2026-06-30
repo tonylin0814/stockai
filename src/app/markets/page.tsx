@@ -4,7 +4,12 @@ import { refreshMarketOverview } from "@/app/actions";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
 import { Table, Td, Th } from "@/components/ui/table";
-import { formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
+import {
+  formatDateTime,
+  formatNumber,
+  formatSignedNumber,
+  formatSignedPercent
+} from "@/lib/format";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { Quote } from "@/lib/market-data/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -69,6 +74,9 @@ function IndexCard({ title, quote }: { title: string; quote: Quote }) {
       <div className={`mt-2 flex items-center gap-3 text-sm ${signClass(quote.change)}`}>
         <span>{isMissing ? "—" : formatSignedNumber(quote.change, 2)}</span>
         <span>{isMissing ? "—" : formatSignedPercent(quote.changePct)}</span>
+      </div>
+      <div className="mt-2 text-xs text-slate-500">
+        資料時間：{formatDateTime(quote.sourceUpdatedAt)}
       </div>
     </div>
   );

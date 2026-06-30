@@ -19,7 +19,7 @@ export class FinnhubProvider {
 
     try {
       const url = `${FINNHUB_BASE_URL}/quote?symbol=${encodeURIComponent(symbol)}&token=${this.apiKey}`;
-      const response = await fetch(url, { next: { revalidate: 60 } });
+      const response = await fetch(url, { cache: "no-store" });
 
       if (!response.ok) {
         return missingQuote(symbol, "US", "Finnhub");

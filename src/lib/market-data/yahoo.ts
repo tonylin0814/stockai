@@ -34,7 +34,7 @@ export class YahooProvider {
             accept: "application/json",
             "user-agent": "Mozilla/5.0"
           },
-          next: { revalidate: 60 }
+          cache: "no-store"
         });
 
         if (!response.ok) {
@@ -117,7 +117,7 @@ export class YahooProvider {
       const querySymbol = yahooSymbol(symbol, market);
       const response = await fetch(
         `${YAHOO_QUOTE_URL}?symbols=${encodeURIComponent(querySymbol)}`,
-        { next: { revalidate: 60 } }
+        { cache: "no-store" }
       );
 
       if (!response.ok) {
