@@ -40,11 +40,6 @@ type Trade = {
   conviction: number | null;
   executed_at: string;
 };
-type CashTrade = {
-  action: string;
-  total_amount: number;
-  sim_portfolios: { market: "US" | "TW" } | null;
-};
 type DailyReport = {
   report_date: string;
   trades_summary: string;
@@ -82,18 +77,12 @@ function positionPct(position: Position) {
   return avg > 0 ? ((current - avg) / avg) * 100 : 0;
 }
 
-function portfolioCash(portfolio: Portfolio | undefined, trades: CashTrade[], market: "US" | "TW") {
-  if (!portfolio) return 0;
-  return trades
-    .filter((trade) => trade.sim_portfolios?.market === market)
-    .reduce((cash, trade) => {
-      const amount = Number(trade.total_amount ?? 0);
-      return trade.action === "sell" ? cash + amount : cash - amount;
-    }, Number(portfolio.starting_cash));
+function portfolioCash(portfolio: Portfolio | undefined) {
+  return Number(portfolio?.current_cash ?? 0);
 }
 
-function portfolioTotal(cash: number, positions: Position[]) {
-  return cash + positions.reduce((sum, position) => sum + positionValue(position), 0);
+function portfolioTotal(portfolio: Portfolio | undefined, positions: Position[]) {
+  return portfolioCash(portfolio) + positions.reduce((sum, position) => sum + positionValue(position), 0);
 }
 
 function money(value: number, market: "US" | "TW") {
@@ -121,8 +110,7 @@ export default async function SimulationPage({
     latestScoreResult,
     scoresResult,
     weeklyEvalsResult,
-    allScoresResult,
-    cashTradesResult
+    allScoresResult
   ] = await Promise.all([
     supabase.from("sim_portfolios").select("*").eq("user_id", user.id).eq("division", division),
     supabase
@@ -172,12 +160,7 @@ export default async function SimulationPage({
       .from("sim_scores")
       .select("division, total_score, badges")
       .eq("user_id", user.id)
-      .order("score_date", { ascending: false }),
-    supabase
-      .from("sim_trades")
-      .select("action, total_amount, sim_portfolios!inner(division, market, user_id)")
-      .eq("sim_portfolios.user_id", user.id)
-      .eq("sim_portfolios.division", division)
+      .order("score_date", { ascending: false })
   ]);
 
   const portfolios = (portfoliosResult.data ?? []) as Portfolio[];
@@ -194,7 +177,6 @@ export default async function SimulationPage({
     total_score: number;
     badges: unknown;
   }>;
-  const cashTrades = (cashTradesResult.data ?? []) as unknown as CashTrade[];
   const gptScore = allScores.find((score) => score.division === "gpt")?.total_score ?? null;
   const antScore = allScores.find((score) => score.division === "anthropic")?.total_score ?? null;
   const gptWins = allScores.filter(
@@ -207,10 +189,10 @@ export default async function SimulationPage({
   const twPortfolio = portfolios.find((portfolio) => portfolio.market === "TW");
   const usPositions = positions.filter((position) => position.market === "US");
   const twPositions = positions.filter((position) => position.market === "TW");
-  const usCash = portfolioCash(usPortfolio, cashTrades, "US");
-  const twCash = portfolioCash(twPortfolio, cashTrades, "TW");
-  const usAssets = portfolioTotal(usCash, usPositions);
-  const twAssets = portfolioTotal(twCash, twPositions);
+  const usCash = portfolioCash(usPortfolio);
+  const twCash = portfolioCash(twPortfolio);
+  const usAssets = portfolioTotal(usPortfolio, usPositions);
+  const twAssets = portfolioTotal(twPortfolio, twPositions);
 
   return (
     <div className="space-y-6">
