@@ -23,6 +23,7 @@ export class FrankfurterProvider {
       );
 
       if (!fallbackResponse.ok) {
+        console.warn(`FX rate unavailable for ${base}/${quote}: fallback request failed.`);
         return 0;
       }
 
@@ -30,8 +31,15 @@ export class FrankfurterProvider {
         rate?: number;
       };
 
-      return Number(fallbackData.rate) || 0;
+      const fallbackRate = Number(fallbackData.rate) || 0;
+
+      if (!fallbackRate) {
+        console.warn(`FX rate unavailable for ${base}/${quote}: both providers returned 0.`);
+      }
+
+      return fallbackRate;
     } catch {
+      console.warn(`FX rate unavailable for ${base}/${quote}: request threw.`);
       return 0;
     }
   }

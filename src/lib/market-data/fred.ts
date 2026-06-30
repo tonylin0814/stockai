@@ -18,7 +18,7 @@ export class FredProvider {
       });
       const response = await fetch(
         `https://api.stlouisfed.org/fred/series/observations?${params}`,
-        { next: { revalidate: 3600 } }
+        { next: { revalidate: 21600 } }
       );
 
       if (!response.ok) {

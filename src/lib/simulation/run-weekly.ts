@@ -56,7 +56,7 @@ function valueForMarket(portfolio: Portfolio | undefined, positions: Position[])
 async function benchmarkReturn(market: "US" | "TW") {
   const provider = getMarketDataProvider();
   const history = await provider
-    .getHistory(market === "US" ? "^IXIC" : "^TWII", market, 8)
+    .getHistory(market === "US" ? "^GSPC" : "^TWII", market, 8)
     .catch(() => []);
   if (history.length < 2) return 0;
   const first = history[0]?.close ?? 0;

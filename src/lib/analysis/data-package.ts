@@ -1,6 +1,8 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { buildDecisionMemory } from "@/lib/analysis/decision-memory";
 import { TW_SCAN_UNIVERSE } from "@/lib/analysis/tw-universe";
+import { isTwMarketOpen } from "@/lib/market-hours";
+import { missingQuote } from "@/lib/market-data/common";
 import { computeTechnicals } from "@/lib/market-data/indicators";
 import {
   getUpcomingEarnings,
@@ -152,6 +154,27 @@ function averageClose(history: Array<{ close: number }>, period: number) {
   return Math.round((slice.reduce((sum, close) => sum + close, 0) / period) * 100) / 100;
 }
 
+async function pLimit<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrency: number
+): Promise<T[]> {
+  const results: T[] = [];
+  let index = 0;
+
+  async function worker() {
+    while (index < tasks.length) {
+      const taskIndex = index;
+      index += 1;
+      results[taskIndex] = await tasks[taskIndex]();
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker())
+  );
+  return results;
+}
+
 async function logQualityIssues(
   userId: string,
   quotes: Array<{ label: string; quote: Quote }>
@@ -222,9 +245,61 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
   const holdingRows = (holdingsResult.data ?? []) as unknown as HoldingRow[];
   const watchlistRows = (watchlistResult.data ?? []) as unknown as WatchlistRow[];
 
+  const holdingQuoteTasks = holdingRows.map((row) => {
+    const security = row.securities;
+    return () =>
+      security && isMarket(security.market)
+        ? provider.getQuote(security.symbol, security.market)
+        : Promise.resolve(missingQuote("", "US", "Invalid security"));
+  });
+  const watchlistQuoteTasks = watchlistRows.map((row) => {
+    const security = row.securities;
+    return () =>
+      security && isMarket(security.market)
+        ? provider.getQuote(security.symbol, security.market)
+        : Promise.resolve(missingQuote("", "US", "Invalid security"));
+  });
+  const holdingHistoryTasks = holdingRows.map((row) => {
+    const security = row.securities;
+    return () =>
+      security && isMarket(security.market)
+        ? provider.getHistory(security.symbol, security.market, 252)
+        : Promise.resolve([]);
+  });
+  const watchlistHistoryTasks = watchlistRows.map((row) => {
+    const security = row.securities;
+    return () =>
+      security && isMarket(security.market)
+        ? provider.getHistory(security.symbol, security.market, 252)
+        : Promise.resolve([]);
+  });
+  const holdingFundamentalTasks = holdingRows.map((row) => {
+    const security = row.securities;
+    return () =>
+      security && isMarket(security.market)
+        ? provider.getFundamentals(security.symbol, security.market)
+        : Promise.resolve(null);
+  });
+  const watchlistFundamentalTasks = watchlistRows.map((row) => {
+    const security = row.securities;
+    return () =>
+      security && isMarket(security.market)
+        ? provider.getFundamentals(security.symbol, security.market)
+        : Promise.resolve(null);
+  });
+  const holdingNewsTasks = holdingRows.map((row) => {
+    const security = row.securities;
+    return () =>
+      security?.market === "US" ? provider.getNews(security.symbol) : Promise.resolve([]);
+  });
+  const watchlistNewsTasks = watchlistRows.map((row) => {
+    const security = row.securities;
+    return () =>
+      security?.market === "US" ? provider.getNews(security.symbol) : Promise.resolve([]);
+  });
+
   const [
-    holdingQuotes,
-    watchlistQuotes,
+    quoteResults,
     taiex,
     sp500,
     nasdaq,
@@ -232,29 +307,11 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     vix,
     usdTwd,
     dgs10,
-    holdingHistories,
-    watchlistHistories,
-    holdingFundamentals,
-    watchlistFundamentals,
-    holdingNews,
-    watchlistNews
+    historyResults,
+    fundamentalResults,
+    newsResults
   ] = await Promise.all([
-    Promise.all(
-      holdingRows.map((row) => {
-        const security = row.securities;
-        return security && isMarket(security.market)
-          ? provider.getQuote(security.symbol, security.market)
-          : provider.getQuote("", "US");
-      })
-    ),
-    Promise.all(
-      watchlistRows.map((row) => {
-        const security = row.securities;
-        return security && isMarket(security.market)
-          ? provider.getQuote(security.symbol, security.market)
-          : provider.getQuote("", "US");
-      })
-    ),
+    pLimit([...holdingQuoteTasks, ...watchlistQuoteTasks], 5),
     provider.getIndex("TAIEX", "TW"),
     provider.getIndex("^GSPC", "US"),
     provider.getIndex("^IXIC", "US"),
@@ -262,55 +319,18 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     provider.getIndex("^VIX", "US"),
     provider.getFXRate("USD", "TWD"),
     provider.getMacro("DGS10"),
-    Promise.all(
-      holdingRows.map((row) => {
-        const security = row.securities;
-        return security && isMarket(security.market)
-          ? provider.getHistory(security.symbol, security.market, 252)
-          : Promise.resolve([]);
-      })
-    ),
-    Promise.all(
-      watchlistRows.map((row) => {
-        const security = row.securities;
-        return security && isMarket(security.market)
-          ? provider.getHistory(security.symbol, security.market, 252)
-          : Promise.resolve([]);
-      })
-    ),
-    Promise.all(
-      holdingRows.map((row) => {
-        const security = row.securities;
-        return security && isMarket(security.market)
-          ? provider.getFundamentals(security.symbol, security.market)
-          : Promise.resolve(null);
-      })
-    ),
-    Promise.all(
-      watchlistRows.map((row) => {
-        const security = row.securities;
-        return security && isMarket(security.market)
-          ? provider.getFundamentals(security.symbol, security.market)
-          : Promise.resolve(null);
-      })
-    ),
-    Promise.all(
-      holdingRows.map((row) => {
-        const security = row.securities;
-        return security?.market === "US"
-          ? provider.getNews(security.symbol)
-          : Promise.resolve([]);
-      })
-    ),
-    Promise.all(
-      watchlistRows.map((row) => {
-        const security = row.securities;
-        return security?.market === "US"
-          ? provider.getNews(security.symbol)
-          : Promise.resolve([]);
-      })
-    )
+    pLimit([...holdingHistoryTasks, ...watchlistHistoryTasks], 3),
+    pLimit([...holdingFundamentalTasks, ...watchlistFundamentalTasks], 3),
+    pLimit([...holdingNewsTasks, ...watchlistNewsTasks], 5)
   ]);
+  const holdingQuotes = quoteResults.slice(0, holdingRows.length);
+  const watchlistQuotes = quoteResults.slice(holdingRows.length);
+  const holdingHistories = historyResults.slice(0, holdingRows.length);
+  const watchlistHistories = historyResults.slice(holdingRows.length);
+  const holdingFundamentals = fundamentalResults.slice(0, holdingRows.length);
+  const watchlistFundamentals = fundamentalResults.slice(holdingRows.length);
+  const holdingNews = newsResults.slice(0, holdingRows.length);
+  const watchlistNews = newsResults.slice(holdingRows.length);
 
   const portfolio: PortfolioItem[] = holdingRows.flatMap((row, index) => {
     const security = row.securities;
@@ -383,19 +403,22 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
     ...holdingRows.map((row) => row.securities?.symbol).filter(Boolean),
     ...watchlistRows.map((row) => row.securities?.symbol).filter(Boolean)
   ]);
-  const scanCandidates = TW_SCAN_UNIVERSE.filter(
-    (candidate) => !excludedSymbols.has(candidate.symbol)
-  );
+  const shouldScanTw = isTwMarketOpen() || new Date().getUTCHours() >= 6;
+  const scanCandidates = shouldScanTw
+    ? TW_SCAN_UNIVERSE.filter((candidate) => !excludedSymbols.has(candidate.symbol))
+    : [];
   const [scanQuotes, scanHistories] = await Promise.all([
-    Promise.all(
-      scanCandidates.map((candidate) =>
+    pLimit(
+      scanCandidates.map((candidate) => () =>
         provider.getQuote(candidate.symbol, "TW").catch(() => null)
-      )
+      ),
+      5
     ),
-    Promise.all(
-      scanCandidates.map((candidate) =>
+    pLimit(
+      scanCandidates.map((candidate) => () =>
         provider.getHistory(candidate.symbol, "TW", 252).catch(() => [])
-      )
+      ),
+      3
     )
   ]);
   const twScanUniverse: TwScanItem[] = scanCandidates.flatMap((candidate, index) => {

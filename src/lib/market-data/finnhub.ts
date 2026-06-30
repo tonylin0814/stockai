@@ -53,7 +53,7 @@ export class FinnhubProvider {
         dayLow: toNumber(data.l) || undefined,
         dayOpen: toNumber(data.o) || undefined,
         source: "Finnhub",
-        qualityState: usQuoteQuality(sourceUpdatedAt),
+        qualityState: usQuoteQuality(sourceUpdatedAt, 15 * 60 * 1000),
         sourceUpdatedAt
       };
     } catch {

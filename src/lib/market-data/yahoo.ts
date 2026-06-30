@@ -222,7 +222,7 @@ export class YahooProvider {
       const querySymbol = yahooSymbol(symbol, market);
       const response = await fetch(
         `${YAHOO_QUOTE_URL}?symbols=${encodeURIComponent(querySymbol)}`,
-        { next: { revalidate: 60 } }
+        { next: { revalidate: 3600 } }
       );
 
       if (!response.ok) {

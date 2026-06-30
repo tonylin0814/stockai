@@ -24,9 +24,12 @@ export function missingFundamentals(source: string): Fundamentals {
   };
 }
 
-export function usQuoteQuality(sourceUpdatedAt: string): DataQualityState {
+export function usQuoteQuality(
+  sourceUpdatedAt: string,
+  providerDelayMs = 0
+): DataQualityState {
   const updated = new Date(sourceUpdatedAt).getTime();
-  const ageMs = Date.now() - updated;
+  const ageMs = Date.now() - updated + providerDelayMs;
 
   if (!Number.isFinite(updated)) {
     return "missing";

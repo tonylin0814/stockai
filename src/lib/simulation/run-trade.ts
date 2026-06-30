@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { buildTradingDecisionPrompt } from "@/lib/analysis/prompts/sim-trading";
 import { callModel, inputSummary, validateOrRepair } from "@/lib/analysis/pipeline/model";
+import { computeTechnicals } from "@/lib/market-data/indicators";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import type { Quote } from "@/lib/market-data/types";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
@@ -87,11 +88,6 @@ const TradingResponseSchema = z.object({
 type TradeDecision = z.infer<typeof TradeDecisionSchema>;
 
 const divisions: Division[] = ["gpt", "anthropic"];
-const US_SCAN_UNIVERSE = [
-  ...US_UNIVERSE_UNDER_50,
-  ...US_UNIVERSE_50_TO_100,
-  ...US_UNIVERSE_100_TO_200
-];
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -106,9 +102,9 @@ function modelForDivision(division: Division) {
 
 function isWithinTradingHours(config: Record<string, unknown>, market: Market) {
   const now = new Date();
-  const dayOfWeek = now.getDay();
+  const dayOfWeek = now.getUTCDay();
   if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-  const hour = now.getHours();
+  const hour = now.getUTCHours();
   const startHour = Number(config[market === "US" ? "us_start_hour" : "tw_start_hour"] ?? 0);
   const endHour = Number(config[market === "US" ? "us_end_hour" : "tw_end_hour"] ?? 24);
   return hour >= startHour && hour < endHour;
@@ -232,6 +228,7 @@ async function quoteWithTechnicals(symbol: string, name: string, market: Market)
   const quote = await provider.getQuote(symbol, market);
   const history = await provider.getHistory(symbol, market, 90).catch(() => []);
   const closes = history.map((row) => row.close).filter((value) => Number.isFinite(value));
+  const technicals = computeTechnicals(history);
   const sma = (days: number) =>
     closes.length >= days
       ? closes.slice(-days).reduce((sum, value) => sum + value, 0) / days
@@ -242,7 +239,7 @@ async function quoteWithTechnicals(symbol: string, name: string, market: Market)
     quote,
     sma20: sma(20),
     sma60: sma(60),
-    rsi14: null
+    rsi14: technicals.rsi14
   };
 }
 
@@ -276,7 +273,14 @@ async function executeTrade(params: {
   const decision = params.decision;
   if (decision.action === "hold") return false;
   if (decision.market !== params.portfolio.market) return false;
-  if (params.quote.qualityState === "missing" || params.quote.price <= 0) return false;
+  const provider = getMarketDataProvider();
+  const freshQuote = await provider
+    .getQuote(decision.symbol, decision.market)
+    .catch(() => params.quote);
+  const executionQuote =
+    freshQuote.qualityState !== "missing" && freshQuote.price > 0 ? freshQuote : params.quote;
+  if (executionQuote.qualityState === "missing" || executionQuote.price <= 0) return false;
+
   const shares = Math.floor(Number(decision.shares ?? 0));
   if (shares <= 0) return false;
   if (
@@ -292,7 +296,8 @@ async function executeTrade(params: {
   }
 
   const existing = params.positions.find((position) => position.symbol === decision.symbol);
-  const totalAmount = shares * params.quote.price;
+  const executionPrice = executionQuote.price;
+  const totalAmount = shares * executionPrice;
 
   if (decision.action === "buy") {
     const openCount = params.positions.length;
@@ -308,7 +313,7 @@ async function executeTrade(params: {
       await requireMutation(
         params.supabase
           .from("sim_positions")
-          .update({ shares: newShares, avg_cost_price: newAvgCost, current_price: params.quote.price })
+          .update({ shares: newShares, avg_cost_price: newAvgCost, current_price: executionPrice })
           .eq("id", existing.id),
         "更新模擬持倉失敗。"
       );
@@ -321,8 +326,8 @@ async function executeTrade(params: {
           market: decision.market,
           name: decision.name ?? decision.symbol,
           shares,
-          avg_cost_price: params.quote.price,
-          current_price: params.quote.price
+          avg_cost_price: executionPrice,
+          current_price: executionPrice
         })
         .select("id")
         .single();
@@ -347,7 +352,7 @@ async function executeTrade(params: {
         market: decision.market,
         name: decision.name ?? decision.symbol,
         shares,
-        price_per_share: params.quote.price,
+        price_per_share: executionPrice,
         total_amount: totalAmount,
         thesis: decision.thesis ?? "模型未提供詳細投資論點。",
         technical_basis: decision.technicalBasis ?? "模型未提供技術依據。",
@@ -366,7 +371,7 @@ async function executeTrade(params: {
 
   if (!existing) return false;
   const sharesToSell = Math.min(shares, Number(existing.shares));
-  const proceeds = sharesToSell * params.quote.price;
+  const proceeds = sharesToSell * executionPrice;
   const costBasis = sharesToSell * Number(existing.avg_cost_price);
   const pnl = proceeds - costBasis;
   const pnlPct = costBasis > 0 ? pnl / costBasis : 0;
@@ -378,7 +383,7 @@ async function executeTrade(params: {
         .update({
           status: "closed",
           closed_at: new Date().toISOString(),
-          current_price: params.quote.price
+          current_price: executionPrice
         })
         .eq("id", existing.id),
       "關閉模擬持倉失敗。"
@@ -387,7 +392,7 @@ async function executeTrade(params: {
     await requireMutation(
       params.supabase
         .from("sim_positions")
-        .update({ shares: Number(existing.shares) - sharesToSell, current_price: params.quote.price })
+        .update({ shares: Number(existing.shares) - sharesToSell, current_price: executionPrice })
         .eq("id", existing.id),
       "更新模擬持倉失敗。"
     );
@@ -410,7 +415,7 @@ async function executeTrade(params: {
       market: decision.market,
       name: existing.name,
       shares: sharesToSell,
-      price_per_share: params.quote.price,
+      price_per_share: executionPrice,
       total_amount: proceeds,
       thesis: decision.thesis ?? "模型未提供賣出論點。",
       technical_basis: decision.technicalBasis ?? "模型未提供技術依據。",

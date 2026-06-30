@@ -45,6 +45,12 @@ function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function yesterdayIsoDate() {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return yesterday.toISOString().slice(0, 10);
+}
+
 function modelForDivision(division: Division) {
   if (division === "anthropic") {
     return { provider: "Anthropic", model: "claude-haiku-4-5-20251001" };
@@ -155,6 +161,23 @@ export async function runReportForUser(
     const twPositions = positions.filter((position) => position.portfolio_id === twPortfolio?.id);
     const usValue = portfolioValue(usPortfolio, usPositions);
     const twValue = portfolioValue(twPortfolio, twPositions);
+    const { data: prevReport } = await supabase
+      .from("sim_daily_reports")
+      .select("us_portfolio_value, tw_portfolio_value")
+      .eq("user_id", userId)
+      .eq("division", division)
+      .eq("report_date", yesterdayIsoDate())
+      .maybeSingle();
+    const prevUsValue = Number(
+      (prevReport as { us_portfolio_value?: number | null } | null)?.us_portfolio_value ??
+        usPortfolio?.starting_cash ??
+        usValue
+    );
+    const prevTwValue = Number(
+      (prevReport as { tw_portfolio_value?: number | null } | null)?.tw_portfolio_value ??
+        twPortfolio?.starting_cash ??
+        twValue
+    );
     const model = modelForDivision(division);
     const prompt = buildReportPrompt({
       division,
@@ -190,14 +213,12 @@ export async function runReportForUser(
         report_date: reportDate,
         us_portfolio_value: usValue,
         tw_portfolio_value: twValue,
-        us_day_pnl: usPortfolio ? usValue - Number(usPortfolio.starting_cash) : null,
-        tw_day_pnl: twPortfolio ? twValue - Number(twPortfolio.starting_cash) : null,
-        us_day_pnl_pct: usPortfolio
-          ? ((usValue - Number(usPortfolio.starting_cash)) / Number(usPortfolio.starting_cash)) * 100
-          : null,
-        tw_day_pnl_pct: twPortfolio
-          ? ((twValue - Number(twPortfolio.starting_cash)) / Number(twPortfolio.starting_cash)) * 100
-          : null,
+        us_day_pnl: usPortfolio ? usValue - prevUsValue : null,
+        tw_day_pnl: twPortfolio ? twValue - prevTwValue : null,
+        us_day_pnl_pct:
+          usPortfolio && prevUsValue > 0 ? ((usValue - prevUsValue) / prevUsValue) * 100 : null,
+        tw_day_pnl_pct:
+          twPortfolio && prevTwValue > 0 ? ((twValue - prevTwValue) / prevTwValue) * 100 : null,
         trades_summary: report.trades_summary,
         positions_review: report.positions_review,
         market_commentary: report.market_commentary,

@@ -2,6 +2,7 @@ import { FinnhubProvider } from "@/lib/market-data/finnhub";
 import { FrankfurterProvider } from "@/lib/market-data/frankfurter";
 import { FredProvider } from "@/lib/market-data/fred";
 import { missingFundamentals, missingQuote, pctDifference } from "@/lib/market-data/common";
+import { PolygonProvider } from "@/lib/market-data/polygon";
 import { TwseProvider } from "@/lib/market-data/twse";
 import { getTwseFundamentals } from "@/lib/market-data/twse-fundamentals";
 import type {
@@ -17,6 +18,7 @@ import { YahooProvider } from "@/lib/market-data/yahoo";
 class CompositeProvider implements MarketDataProvider {
   private finnhub = new FinnhubProvider();
   private yahoo = new YahooProvider();
+  private polygon = new PolygonProvider();
   private twse = new TwseProvider();
   private frankfurter = new FrankfurterProvider();
   private fred = new FredProvider();
@@ -34,8 +36,39 @@ class CompositeProvider implements MarketDataProvider {
         : yahooQuote;
     }
 
-    const [finnhubQuote, yahooQuote, yahooChartQuote] = await Promise.all([
-      this.finnhub.getQuote(symbol),
+    const [polygonQuote, finnhubQuote] = await Promise.all([
+      this.polygon
+        .getQuoteWithChange(symbol)
+        .catch(() => missingQuote(symbol, "US", "Polygon")),
+      this.finnhub.getQuote(symbol).catch(() => missingQuote(symbol, "US", "Finnhub"))
+    ]);
+
+    const primaryCandidates = [polygonQuote, finnhubQuote].filter(
+      (quote) => quote.qualityState !== "missing" && quote.price > 0
+    );
+
+    if (primaryCandidates.length) {
+      primaryCandidates.sort((a, b) => {
+        const qualityOrder = {
+          fresh: 0,
+          delayed: 1,
+          conflicting: 2,
+          stale: 3,
+          missing: 4
+        };
+        const qualityDiff = qualityOrder[a.qualityState] - qualityOrder[b.qualityState];
+
+        if (qualityDiff !== 0) {
+          return qualityDiff;
+        }
+
+        return new Date(b.sourceUpdatedAt).getTime() - new Date(a.sourceUpdatedAt).getTime();
+      });
+
+      return primaryCandidates[0];
+    }
+
+    const [yahooQuote, yahooChartQuote] = await Promise.all([
       this.yahoo.getQuote(symbol, "US"),
       this.yahoo.getQuoteFromChart(symbol, "US")
     ]);
@@ -43,18 +76,18 @@ class CompositeProvider implements MarketDataProvider {
       yahooQuote.qualityState === "missing" ? yahooChartQuote : yahooQuote;
 
     if (
-      finnhubQuote.qualityState !== "missing" &&
+      polygonQuote.qualityState !== "missing" &&
       yahooBestQuote.qualityState !== "missing" &&
-      pctDifference(finnhubQuote.price, yahooBestQuote.price) > 0.01
+      pctDifference(polygonQuote.price, yahooBestQuote.price) > 0.01
     ) {
       return {
-        ...finnhubQuote,
-        source: "Finnhub / Yahoo Finance",
+        ...polygonQuote,
+        source: "Polygon / Yahoo Finance",
         qualityState: "conflicting"
       };
     }
 
-    return finnhubQuote.qualityState === "missing" ? yahooBestQuote : finnhubQuote;
+    return yahooBestQuote;
   }
 
   async getHistory(symbol: string, market: "US" | "TW", days: number): Promise<OHLCV[]> {
