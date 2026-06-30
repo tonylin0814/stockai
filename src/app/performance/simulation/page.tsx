@@ -101,7 +101,6 @@ export default async function SimulationPage({
 }: {
   searchParams?: { division?: string; action?: string; updated?: string };
 }) {
-  const refreshedAt = new Date().toISOString();
   const division: Division = searchParams?.division === "anthropic" ? "anthropic" : "gpt";
   const actionFilter = searchParams?.action === "buy" || searchParams?.action === "sell" ? searchParams.action : "all";
   const supabase = createSupabaseServerClient();
@@ -215,10 +214,6 @@ export default async function SimulationPage({
         </div>
         <div className="space-y-2 text-right">
           <SimulationActionButtons />
-          {searchParams?.updated === "1" ? (
-            <p className="text-xs text-green-700">市場資料已更新。</p>
-          ) : null}
-          <p className="text-xs text-slate-500">本頁重新抓取：{formatDateTime(refreshedAt)}</p>
         </div>
       </div>
 

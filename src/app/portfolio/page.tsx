@@ -60,7 +60,6 @@ export default async function PortfolioPage({
 }: {
   searchParams?: { updated?: string };
 }) {
-  const refreshedAt = new Date().toISOString();
   const supabase = createSupabaseServerClient();
   const {
     data: { user }
@@ -136,15 +135,6 @@ export default async function PortfolioPage({
             <p className="text-xs text-slate-500">
               上一次投資組合分析：{lastAnalysisAt ? formatDateTime(lastAnalysisAt) : "—"}
             </p>
-          </div>
-          <div className="space-y-1 text-right">
-            {searchParams?.updated === "1" ? (
-              <p className="text-xs text-green-700">市場資料已更新。</p>
-            ) : null}
-            <div className="space-y-0.5 text-xs text-slate-500">
-              <p>本頁重新抓取：{formatDateTime(refreshedAt)}</p>
-              <p>資料來源時間：{latestTimestamp ? formatDateTime(latestTimestamp) : "—"}</p>
-            </div>
           </div>
           <AddHoldingDialog />
         </div>

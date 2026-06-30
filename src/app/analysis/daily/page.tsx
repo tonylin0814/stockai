@@ -254,7 +254,6 @@ export default async function DailyAnalysisPage({
 }: {
   searchParams: { market?: string; updated?: string };
 }) {
-  const refreshedAt = new Date().toISOString();
   const activeMarket: Market = searchParams.market === "US" ? "US" : "TW";
   const supabase = createSupabaseServerClient();
   const {
@@ -289,10 +288,6 @@ export default async function DailyAnalysisPage({
   const primaryIndex = activeMarket === "TW" ? snapshot.taiex : snapshot.sp500;
   const secondaryIndex = activeMarket === "TW" ? null : snapshot.nasdaq;
   const vix = snapshot.vix;
-  const marketDataUpdatedAt = [primaryIndex?.sourceUpdatedAt, secondaryIndex?.sourceUpdatedAt, vix?.sourceUpdatedAt]
-    .filter((value): value is string => Boolean(value))
-    .sort()
-    .at(-1);
 
   return (
     <div className="space-y-8">
@@ -307,13 +302,6 @@ export default async function DailyAnalysisPage({
             <p className="text-xs text-slate-500">
               上一次市場分析：{analysisRow?.created_at ? formatDateTime(analysisRow.created_at) : "—"}
             </p>
-          </div>
-          {searchParams.updated === "1" ? (
-            <p className="text-xs text-green-700">市場資料已更新。</p>
-          ) : null}
-          <div className="space-y-0.5 text-xs text-slate-500">
-            <p>本頁重新抓取：{formatDateTime(refreshedAt)}</p>
-            <p>資料來源時間：{marketDataUpdatedAt ? formatDateTime(marketDataUpdatedAt) : "—"}</p>
           </div>
         </div>
       </div>

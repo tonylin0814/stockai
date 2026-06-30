@@ -52,14 +52,6 @@ function isMarket(value: string | undefined): value is "US" | "TW" {
   return value === "US" || value === "TW";
 }
 
-function latestQuoteTime(quotes: Array<Quote | null | undefined>) {
-  return quotes
-    .map((quote) => quote?.sourceUpdatedAt)
-    .filter((value): value is string => Boolean(value))
-    .sort()
-    .at(-1);
-}
-
 function EmptyState({
   message,
   linkHref,
@@ -107,7 +99,6 @@ export default async function MarketsPage({
 }: {
   searchParams?: { updated?: string };
 }) {
-  const refreshedAt = new Date().toISOString();
   const supabase = createSupabaseServerClient();
   let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
 
@@ -187,7 +178,6 @@ export default async function MarketsPage({
     fxPairs.length + holdings.length + watchlistItems.length
   ) as (Quote | null)[];
   const simQuotes = rest.slice(fxPairs.length + holdings.length + watchlistItems.length) as (Quote | null)[];
-  const marketDataUpdatedAt = latestQuoteTime([dow, nasdaq, taiex, ...holdingQuotes, ...watchQuotes, ...simQuotes]);
 
   let lastAnalysisAt: string | null = null;
   if (user) {
@@ -219,13 +209,6 @@ export default async function MarketsPage({
           <p className="text-xs text-slate-500">
             上一次全系統分析：{lastAnalysisAt ? formatDateTime(lastAnalysisAt) : "—"}
           </p>
-          {searchParams?.updated === "1" ? (
-            <p className="text-xs text-green-700">市場資料已更新。</p>
-          ) : null}
-          <div className="space-y-0.5 text-xs text-slate-500">
-            <p>本頁重新抓取：{formatDateTime(refreshedAt)}</p>
-            <p>資料來源時間：{marketDataUpdatedAt ? formatDateTime(marketDataUpdatedAt) : "—"}</p>
-          </div>
         </div>
       </div>
 
