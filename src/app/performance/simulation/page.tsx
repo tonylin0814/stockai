@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { refreshMarketDataForPage } from "@/app/actions";
-import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { SimScoreCard } from "@/components/sim-score-card";
 import { SimulationActionButtons } from "@/components/simulation-action-buttons";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -217,19 +215,6 @@ export default async function SimulationPage({
         </div>
         <div className="space-y-2 text-right">
           <SimulationActionButtons />
-          <form action={refreshMarketDataForPage}>
-            <input
-              type="hidden"
-              name="returnTo"
-              value={`/performance/simulation?division=${division}&action=${actionFilter}`}
-            />
-            <PendingSubmitButton
-              idleLabel="更新市場資料"
-              pendingLabel="更新中..."
-              icon="refresh"
-              variant="secondary"
-            />
-          </form>
           {searchParams?.updated === "1" ? (
             <p className="text-xs text-green-700">市場資料已更新。</p>
           ) : null}

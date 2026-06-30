@@ -776,8 +776,10 @@ export async function refreshMarketOverview() {
 export async function refreshMarketDataForPage(formData: FormData) {
   const returnTo = getString(formData, "returnTo") || "/markets";
   const url = new URL(returnTo, "https://local.app");
-  const allowedPaths = new Set(["/markets", "/portfolio", "/analysis/daily", "/performance/simulation"]);
-  const pathname = allowedPaths.has(url.pathname) ? url.pathname : "/markets";
+  const pathname =
+    url.origin === "https://local.app" && url.pathname.startsWith("/")
+      ? url.pathname
+      : "/markets";
 
   revalidatePath(pathname);
   url.searchParams.set("updated", "1");

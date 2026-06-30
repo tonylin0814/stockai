@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { refreshMarketDataForPage, softDeleteHolding } from "@/app/actions";
+import { softDeleteHolding } from "@/app/actions";
 import { AddHoldingDialog, EditHoldingDialog } from "@/app/portfolio/holding-dialogs";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { MarketStatusDot } from "@/components/market-status-dot";
-import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { PortfolioStatusBar } from "@/components/portfolio-status-bar";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { QualityBadge } from "@/components/quality-badge";
@@ -139,15 +138,6 @@ export default async function PortfolioPage({
             </p>
           </div>
           <div className="space-y-1 text-right">
-            <form action={refreshMarketDataForPage}>
-              <input type="hidden" name="returnTo" value="/portfolio" />
-              <PendingSubmitButton
-                idleLabel="更新市場資料"
-                pendingLabel="更新中..."
-                icon="refresh"
-                variant="secondary"
-              />
-            </form>
             {searchParams?.updated === "1" ? (
               <p className="text-xs text-green-700">市場資料已更新。</p>
             ) : null}

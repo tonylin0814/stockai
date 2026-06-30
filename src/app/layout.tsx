@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { signOut } from "@/app/actions";
+import { FloatingMarketRefreshButton } from "@/components/floating-market-refresh-button";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import "./globals.css";
@@ -66,6 +68,11 @@ export default async function RootLayout({
           </header>
         ) : null}
         <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+        {user ? (
+          <Suspense fallback={null}>
+            <FloatingMarketRefreshButton />
+          </Suspense>
+        ) : null}
       </body>
     </html>
   );

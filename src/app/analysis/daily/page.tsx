@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { addMarketPickToWatchlist, refreshMarketDataForPage } from "@/app/actions";
+import { addMarketPickToWatchlist } from "@/app/actions";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
@@ -308,15 +308,6 @@ export default async function DailyAnalysisPage({
               上一次市場分析：{analysisRow?.created_at ? formatDateTime(analysisRow.created_at) : "—"}
             </p>
           </div>
-          <form action={refreshMarketDataForPage}>
-            <input type="hidden" name="returnTo" value={`/analysis/daily?market=${activeMarket}`} />
-            <PendingSubmitButton
-              idleLabel="更新市場資料"
-              pendingLabel="更新中..."
-              icon="refresh"
-              variant="secondary"
-            />
-          </form>
           {searchParams.updated === "1" ? (
             <p className="text-xs text-green-700">市場資料已更新。</p>
           ) : null}

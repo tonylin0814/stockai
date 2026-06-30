@@ -237,7 +237,7 @@ export default async function StockDetailPage({
           </div>
         </div>
         <div className="flex flex-wrap items-start gap-2">
-          <div className="space-y-1">
+          <div className="hidden">
             <form action={refreshAction}>
               <PendingSubmitButton
                 idleLabel="更新市場資料"

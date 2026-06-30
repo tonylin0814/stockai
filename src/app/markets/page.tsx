@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { refreshMarketDataForPage } from "@/app/actions";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
-import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { QualityBadge } from "@/components/quality-badge";
 import { Table, Td, Th } from "@/components/ui/table";
 import {
@@ -217,15 +215,6 @@ export default async function MarketsPage({
         <div className="space-y-2 text-right">
           <div className="flex flex-wrap items-center justify-end gap-2">
             <RunAnalysisButton label="執行全系統分析" />
-            <form action={refreshMarketDataForPage}>
-              <input type="hidden" name="returnTo" value="/markets" />
-              <PendingSubmitButton
-                idleLabel="更新市場資料"
-                pendingLabel="更新中..."
-                icon="refresh"
-                variant="secondary"
-              />
-            </form>
           </div>
           <p className="text-xs text-slate-500">
             上一次全系統分析：{lastAnalysisAt ? formatDateTime(lastAnalysisAt) : "—"}
