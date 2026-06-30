@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
+async function requireSuccess(
+  resultPromise: PromiseLike<{ error: { message?: string } | null }>
+) {
+  const result = await resultPromise;
+  if (result.error) {
+    throw new Error(result.error.message ?? "資料庫操作失敗。");
+  }
+}
+
 export async function POST() {
   const serverClient = createSupabaseServerClient();
   const {
@@ -19,21 +28,32 @@ export async function POST() {
     const portfolioIds = (portfolios ?? []).map((portfolio: { id: string }) => portfolio.id);
 
     if (portfolioIds.length) {
-      await supabase.from("sim_positions").delete().in("portfolio_id", portfolioIds);
-      await supabase.from("sim_trades").delete().in("portfolio_id", portfolioIds);
+      await requireSuccess(supabase.from("sim_trades").delete().in("portfolio_id", portfolioIds));
+      await requireSuccess(supabase.from("sim_positions").delete().in("portfolio_id", portfolioIds));
     }
 
     await Promise.all([
-      supabase
-        .from("sim_portfolios")
-        .update({ current_cash: 10000, reset_at: new Date().toISOString() })
-        .eq("user_id", user.id)
-        .eq("market", "US"),
-      supabase
-        .from("sim_portfolios")
-        .update({ current_cash: 300000, reset_at: new Date().toISOString() })
-        .eq("user_id", user.id)
-        .eq("market", "TW")
+      requireSuccess(supabase.from("sim_predictions").delete().eq("user_id", user.id)),
+      requireSuccess(supabase.from("sim_daily_reports").delete().eq("user_id", user.id)),
+      requireSuccess(supabase.from("sim_weekly_evals").delete().eq("user_id", user.id)),
+      requireSuccess(supabase.from("sim_scores").delete().eq("user_id", user.id))
+    ]);
+
+    await Promise.all([
+      requireSuccess(
+        supabase
+          .from("sim_portfolios")
+          .update({ current_cash: 10000, reset_at: new Date().toISOString() })
+          .eq("user_id", user.id)
+          .eq("market", "US")
+      ),
+      requireSuccess(
+        supabase
+          .from("sim_portfolios")
+          .update({ current_cash: 300000, reset_at: new Date().toISOString() })
+          .eq("user_id", user.id)
+          .eq("market", "TW")
+      )
     ]);
 
     return NextResponse.json({ message: "模擬交易已重置。" });
