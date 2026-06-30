@@ -13,6 +13,33 @@ function consensusClass(level: string | null) {
   return "border-red-200 bg-red-50 text-red-800";
 }
 
+function statusClass(status: string) {
+  if (status === "completed") return "border-green-200 bg-green-50 text-green-800";
+  if (status === "running") return "border-blue-200 bg-blue-50 text-blue-800";
+  if (status === "cancelled") return "border-slate-200 bg-slate-100 text-slate-700";
+  if (status === "failed") return "border-red-200 bg-red-50 text-red-800";
+  return "border-yellow-200 bg-yellow-50 text-yellow-800";
+}
+
+function statusLabel(status: string) {
+  if (status === "completed") return "完成";
+  if (status === "running") return "執行中";
+  if (status === "cancelled") return "已取消";
+  if (status === "failed") return "失敗";
+  if (status === "pending") return "待執行";
+  return status;
+}
+
+function missionTypeLabel(type: string) {
+  if (type === "single_stock") return "單一股票分析";
+  if (type === "multi_stock") return "多股比較";
+  if (type === "portfolio_review") return "投資組合檢視";
+  if (type === "watchlist_review") return "關注清單檢視";
+  if (type === "theme") return "主題研究";
+  if (type === "event") return "事件分析";
+  return type || "—";
+}
+
 function addDays(value: string | null, days: number) {
   if (!value) return null;
   const date = new Date(value);
@@ -186,11 +213,16 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       <h1 className="text-2xl font-semibold text-slate-950">{String(missionRow.title)}</h1>
       <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-slate-700 md:grid-cols-2">
         <p>原始問題：{String(missionRow.original_question ?? "—")}</p>
-        <p>任務類型：{String(missionRow.mission_type ?? "—")}</p>
+        <p>任務類型：{missionTypeLabel(String(missionRow.mission_type ?? ""))}</p>
         <p>相關代號：{Array.isArray(missionRow.related_symbols) ? missionRow.related_symbols.join(", ") : "—"}</p>
         <p>建立時間：{formatDateTime(String(missionRow.created_at ?? ""))}</p>
         <p>完成時間：{missionRow.completed_at ? formatDateTime(String(missionRow.completed_at)) : "—"}</p>
-        <p>狀態：{status}</p>
+        <div className="flex items-center gap-2">
+          <span>狀態：</span>
+          <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${statusClass(status)}`}>
+            {statusLabel(status)}
+          </span>
+        </div>
       </div>
     </section>
   );
