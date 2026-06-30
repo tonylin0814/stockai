@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Filter, X } from "lucide-react";
+import { X } from "lucide-react";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +56,7 @@ export function PerformanceHistoryFilters() {
         <PendingSubmitButton
           idleLabel="篩選"
           pendingLabel="篩選中..."
-          icon={Filter}
+          icon="filter"
           className="flex-1"
         />
         <Button type="button" variant="secondary" size="icon" onClick={clearFilters} aria-label="清除篩選">

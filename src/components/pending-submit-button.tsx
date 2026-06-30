@@ -1,29 +1,39 @@
 "use client";
 
-import type { ComponentType } from "react";
 import { useFormStatus } from "react-dom";
-import { Loader2 } from "lucide-react";
+import { Filter, Loader2, LogIn, LogOut, RefreshCw, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+type IconName = "filter" | "login" | "logout" | "refresh" | "user-plus";
 
 type PendingSubmitButtonProps = {
   idleLabel: string;
   pendingLabel: string;
-  icon?: ComponentType<{ className?: string }>;
+  icon?: IconName;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "sm" | "md" | "icon";
   className?: string;
 };
 
+const icons: Record<IconName, typeof RefreshCw> = {
+  filter: Filter,
+  login: LogIn,
+  logout: LogOut,
+  refresh: RefreshCw,
+  "user-plus": UserPlus
+};
+
 export function PendingSubmitButton({
   idleLabel,
   pendingLabel,
-  icon: Icon,
+  icon: iconName,
   variant = "primary",
   size = "md",
   className
 }: PendingSubmitButtonProps) {
   const { pending } = useFormStatus();
+  const Icon = iconName ? icons[iconName] : null;
 
   return (
     <Button

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { UserPlus } from "lucide-react";
 import { signUp } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +42,7 @@ export default function RegisterPage({ searchParams }: RegisterPageProps) {
         <PendingSubmitButton
           idleLabel="建立帳號"
           pendingLabel="建立中..."
-          icon={UserPlus}
+          icon="user-plus"
           className="w-full"
         />
       </form>

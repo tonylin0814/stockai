@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { LogIn } from "lucide-react";
 import { signIn } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +38,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
         <PendingSubmitButton
           idleLabel="登入"
           pendingLabel="登入中..."
-          icon={LogIn}
+          icon="login"
           className="w-full"
         />
       </form>

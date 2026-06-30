@@ -242,7 +242,7 @@ export default async function StockDetailPage({
               <PendingSubmitButton
                 idleLabel="更新市場資料"
                 pendingLabel="更新中..."
-                icon={RefreshCw}
+                icon="refresh"
                 variant="secondary"
               />
             </form>

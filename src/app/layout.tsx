@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -57,7 +56,7 @@ export default async function RootLayout({
                   <PendingSubmitButton
                     idleLabel="登出"
                     pendingLabel="登出中..."
-                    icon={LogOut}
+                    icon="logout"
                     variant="ghost"
                     size="sm"
                   />

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
 import { refreshMarketOverview } from "@/app/actions";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { QualityBadge } from "@/components/quality-badge";
@@ -165,7 +164,7 @@ export default async function MarketsPage({
             <PendingSubmitButton
               idleLabel="更新市場資料"
               pendingLabel="更新中..."
-              icon={RefreshCw}
+              icon="refresh"
             />
           </form>
           {searchParams?.updated === "1" ? (
