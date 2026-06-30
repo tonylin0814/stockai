@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { addMarketPickToWatchlist } from "@/app/actions";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
-import { AutoRefresh } from "@/components/auto-refresh";
+import { AnalysisProgressRunner } from "@/components/analysis-progress-runner";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { formatDateTime, formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -73,6 +73,11 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asDataPackage(value: unknown): DataPackageSummary {
   return asRecord(value) as DataPackageSummary;
+}
+
+function stageMessage(value: unknown) {
+  const record = asRecord(value);
+  return typeof record.stageMessage === "string" ? record.stageMessage : null;
 }
 
 function asPickArray(value: unknown): ScanPick[] {
@@ -308,8 +313,13 @@ export default async function DailyAnalysisPage({
 
       {runRecord?.status === "running" ? (
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <AutoRefresh />
-          <p className="text-sm text-slate-600">分析執行中，頁面每 10 秒自動更新。</p>
+          <AnalysisProgressRunner />
+          <p className="text-sm text-slate-600">
+            分析分段執行中，頁面每 10 秒自動推進下一步。
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {stageMessage(runRecord.data_package) ?? "正在準備下一個分析階段。"}
+          </p>
         </div>
       ) : null}
 

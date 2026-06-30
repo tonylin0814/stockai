@@ -44,6 +44,11 @@ export function RunAnalysisButton({
         return;
       }
 
+      if (data.status === "running") {
+        router.push(redirectTo ?? "/analysis/daily");
+        return;
+      }
+
       if (redirectTo) {
         router.push(redirectTo);
       } else {
