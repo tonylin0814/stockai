@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { addMarketPickToWatchlist } from "@/app/actions";
+import {
+  AnalysisRunReportDialog,
+  type AnalysisAgentLogItem,
+  type AnalysisReportItem
+} from "@/components/analysis-run-report-dialog";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { AnalysisProgressRunner } from "@/components/analysis-progress-runner";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
@@ -46,6 +51,9 @@ type QuoteSnapshot = {
 };
 
 type DataPackageSummary = {
+  packageDate?: string;
+  portfolioCount?: number;
+  watchlistCount?: number;
   marketSnapshot?: {
     taiex?: QuoteSnapshot;
     sp500?: QuoteSnapshot;
@@ -59,15 +67,30 @@ type DataPackageSummary = {
     date?: string;
     daysUntil?: number;
   }>;
+  webResearch?: unknown;
 };
 
 type AnalysisProgress = {
+  expectedTeamReports: number;
+  expectedDivisionDecisions: number;
   teamReports: number;
   divisionDecisions: number;
   committeeDecisions: number;
+  recommendations: number;
+  scanPicks: number;
+  marketAnalyses: number;
   completedAgents: number;
   failedAgents: number;
   latestError: string | null;
+};
+
+type AgentRunSummary = {
+  prompt_key: string | null;
+  model_provider: string | null;
+  model_name: string | null;
+  status: string | null;
+  error_message: string | null;
+  created_at: string;
 };
 
 function todayIsoDate() {
@@ -82,6 +105,16 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asDataPackage(value: unknown): DataPackageSummary {
   return asRecord(value) as DataPackageSummary;
+}
+
+function effectiveDataPackage(value: unknown): DataPackageSummary {
+  const record = asRecord(value);
+  return asDataPackage(record.dataPackage ?? value);
+}
+
+function pipelineStage(value: unknown) {
+  const record = asRecord(value);
+  return typeof record.pipelineStage === "string" ? record.pipelineStage : null;
 }
 
 function stageMessage(value: unknown) {
@@ -106,6 +139,44 @@ function statusClass(status: unknown) {
   if (status === "running") return "border-blue-200 bg-blue-50 text-blue-900";
   if (status === "failed") return "border-red-200 bg-red-50 text-red-900";
   return "border-slate-200 bg-white text-slate-900";
+}
+
+const STAGE_ORDER = [
+  "data_package",
+  "division",
+  "committee",
+  "recommendations",
+  "tw_scan",
+  "market_tw",
+  "market_us",
+  "complete"
+];
+
+function stageHasPassed(currentStage: string | null, targetStage: string) {
+  if (!currentStage) return false;
+  const currentIndex = STAGE_ORDER.indexOf(currentStage);
+  const targetIndex = STAGE_ORDER.indexOf(targetStage);
+  return currentIndex >= 0 && targetIndex >= 0 && currentIndex > targetIndex;
+}
+
+function reportStatus(params: {
+  runStatus: unknown;
+  count: number;
+  expected?: number;
+  runningStage?: string;
+  currentStage: string | null;
+  completedByStage?: string;
+}): AnalysisReportItem["status"] {
+  if (params.runStatus === "failed" && params.count === 0) return "failed";
+  if (params.expected !== undefined && params.expected > 0 && params.count >= params.expected) {
+    return "completed";
+  }
+  if (params.count > 0 && params.expected === undefined) return "completed";
+  if (params.completedByStage && stageHasPassed(params.currentStage, params.completedByStage)) {
+    return "completed";
+  }
+  if (params.runStatus === "running" && params.currentStage === params.runningStage) return "running";
+  return "pending";
 }
 
 function asPickArray(value: unknown): ScanPick[] {
@@ -285,7 +356,7 @@ function buildUpcomingEvents(market: Market, dataPackage: DataPackageSummary) {
 export default async function DailyAnalysisPage({
   searchParams
 }: {
-  searchParams: { market?: string; updated?: string };
+  searchParams: { market?: string; updated?: string; report?: string };
 }) {
   const activeMarket: Market = searchParams.market === "US" ? "US" : "TW";
   const supabase = createSupabaseServerClient();
@@ -305,27 +376,49 @@ export default async function DailyAnalysisPage({
     .limit(1)
     .maybeSingle();
   const runRecord = (run ?? null) as Record<string, unknown> | null;
-  const dataPackage = asDataPackage(runRecord?.data_package);
+  const dataPackage = effectiveDataPackage(runRecord?.data_package);
   const snapshot = dataPackage.marketSnapshot ?? {};
   const runId = typeof runRecord?.id === "string" ? runRecord.id : null;
+  const currentStage = pipelineStage(runRecord?.data_package);
   let progress: AnalysisProgress = {
+    expectedTeamReports: 0,
+    expectedDivisionDecisions: 0,
     teamReports: 0,
     divisionDecisions: 0,
     committeeDecisions: 0,
+    recommendations: 0,
+    scanPicks: 0,
+    marketAnalyses: 0,
     completedAgents: 0,
     failedAgents: 0,
     latestError: null
   };
+  let agentLogs: AnalysisAgentLogItem[] = [];
 
   if (runId) {
     const [
+      enabledDivisionCount,
+      enabledTeamCount,
       teamCount,
       divisionCount,
       committeeCount,
+      recommendationCount,
+      scanPickCount,
+      marketAnalysisCount,
       completedAgentCount,
       failedAgentCount,
-      latestFailedAgent
+      latestFailedAgent,
+      latestAgentRuns
     ] = await Promise.all([
+      supabase
+        .from("divisions")
+        .select("id", { count: "exact", head: true })
+        .eq("is_enabled", true)
+        .eq("participates_in_committee", true),
+      supabase
+        .from("division_teams")
+        .select("id", { count: "exact", head: true })
+        .eq("is_enabled", true),
       supabase
         .from("team_reports")
         .select("id", { count: "exact", head: true })
@@ -336,6 +429,18 @@ export default async function DailyAnalysisPage({
         .eq("daily_run_id", runId),
       supabase
         .from("committee_decisions")
+        .select("id", { count: "exact", head: true })
+        .eq("daily_run_id", runId),
+      supabase
+        .from("recommendations")
+        .select("id", { count: "exact", head: true })
+        .eq("daily_run_id", runId),
+      supabase
+        .from("daily_scan_picks")
+        .select("id", { count: "exact", head: true })
+        .eq("daily_run_id", runId),
+      supabase
+        .from("market_analysis_runs")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId),
       supabase
@@ -355,21 +460,40 @@ export default async function DailyAnalysisPage({
         .eq("status", "failed")
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle()
+        .maybeSingle(),
+      supabase
+        .from("agent_runs")
+        .select("prompt_key, model_provider, model_name, status, error_message, created_at")
+        .eq("daily_run_id", runId)
+        .order("created_at", { ascending: false })
+        .limit(20)
     ]);
     const latestErrorRow = latestFailedAgent.data as
       | { prompt_key?: string | null; error_message?: string | null }
       | null;
     progress = {
+      expectedTeamReports: enabledTeamCount.count ?? 0,
+      expectedDivisionDecisions: enabledDivisionCount.count ?? 0,
       teamReports: teamCount.count ?? 0,
       divisionDecisions: divisionCount.count ?? 0,
       committeeDecisions: committeeCount.count ?? 0,
+      recommendations: recommendationCount.count ?? 0,
+      scanPicks: scanPickCount.count ?? 0,
+      marketAnalyses: marketAnalysisCount.count ?? 0,
       completedAgents: completedAgentCount.count ?? 0,
       failedAgents: failedAgentCount.count ?? 0,
       latestError: latestErrorRow?.error_message
         ? `${latestErrorRow.prompt_key ?? "agent"}：${latestErrorRow.error_message}`
         : null
     };
+    agentLogs = ((latestAgentRuns.data ?? []) as AgentRunSummary[]).map((row) => ({
+      label: `${row.prompt_key ?? "agent"} · ${row.model_provider ?? "—"}`,
+      status: row.status === "failed" ? "failed" : row.status === "completed" ? "completed" : "running",
+      detail:
+        row.status === "failed"
+          ? row.error_message ?? "模型呼叫失敗。"
+          : `${row.model_name ?? "—"} · ${formatDateTime(row.created_at)}`
+    }));
   }
   const { data: analysisData } = await supabase
     .from("market_analysis_runs")
@@ -385,6 +509,113 @@ export default async function DailyAnalysisPage({
   const primaryIndex = activeMarket === "TW" ? snapshot.taiex : snapshot.sp500;
   const secondaryIndex = activeMarket === "TW" ? null : snapshot.nasdaq;
   const vix = snapshot.vix;
+  const runStatus = runRecord?.status ?? null;
+  const hasDataPackage = Boolean(dataPackage.marketSnapshot);
+  const reportItems: AnalysisReportItem[] = [
+    {
+      label: "建立分析資料包",
+      status: hasDataPackage ? "completed" : runStatus === "running" && currentStage === "data_package" ? "running" : runStatus === "failed" ? "failed" : "pending",
+      detail: hasDataPackage
+        ? `已整理持股 ${dataPackage.portfolioCount ?? "—"}、關注 ${dataPackage.watchlistCount ?? "—"}、市場快照與財報日曆。`
+        : "尚未完成資料整理。"
+    },
+    {
+      label: "網路研究",
+      status:
+        hasDataPackage && (stageHasPassed(currentStage, "data_package") || runStatus === "completed")
+          ? "completed"
+          : runStatus === "running" && currentStage === "data_package"
+            ? "running"
+            : runStatus === "failed"
+              ? "failed"
+              : "pending",
+      detail: hasDataPackage ? "已為持股與關注清單整理可用新聞/研究資料。" : "等待資料包完成。"
+    },
+    {
+      label: "Team 報告",
+      status: reportStatus({
+        runStatus,
+        count: progress.teamReports,
+        expected: progress.expectedTeamReports,
+        runningStage: "division",
+        currentStage
+      }),
+      detail: `已產生 ${progress.teamReports}/${progress.expectedTeamReports || "—"} 份 team 報告。`
+    },
+    {
+      label: "Agent 模型分析",
+      status:
+        progress.failedAgents > 0
+          ? "failed"
+          : progress.completedAgents > 0
+            ? "completed"
+            : runStatus === "running"
+              ? "running"
+              : "pending",
+      detail: `模型呼叫完成 ${progress.completedAgents} 次，失敗 ${progress.failedAgents} 次。`
+    },
+    {
+      label: "Division 決策",
+      status: reportStatus({
+        runStatus,
+        count: progress.divisionDecisions,
+        expected: progress.expectedDivisionDecisions,
+        runningStage: "division",
+        currentStage
+      }),
+      detail: `已完成 ${progress.divisionDecisions}/${progress.expectedDivisionDecisions || "—"} 個 division 決策。`
+    },
+    {
+      label: "委員會決策",
+      status: reportStatus({
+        runStatus,
+        count: progress.committeeDecisions,
+        expected: 1,
+        runningStage: "committee",
+        currentStage
+      }),
+      detail: progress.committeeDecisions > 0 ? "委員會已產生最終決策。" : "等待 GPT 與 Anthropic division 完成後彙總。"
+    },
+    {
+      label: "推薦寫入",
+      status: reportStatus({
+        runStatus,
+        count: progress.recommendations,
+        runningStage: "recommendations",
+        currentStage,
+        completedByStage: "recommendations"
+      }),
+      detail: `已寫入 ${progress.recommendations} 筆可追蹤推薦。`
+    },
+    {
+      label: "台股掃描",
+      status: reportStatus({
+        runStatus,
+        count: progress.scanPicks,
+        runningStage: "tw_scan",
+        currentStage,
+        completedByStage: "tw_scan"
+      }),
+      detail: `台股掃描產生 ${progress.scanPicks} 筆候選。`
+    },
+    {
+      label: "台灣/美國市場分析",
+      status: reportStatus({
+        runStatus,
+        count: progress.marketAnalyses,
+        expected: 2,
+        runningStage: currentStage === "market_tw" ? "market_tw" : "market_us",
+        currentStage
+      }),
+      detail: `已完成 ${progress.marketAnalyses}/2 個市場分析結果。`
+    }
+  ];
+  const reportSummary =
+    runStatus === "completed"
+      ? "這次分析已完成，所有產出會顯示在市場分析與歷史報告中。"
+      : runStatus === "failed"
+        ? stageError(runRecord?.data_package) ?? progress.latestError ?? "這次分析失敗，請查看失敗項目。"
+        : stageMessage(runRecord?.data_package) ?? "分析正在分段執行。";
 
   return (
     <div className="space-y-8">
@@ -396,6 +627,19 @@ export default async function DailyAnalysisPage({
         <div className="space-y-3 text-right">
           <div className="space-y-1">
             <RunAnalysisButton label="執行市場分析" />
+            {runId ? (
+              <div className="flex justify-end">
+                <AnalysisRunReportDialog
+                  autoOpen={searchParams.report === "1"}
+                  runId={runId}
+                  status={typeof runStatus === "string" ? runStatus : null}
+                  title="分析執行報告"
+                  summary={reportSummary}
+                  items={reportItems}
+                  agentLogs={agentLogs}
+                />
+              </div>
+            ) : null}
             <p className="text-xs text-slate-500">
               上一次市場分析：{analysisRow?.created_at ? formatDateTime(analysisRow.created_at) : "—"}
             </p>

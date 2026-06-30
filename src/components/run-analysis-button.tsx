@@ -45,12 +45,12 @@ export function RunAnalysisButton({
       }
 
       if (data.status === "running") {
-        router.push(redirectTo ?? "/analysis/daily");
+        router.push(`${redirectTo ?? "/analysis/daily"}?report=1`);
         return;
       }
 
       if (redirectTo) {
-        router.push(redirectTo);
+        router.push(`${redirectTo}?report=1`);
       } else {
         router.refresh();
       }
