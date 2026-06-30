@@ -93,6 +93,8 @@ type AgentRunSummary = {
   created_at: string;
 };
 
+type CommitteeDecisionRow = Record<string, unknown>;
+
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -103,13 +105,22 @@ function envNumber(name: string, fallback: number) {
 }
 
 function maxTeamsPerDivision() {
-  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 2)));
+  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 5)));
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function valueText(value: unknown) {
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
+}
+
+function committeeLabel(row: CommitteeDecisionRow) {
+  return row.model_provider === "Anthropic" ? "Committee B · Claude" : "Committee A · GPT";
 }
 
 function asDataPackage(value: unknown): DataPackageSummary {
@@ -403,6 +414,7 @@ export default async function DailyAnalysisPage({
     latestError: null
   };
   let agentLogs: AnalysisAgentLogItem[] = [];
+  let committeeRows: CommitteeDecisionRow[] = [];
 
   if (runId) {
     const [
@@ -507,6 +519,14 @@ export default async function DailyAnalysisPage({
           ? row.error_message ?? "模型呼叫失敗。"
           : `${row.model_name ?? "—"} · ${formatDateTime(row.created_at)}`
     }));
+
+    const { data: committeeData } = await supabase
+      .from("committee_decisions")
+      .select("*")
+      .eq("daily_run_id", runId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true });
+    committeeRows = (committeeData ?? []) as CommitteeDecisionRow[];
   }
   const { data: analysisData } = await supabase
     .from("market_analysis_runs")
@@ -583,11 +603,16 @@ export default async function DailyAnalysisPage({
       status: reportStatus({
         runStatus,
         count: progress.committeeDecisions,
-        expected: 1,
+        expected: 2,
         runningStage: "committee",
         currentStage
       }),
-      detail: progress.committeeDecisions > 0 ? "委員會已產生最終決策。" : "等待 GPT 與 Anthropic division 完成後彙總。"
+      detail:
+        progress.committeeDecisions >= 2
+          ? "Committee A (GPT) + Committee B (Claude) 均已完成。"
+          : progress.committeeDecisions === 1
+            ? "已完成 1/2 份委員會決策。"
+            : "等待 GPT 與 Anthropic division 完成後彙總。"
     },
     {
       label: "推薦寫入",
@@ -732,6 +757,28 @@ export default async function DailyAnalysisPage({
         </div>
       ) : null}
 
+      {committeeRows.length ? (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-slate-950">委員會決策對照</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {committeeRows.map((committee) => (
+              <div key={String(committee.id)} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-lg font-semibold text-slate-950">{committeeLabel(committee)}</h3>
+                <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                  <p>Final action:{valueText(committee.final_action)}</p>
+                  <p>Action type:{valueText(committee.action_type)}</p>
+                  <p>共識等級：{valueText(committee.consensus_level)}</p>
+                  <p>信心分數：{valueText(committee.confidence)}</p>
+                  <p>允許行動：{committee.is_action_allowed ? "是" : "否"}</p>
+                </div>
+                <p className="mt-4 break-words text-sm text-slate-700">
+                  {valueText(committee.decision_summary)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <div className="flex w-fit gap-1 rounded-md border border-slate-200 bg-slate-100 p-1">
         {[
           { market: "TW", label: "台灣市場" },

@@ -18,6 +18,7 @@ pnpm-debug.log*
 coverage/
 playwright-report/
 test-results/
+supabase/.temp/
 
 *.tsbuildinfo
 next-env.d.ts

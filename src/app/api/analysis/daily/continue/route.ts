@@ -30,10 +30,12 @@ type StoredCommitteeResult =
       status: "completed";
       decision: CommitteeDecision;
       committeeDecisionId: string;
+      modelProvider: string;
     }
   | {
       status: "failed";
       error: string;
+      modelProvider: string;
     };
 
 type DailyRunState = {
@@ -44,7 +46,7 @@ type DailyRunState = {
   teamIndex?: number;
   dataPackage?: DailyDataPackage;
   divisionResults?: StoredDivisionResult[];
-  committeeResult?: StoredCommitteeResult;
+  committeeResults?: StoredCommitteeResult[];
   error?: string;
 };
 
@@ -58,7 +60,7 @@ function envNumber(name: string, fallback: number) {
 }
 
 function maxTeamsPerDivision() {
-  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 2)));
+  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 5)));
 }
 
 function asState(value: unknown): DailyRunState {
@@ -316,26 +318,32 @@ export async function POST() {
     }
 
     if (stage === "committee") {
-      const committeeResult = await runCommitteePipeline({
+      const committeeResults = await runCommitteePipeline({
         divisionResults: toDivisionPipelineResults(state.divisionResults ?? []),
         dataPackage,
         dailyRunId,
         userId: user.id
       });
-      const storedCommittee: StoredCommitteeResult =
-        committeeResult.status === "completed"
+      const storedCommitteeResults: StoredCommitteeResult[] = committeeResults.map((result) =>
+        result.status === "completed"
           ? {
               status: "completed",
-              decision: committeeResult.decision,
-              committeeDecisionId: committeeResult.committeeDecisionId
+              decision: result.decision,
+              committeeDecisionId: result.committeeDecisionId,
+              modelProvider: result.modelProvider
             }
-          : { status: "failed", error: committeeResult.error };
+          : {
+              status: "failed",
+              error: result.error,
+              modelProvider: result.modelProvider
+            }
+      );
 
       await updateRunState(dailyRunId, {
         ...state,
         pipelineStage: "recommendations",
         stageMessage: "委員會完成，正在寫入建議。",
-        committeeResult: storedCommittee
+        committeeResults: storedCommitteeResults
       });
 
       return NextResponse.json({ status: "running", stage: "recommendations", dailyRunId });
@@ -361,13 +369,16 @@ export async function POST() {
           decision: result.decision,
           divisionDecisionId: result.divisionDecisionId
         }));
-      const committeeDecision =
-        state.committeeResult?.status === "completed"
-          ? {
-              decision: state.committeeResult.decision,
-              committeeDecisionId: state.committeeResult.committeeDecisionId
-            }
-          : null;
+      const firstCompletedCommittee = (state.committeeResults ?? []).find(
+        (result): result is Extract<StoredCommitteeResult, { status: "completed" }> =>
+          result.status === "completed"
+      );
+      const committeeDecision = firstCompletedCommittee
+        ? {
+            decision: firstCompletedCommittee.decision,
+            committeeDecisionId: firstCompletedCommittee.committeeDecisionId
+          }
+        : null;
 
       await writeRecommendations({
         userId: user.id,

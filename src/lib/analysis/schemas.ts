@@ -1,5 +1,136 @@
 import { z } from "zod";
 
+export const AGENT_OUTPUT_JSON_SCHEMA_OBJ = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    observations: { type: "array", items: { type: "string" } },
+    recommendations: { type: "array", items: { type: "object" } },
+    risks: { type: "array", items: { type: "string" } },
+    dataQualityNotes: { type: "array", items: { type: "string" } },
+    confidence: { type: "number" }
+  },
+  required: ["summary", "observations", "recommendations", "risks", "dataQualityNotes", "confidence"]
+} as const;
+
+export const TEAM_REPORT_JSON_SCHEMA_OBJ = {
+  type: "object",
+  properties: {
+    teamName: { type: "string" },
+    date: { type: "string" },
+    leader: { type: "string" },
+    marketView: {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        marketBias: { type: "string" },
+        strongSectors: { type: "array", items: { type: "string" } },
+        weakSectors: { type: "array", items: { type: "string" } },
+        riskLevel: { type: "string" },
+        confidence: { type: "number" }
+      },
+      required: ["summary", "marketBias", "strongSectors", "weakSectors", "riskLevel", "confidence"]
+    },
+    portfolioReview: { type: "array", items: { type: "object" } },
+    missionAnalysis: { type: ["object", "null"] },
+    marketScanRecommendations: { type: "array", items: { type: "object" } },
+    finalTeamView: {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        mostImportantAction: { type: "string" },
+        confidence: { type: "number" }
+      },
+      required: ["summary", "mostImportantAction", "confidence"]
+    }
+  },
+  required: [
+    "teamName",
+    "date",
+    "leader",
+    "marketView",
+    "portfolioReview",
+    "marketScanRecommendations",
+    "finalTeamView"
+  ]
+} as const;
+
+export const DIVISION_DECISION_JSON_SCHEMA_OBJ = {
+  type: "object",
+  properties: {
+    division: { type: "string" },
+    divisionManager: { type: "string" },
+    marketSummary: { type: "string" },
+    portfolioActions: { type: "array", items: { type: "object" } },
+    missionDecision: { type: "object" },
+    topRecommendations: { type: "array", items: { type: "object" } },
+    confidence: { type: "number" },
+    supportingReasons: { type: "array", items: { type: "string" } },
+    opposingReasons: { type: "array", items: { type: "string" } },
+    supportingTeams: { type: "array", items: { type: "string" } },
+    opposingTeams: { type: "array", items: { type: "string" } },
+    internalDisagreements: { type: "array", items: { type: "string" } },
+    decisionAction: { type: "string" }
+  },
+  required: [
+    "division",
+    "divisionManager",
+    "marketSummary",
+    "portfolioActions",
+    "missionDecision",
+    "topRecommendations",
+    "confidence",
+    "supportingReasons",
+    "opposingReasons",
+    "supportingTeams",
+    "opposingTeams",
+    "internalDisagreements",
+    "decisionAction"
+  ]
+} as const;
+
+export const COMMITTEE_DECISION_JSON_SCHEMA_OBJ = {
+  type: "object",
+  properties: {
+    finalAction: { type: "string" },
+    actionType: { type: "string" },
+    consensusLevel: { type: "string" },
+    divisionConclusions: { type: "object" },
+    agreements: { type: "array", items: { type: "string" } },
+    disagreements: { type: "array", items: { type: "string" } },
+    finalBuyZone: { type: "string" },
+    finalTargetPrice: { type: "string" },
+    finalStopLoss: { type: "string" },
+    finalPositionSize: { type: "string" },
+    finalRecommendations: { type: "array", items: { type: "object" } },
+    confidence: { type: "number" },
+    isActionAllowed: { type: "boolean" },
+    reason: { type: "string" },
+    mostConservativeDivision: { type: "string" },
+    mostAggressiveDivision: { type: "string" },
+    whatCouldChangeDecision: { type: "array", items: { type: "string" } }
+  },
+  required: [
+    "finalAction",
+    "actionType",
+    "consensusLevel",
+    "divisionConclusions",
+    "agreements",
+    "disagreements",
+    "finalBuyZone",
+    "finalTargetPrice",
+    "finalStopLoss",
+    "finalPositionSize",
+    "finalRecommendations",
+    "confidence",
+    "isActionAllowed",
+    "reason",
+    "mostConservativeDivision",
+    "mostAggressiveDivision",
+    "whatCouldChangeDecision"
+  ]
+} as const;
+
 const FlexibleRecordSchema = z.preprocess((value) => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value;
@@ -133,7 +264,7 @@ export const TeamReportSchema = z.object({
   leader: z.string(),
   marketView: MarketViewSchema,
   portfolioReview: z.array(PortfolioReviewItemSchema),
-  missionAnalysis: MissionAnalysisSchema,
+  missionAnalysis: MissionAnalysisSchema.nullable().optional(),
   marketScanRecommendations: z.array(MarketScanRecommendationSchema),
   finalTeamView: FinalTeamViewSchema
 });
@@ -237,7 +368,8 @@ export const TEAM_REPORT_JSON_SCHEMA = `{
       "scenarios": ${SCENARIOS_JSON_EXAMPLE}
     }
   ],
-  "missionAnalysis": {
+  "missionAnalysis": null | {
+    "note": "null when running daily analysis with no active mission; populated only in mission mode",
     "missionTitle": "每日分析",
     "missionType": "daily",
     "relatedSymbols": [],

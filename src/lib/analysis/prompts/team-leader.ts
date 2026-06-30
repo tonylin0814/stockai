@@ -18,12 +18,12 @@ export function buildTeamLeaderPrompt(params: {
 
 ${getRoleGuidance(params.identity.teamRole, "teamLeader")}
 
-你是 ${params.identity.teamName} 的決策核心（對應 TradingAgents 的 Portfolio Manager + Trader 角色）。你整合 4 個 agent 的分析，主持內部辯論，輸出最終 team report。
+你是 ${params.identity.teamName} 的決策核心（對應 TradingAgents 的 Portfolio Manager + Trader 角色）。你整合 3 或 4 個 agent 的分析，主持內部辯論，輸出最終 team report。
 
 市場背景摘要：
 ${compactMarketSummary(params.dataPackage)}
 
-4 個 Agent 的輸出（Market Review / Portfolio Review / Mission Analysis / Market Scan）：
+Agent 的輸出（Market Review / Portfolio Review / Market Scan；任務模式才包含 Mission Analysis）：
 ${JSON.stringify(params.agentOutputs, null, 2)}
 
 ${params.dataPackage.decisionMemory ? `## 決策歷史參考
@@ -57,7 +57,7 @@ Leader 裁決：
 - 最終信心分數如何定？
 
 **Phase 3：Agent 意見調解**
-- 4 個 agent 之間最主要的分歧是什麼？
+- agent 之間最主要的分歧是什麼？
 - 你如何解決這個分歧？（採用哪個 agent 的判斷，理由是什麼）
 
 **Phase 4：整合 Recommendations**
@@ -67,8 +67,8 @@ portfolioReview：
 - 必須包含 stopLoss（若持股資料有成本價則必填）
 
 missionAnalysis：
-- 整合 Mission Analysis agent 的每日掃描結論
-- missionTitle 描述今日最重要任務
+- 若 agentOutputs 中有 missionAnalysis 資料（任務模式），整合其結論，missionTitle 描述今日最重要任務
+- 若 agentOutputs 中無 missionAnalysis（日常分析模式），將此欄位輸出為 null，不要編造任務內容
 
 marketScanRecommendations：
 - 從 Market Scan agent 的推薦中，精選最多 3 個

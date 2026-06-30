@@ -7,6 +7,10 @@ import { Table, Td, Th } from "@/components/ui/table";
 import { formatDateTime, formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+function srcLabel(t: string) {
+  return t === "committee" ? "投資委員會" : t === "division" ? "AI 快速分析" : "AI 分析團隊";
+}
+
 function consensusClass(level: string | null) {
   if (level === "strong") return "border-green-200 bg-green-50 text-green-800";
   if (level === "weak") return "border-yellow-200 bg-yellow-50 text-yellow-800";
@@ -524,7 +528,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
               <tr key={recommendation.id}>
                 <Td>{recommendation.securities?.symbol ?? "—"}</Td>
                 <Td>{recommendation.securities?.market ?? "—"}</Td>
-                <Td>{recommendation.source_type} / {recommendation.source_name}</Td>
+                <Td>{srcLabel(recommendation.source_type)}</Td>
                 <Td>{recommendation.action}</Td>
                 <Td>{recommendation.confidence}</Td>
                 <Td>{recommendation.buy_zone_low ?? "—"} - {recommendation.buy_zone_high ?? "—"}</Td>

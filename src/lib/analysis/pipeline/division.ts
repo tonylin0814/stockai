@@ -2,6 +2,7 @@ import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { getFamilyId, savePipelineAgentRun } from "@/lib/analysis/pipeline/db";
 import { callModel, inputSummary, validateOrRepair } from "@/lib/analysis/pipeline/model";
 import {
+  DIVISION_DECISION_JSON_SCHEMA_OBJ,
   DivisionDecisionSchema,
   DIVISION_DECISION_JSON_SCHEMA,
   type DivisionDecision,
@@ -39,18 +40,13 @@ function getRepairModel(provider: string): string {
   return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
 }
 
-function getAnalysisModel(provider: string, configuredModel: string): string {
-  if (process.env.ANALYSIS_ECONOMY_MODE === "false") return configuredModel;
-  return provider === "Anthropic" ? "claude-haiku-4-5-20251001" : "gpt-4o-mini";
-}
-
 function envNumber(name: string, fallback: number) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function maxTeamsPerDivision() {
-  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 2)));
+  return Math.max(1, Math.round(envNumber("ANALYSIS_MAX_TEAMS_PER_DIVISION", 5)));
 }
 
 function dataPackageSummary(dataPackage: DailyDataPackage) {
@@ -131,10 +127,7 @@ export async function runDivisionManagerPipeline(params: {
     decisionMemory: params.dataPackage.decisionMemory
   });
   const startedAt = new Date().toISOString();
-  const analysisModel = getAnalysisModel(
-    params.division.model_provider,
-    params.division.model_name
-  );
+  const analysisModel = params.division.model_name;
   let tokenCount = 0;
   let promptTokens = 0;
   let completionTokens = 0;
@@ -145,6 +138,8 @@ export async function runDivisionManagerPipeline(params: {
       provider: params.division.model_provider,
       model: analysisModel,
       prompt,
+      outputSchema: DIVISION_DECISION_JSON_SCHEMA_OBJ,
+      maxOutputTokens: 3500,
       budget: {
         userId: params.userId,
         dailyRunId: params.dailyRunId,

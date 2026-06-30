@@ -50,10 +50,8 @@ function resultLabel(value: boolean | null) {
   return "—";
 }
 
-function typeLabel(type: string) {
-  if (type === "team") return "團隊";
-  if (type === "division") return "Division";
-  return "委員會";
+function srcLabel(t: string) {
+  return t === "committee" ? "投資委員會" : t === "division" ? "AI 快速分析" : "AI 分析團隊";
 }
 
 function matchesFilters(row: OutcomeRow, params: SearchParams) {
@@ -144,9 +142,7 @@ export default async function PerformanceHistoryPage({
                   {recommendation ? (
                     <div className="min-w-0 space-y-2">
                       <div className="break-words">
-                        {`${typeLabel(recommendation.source_type)} / ${
-                          recommendation.team_name ?? recommendation.division ?? recommendation.source_name
-                        }`}
+                        {srcLabel(recommendation.source_type)}
                       </div>
                       <p className="max-w-md break-words text-xs text-slate-500">
                         {recommendation.reason ?? "—"}

@@ -118,6 +118,7 @@ export async function callModel(params: {
     missionId?: string | null;
   };
   maxOutputTokens?: number;
+  outputSchema?: object;
 }): Promise<ModelCallResult> {
   const outputLimit = Math.round(params.maxOutputTokens ?? maxOutputTokens());
   if (params.budget) {
@@ -129,12 +130,22 @@ export async function callModel(params: {
 
   if (params.provider === "OpenAI") {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const responseFormat = params.outputSchema
+      ? {
+          type: "json_schema" as const,
+          json_schema: {
+            name: "analysis_output",
+            strict: false,
+            schema: params.outputSchema as Record<string, unknown>
+          }
+        }
+      : params.prompt.includes("---JSON_START---")
+        ? undefined
+        : { type: "json_object" as const };
     const response = await client.chat.completions.create({
       model: params.model,
       messages: [{ role: "user", content: params.prompt }],
-      ...(params.prompt.includes("---JSON_START---")
-        ? {}
-        : { response_format: { type: "json_object" as const } }),
+      ...(responseFormat ? { response_format: responseFormat } : {}),
       max_completion_tokens: outputLimit
     });
     const promptTokens = response.usage?.prompt_tokens ?? 0;
@@ -151,6 +162,37 @@ export async function callModel(params: {
 
   if (params.provider === "Anthropic") {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    if (params.outputSchema) {
+      const response = await client.messages.create({
+        model: params.model,
+        max_tokens: outputLimit,
+        tools: [
+          {
+            name: "analysis_output",
+            description: "Output the structured analysis result",
+            input_schema: params.outputSchema as Anthropic.Tool["input_schema"]
+          }
+        ],
+        tool_choice: { type: "tool", name: "analysis_output" },
+        messages: [{ role: "user", content: params.prompt }]
+      });
+      const toolBlock = response.content.find(
+        (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+      );
+      const text = toolBlock ? JSON.stringify(toolBlock.input) : "{}";
+      const promptTokens = response.usage.input_tokens ?? 0;
+      const completionTokens = response.usage.output_tokens ?? 0;
+
+      return {
+        text,
+        promptTokens,
+        completionTokens,
+        estimatedCostUsd: estimateCostUsd(params.model, promptTokens, completionTokens),
+        tokenCount: promptTokens + completionTokens
+      };
+    }
+
     const response = await client.messages.create({
       model: params.model,
       max_tokens: outputLimit,

@@ -169,7 +169,7 @@ export async function POST(
         })
       );
     }
-    const committeeResult = await runCommitteePipeline({
+    const committeeResults = await runCommitteePipeline({
       divisionResults,
       dataPackage,
       dailyRunId: null,
@@ -201,6 +201,9 @@ export async function POST(
       division: String(row.division ?? "")
     }));
     const familyId = await getFamilyId(user.id);
+    const firstCompletedCommittee = committeeResults.find(
+      (result) => result.status === "completed"
+    );
 
     await writeRecommendations({
       userId: user.id,
@@ -210,10 +213,10 @@ export async function POST(
       teamReports,
       divisionDecisions: completedDivisionDecisions,
       committeeDecision:
-        committeeResult.status === "completed"
+        firstCompletedCommittee?.status === "completed"
           ? {
-              decision: committeeResult.decision,
-              committeeDecisionId: committeeResult.committeeDecisionId
+              decision: firstCompletedCommittee.decision,
+              committeeDecisionId: firstCompletedCommittee.committeeDecisionId
             }
           : null
     });
@@ -230,15 +233,16 @@ export async function POST(
 
     return NextResponse.json({
       missionId,
+      committeeResults,
       committeeDecision:
-        committeeResult.status === "completed" ? committeeResult.decision : null,
+        firstCompletedCommittee?.status === "completed" ? firstCompletedCommittee.decision : null,
       consensusLevel:
-        committeeResult.status === "completed"
-          ? committeeResult.decision.consensusLevel
+        firstCompletedCommittee?.status === "completed"
+          ? firstCompletedCommittee.decision.consensusLevel
           : null,
       isActionAllowed:
-        committeeResult.status === "completed"
-          ? committeeResult.decision.isActionAllowed
+        firstCompletedCommittee?.status === "completed"
+          ? firstCompletedCommittee.decision.isActionAllowed
           : false
     });
   } catch (error) {

@@ -76,9 +76,10 @@ ${params.decisionMemory}
 
 **Phase 6：Mission Decision 整合**
 
-你必須輸出 missionDecision 欄位，整合所有 team 的 missionAnalysis 結論。
+若 team reports 中有 missionAnalysis 資料（任務模式），整合所有 team 的 missionAnalysis 結論，輸出 missionDecision 欄位。
+若所有 team 的 missionAnalysis 均為 null（日常分析模式），將 missionDecision 欄位輸出為 null。不要編造任務。
 
-從 5 個 team reports 中，讀取每個 team 的 missionAnalysis 欄位，然後：
+若有 missionAnalysis 資料，讀取每個 team 的 missionAnalysis 欄位，然後：
 - missionTitle：用一句話描述今日最重要的分析任務（30字以內）
 - suggestion：整合後的行動建議（buy/wait/hold/reduce/sell/reject）
 - summary：2-3 句，說明今日最需要關注的問題是什麼，為什麼

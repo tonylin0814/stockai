@@ -5,7 +5,9 @@ import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { enforceConfidenceCap } from "@/lib/analysis/pipeline/model";
 import {
   AgentOutputSchema,
+  AGENT_OUTPUT_JSON_SCHEMA_OBJ,
   AGENT_OUTPUT_JSON_SCHEMA,
+  TEAM_REPORT_JSON_SCHEMA_OBJ,
   TeamReportSchema,
   TEAM_REPORT_JSON_SCHEMA,
   type AgentOutput,
@@ -72,9 +74,9 @@ type ModelCallResult = {
 };
 
 const LEAF_AGENT_MODEL_MAP: Record<string, string> = {
-  "gpt-5.5": "gpt-4o",
-  "gpt-5": "gpt-4o",
-  "gpt-4o": "gpt-4o",
+  "gpt-5.5": "gpt-4o-mini",
+  "gpt-5": "gpt-4o-mini",
+  "gpt-4o": "gpt-4o-mini",
   "claude-sonnet-4-6": "claude-haiku-4-5-20251001",
   "claude-sonnet-latest": "claude-haiku-4-5-20251001",
   "claude-sonnet-4-5": "claude-haiku-4-5-20251001"
@@ -266,10 +268,12 @@ function capTeamReport(report: TeamReport, dataPackage: DailyDataPackage): TeamR
       ...item,
       confidence: capConfidence(item.confidence, dataPackage)
     })),
-    missionAnalysis: {
-      ...report.missionAnalysis,
-      confidence: capConfidence(report.missionAnalysis.confidence, dataPackage)
-    },
+    missionAnalysis: report.missionAnalysis
+      ? {
+          ...report.missionAnalysis,
+          confidence: capConfidence(report.missionAnalysis.confidence, dataPackage)
+        }
+      : null,
     marketScanRecommendations: report.marketScanRecommendations.map((item) => ({
       ...item,
       confidence: capConfidence(item.confidence, dataPackage)
@@ -321,6 +325,7 @@ async function callModel(params: {
     missionId?: string | null;
   };
   maxOutputTokens?: number;
+  outputSchema?: object;
 }): Promise<ModelCallResult> {
   const outputLimit = Math.round(params.maxOutputTokens ?? maxOutputTokens());
   if (params.budget) {
@@ -332,12 +337,22 @@ async function callModel(params: {
 
   if (params.provider === "OpenAI") {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const responseFormat = params.outputSchema
+      ? {
+          type: "json_schema" as const,
+          json_schema: {
+            name: "analysis_output",
+            strict: false,
+            schema: params.outputSchema as Record<string, unknown>
+          }
+        }
+      : params.prompt.includes("---JSON_START---")
+        ? undefined
+        : { type: "json_object" as const };
     const response = await client.chat.completions.create({
       model: params.model,
       messages: [{ role: "user", content: params.prompt }],
-      ...(params.prompt.includes("---JSON_START---")
-        ? {}
-        : { response_format: { type: "json_object" as const } }),
+      ...(responseFormat ? { response_format: responseFormat } : {}),
       max_completion_tokens: outputLimit
     });
 
@@ -355,6 +370,37 @@ async function callModel(params: {
 
   if (params.provider === "Anthropic") {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    if (params.outputSchema) {
+      const response = await client.messages.create({
+        model: params.model,
+        max_tokens: outputLimit,
+        tools: [
+          {
+            name: "analysis_output",
+            description: "Output the structured analysis result",
+            input_schema: params.outputSchema as Anthropic.Tool["input_schema"]
+          }
+        ],
+        tool_choice: { type: "tool", name: "analysis_output" },
+        messages: [{ role: "user", content: params.prompt }]
+      });
+      const toolBlock = response.content.find(
+        (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+      );
+      const text = toolBlock ? JSON.stringify(toolBlock.input) : "{}";
+      const promptTokens = response.usage.input_tokens ?? 0;
+      const completionTokens = response.usage.output_tokens ?? 0;
+
+      return {
+        text,
+        promptTokens,
+        completionTokens,
+        estimatedCostUsd: estimateCostUsd(params.model, promptTokens, completionTokens),
+        tokenCount: promptTokens + completionTokens
+      };
+    }
+
     const response = await client.messages.create({
       model: params.model,
       max_tokens: outputLimit,
@@ -511,7 +557,11 @@ export async function runTeamPipeline(params: {
   const teamAgentIds = await getTeamAgentIds(params.team.id);
   const agentOutputs: Partial<Record<AgentStep["promptKey"], AgentOutput>> = {};
 
-  for (const step of agentSteps) {
+  const activeSteps = agentSteps.filter(
+    (step) => step.promptKey !== "missionAnalysis" || Boolean(params.missionId)
+  );
+
+  for (const step of activeSteps) {
     const prompt = step.buildPrompt(identity, params.dataPackage);
     const startedAt = new Date().toISOString();
     let tokenCount = 0;
@@ -525,6 +575,8 @@ export async function runTeamPipeline(params: {
         provider: params.division.model_provider,
         model: leafModel,
         prompt,
+        outputSchema: AGENT_OUTPUT_JSON_SCHEMA_OBJ,
+        maxOutputTokens: 1500,
         budget: {
           userId: params.userId,
           dailyRunId: params.dailyRunId,
@@ -616,6 +668,8 @@ export async function runTeamPipeline(params: {
       provider: params.division.model_provider,
       model: leaderModel,
       prompt: teamLeaderPrompt,
+      outputSchema: TEAM_REPORT_JSON_SCHEMA_OBJ,
+      maxOutputTokens: 2500,
       budget: {
         userId: params.userId,
         dailyRunId: params.dailyRunId,
