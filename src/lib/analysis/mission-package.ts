@@ -73,6 +73,46 @@ export async function buildMissionDataPackage(
   const dailyPackage = await buildDailyDataPackage(userId);
   const symbols = (mission.related_symbols ?? []).map(normalizeSymbol).filter(Boolean);
   const preferredMarket = marketPreference(mission.data_package?.relatedMarket);
+  const { data: linkRows } = await supabase
+    .from("mission_links")
+    .select("security_id")
+    .eq("user_id", userId)
+    .eq("mission_id", missionId)
+    .not("security_id", "is", null);
+  const linkedSecurityIds = Array.from(
+    new Set(
+      ((linkRows ?? []) as Array<{ security_id: string | null }>)
+        .map((row) => row.security_id)
+        .filter(Boolean) as string[]
+    )
+  );
+  const { data: linkedSecurityRows } = linkedSecurityIds.length
+    ? await supabase
+        .from("securities")
+        .select("id, symbol, market, name")
+        .in("id", linkedSecurityIds)
+    : { data: [] };
+  const linkedTargets = ((linkedSecurityRows ?? []) as Array<{
+    symbol: string;
+    market: "US" | "TW";
+    name: string;
+  }>).map((security) => ({
+    symbol: normalizeSymbol(security.symbol),
+    market: security.market,
+    name: security.name
+  }));
+  const targetMap = new Map<string, { symbol: string; market: "US" | "TW"; name?: string }>();
+
+  for (const symbol of symbols) {
+    const market = preferredMarket ?? inferMarket(symbol);
+    targetMap.set(`${symbol}:${market}`, { symbol, market });
+  }
+
+  for (const target of linkedTargets) {
+    targetMap.set(`${target.symbol}:${target.market}`, target);
+  }
+
+  const targets = Array.from(targetMap.values());
   const [portfolioRows, watchlistRows] = await Promise.all([
     supabase
       .from("portfolio_holdings")
@@ -97,8 +137,7 @@ export async function buildMissionDataPackage(
       .map((security) => `${normalizeSymbol(security!.symbol)}:${security!.market}`)
   );
   const relatedSecurities = await Promise.all(
-    symbols.map(async (symbol) => {
-      const market = preferredMarket ?? inferMarket(symbol);
+    targets.map(async ({ symbol, market, name }) => {
       const key = `${symbol}:${market}`;
       const portfolioContext =
         dailyPackage.portfolio.find(
@@ -138,7 +177,7 @@ export async function buildMissionDataPackage(
       return {
         symbol,
         market,
-        name: symbol,
+        name: name ?? symbol,
         quote,
         currentPrice: quote.price,
         technicals: computeTechnicals(history),
@@ -187,7 +226,7 @@ export async function buildMissionDataPackage(
       title: mission.title,
       missionType: mission.mission_type ?? "single_stock",
       originalQuestion: mission.original_question,
-      relatedSymbols: symbols,
+      relatedSymbols: targets.map((target) => target.symbol),
       relatedSecurities
     }
   };

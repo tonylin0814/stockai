@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const requiredText = z.string().trim().min(1);
 const optionalText = z.string().trim().optional().transform((value) => value || null);
+const optionalUuid = z.string().trim().uuid().optional().or(z.literal("")).transform((value) => value || null);
 const marketSchema = z.enum(["TW", "US"]);
 const securityTypeSchema = z.enum(["stock", "etf"]);
 const currencySchema = z.enum(["TWD", "USD"]);
@@ -515,14 +516,18 @@ export async function createMission(formData: FormData) {
       "event"
     ]),
     related_symbols: z.string().optional(),
-    related_market: z.enum(["", "US", "TW", "both"]).optional()
+    related_market: z.enum(["", "US", "TW"]).optional(),
+    portfolio_holding_id: optionalUuid,
+    watchlist_item_id: optionalUuid
   });
   const input = schema.parse({
     title: getString(formData, "title"),
     original_question: getString(formData, "original_question"),
     mission_type: getString(formData, "mission_type"),
     related_symbols: getString(formData, "related_symbols"),
-    related_market: getString(formData, "related_market")
+    related_market: getString(formData, "related_market"),
+    portfolio_holding_id: getString(formData, "portfolio_holding_id"),
+    watchlist_item_id: getString(formData, "watchlist_item_id")
   });
   const explicitSymbols = (input.related_symbols ?? "")
     .split(",")
@@ -551,21 +556,116 @@ export async function createMission(formData: FormData) {
   );
   const relatedSymbols = explicitSymbols.length ? explicitSymbols : inferredSymbols;
 
-  const { error } = await supabase.from("missions").insert({
-    user_id: user.id,
-    title: input.title,
-    mission_type: input.mission_type,
-    original_question: input.original_question,
-    related_symbols: relatedSymbols,
-    status: "pending",
-    data_package: input.related_market ? { relatedMarket: input.related_market } : null
-  });
+  const linkedSecurityIds = new Set<string>();
+  const missionLinks: Array<{
+    user_id: string;
+    mission_id: string;
+    security_id: string;
+    portfolio_holding_id?: string;
+    watchlist_item_id?: string;
+    link_type: "portfolio" | "watchlist";
+  }> = [];
 
-  if (error) {
-    throw new Error(error.message);
+  if (input.portfolio_holding_id) {
+    const { data: holding, error: holdingError } = await supabase
+      .from("portfolio_holdings")
+      .select("id, security_id")
+      .eq("id", input.portfolio_holding_id)
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .single();
+
+    if (holdingError || !holding?.security_id) {
+      throw new Error("找不到可關聯的持股。");
+    }
+
+    linkedSecurityIds.add(holding.security_id);
+  }
+
+  if (input.watchlist_item_id) {
+    const { data: watchlistItem, error: watchlistError } = await supabase
+      .from("watchlist_items")
+      .select("id, security_id")
+      .eq("id", input.watchlist_item_id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (watchlistError || !watchlistItem?.security_id) {
+      throw new Error("找不到可關聯的關注項目。");
+    }
+
+    linkedSecurityIds.add(watchlistItem.security_id);
+  }
+
+  const { data: mission, error } = await supabase
+    .from("missions")
+    .insert({
+      user_id: user.id,
+      title: input.title,
+      mission_type: input.mission_type,
+      original_question: input.original_question,
+      related_symbols: relatedSymbols,
+      related_security_ids: Array.from(linkedSecurityIds),
+      status: "pending",
+      data_package: input.related_market ? { relatedMarket: input.related_market } : null
+    })
+    .select("id")
+    .single();
+
+  if (error || !mission) {
+    throw new Error(error?.message ?? "任務建立失敗。");
+  }
+
+  if (input.portfolio_holding_id) {
+    const { data: holding } = await supabase
+      .from("portfolio_holdings")
+      .select("security_id")
+      .eq("id", input.portfolio_holding_id)
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .single();
+
+    if (holding?.security_id) {
+      missionLinks.push({
+        user_id: user.id,
+        mission_id: mission.id,
+        security_id: holding.security_id,
+        portfolio_holding_id: input.portfolio_holding_id,
+        link_type: "portfolio"
+      });
+    }
+  }
+
+  if (input.watchlist_item_id) {
+    const { data: watchlistItem } = await supabase
+      .from("watchlist_items")
+      .select("security_id")
+      .eq("id", input.watchlist_item_id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (watchlistItem?.security_id) {
+      missionLinks.push({
+        user_id: user.id,
+        mission_id: mission.id,
+        security_id: watchlistItem.security_id,
+        watchlist_item_id: input.watchlist_item_id,
+        link_type: "watchlist"
+      });
+    }
+  }
+
+  if (missionLinks.length > 0) {
+    const { error: linkError } = await supabase.from("mission_links").insert(missionLinks);
+
+    if (linkError) {
+      throw new Error(linkError.message);
+    }
   }
 
   revalidatePath("/missions");
+  revalidatePath("/portfolio");
+  revalidatePath("/watchlist");
 }
 
 export async function cancelMission(formData: FormData) {

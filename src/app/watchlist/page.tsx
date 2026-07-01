@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { deleteWatchlistItem } from "@/app/actions";
 import {
   AddWatchlistDialog,
@@ -5,7 +6,6 @@ import {
   type WatchlistFormValue
 } from "@/app/watchlist/watchlist-dialogs";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { Button } from "@/components/ui/button";
 import { Table, Td, Th } from "@/components/ui/table";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -70,7 +70,11 @@ export default async function WatchlistPage() {
           {rows.length ? (
             rows.map((item) => (
               <tr key={item.id}>
-                <Td>{item.securities?.symbol}</Td>
+                <Td>
+                  <Link href={`/watchlist/${item.id}`} className="font-medium text-blue-700 hover:underline">
+                    {item.securities?.symbol}
+                  </Link>
+                </Td>
                 <Td>{item.securities?.name}</Td>
                 <Td>{item.securities?.market}</Td>
                 <Td>{item.securities?.security_type}</Td>

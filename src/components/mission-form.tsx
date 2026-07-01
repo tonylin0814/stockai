@@ -10,7 +10,26 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-export function MissionForm({ onSaved }: { onSaved: () => void }) {
+export type MissionLinkOption = {
+  id: string;
+  symbol: string;
+  name: string;
+  market: string;
+};
+
+function optionLabel(option: MissionLinkOption) {
+  return `${option.symbol} - ${option.name}（${option.market === "TW" ? "台股" : "美股"}）`;
+}
+
+export function MissionForm({
+  portfolioOptions,
+  watchlistOptions,
+  onSaved
+}: {
+  portfolioOptions: MissionLinkOption[];
+  watchlistOptions: MissionLinkOption[];
+  onSaved: () => void;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -57,8 +76,28 @@ export function MissionForm({ onSaved }: { onSaved: () => void }) {
       <FormField label="相關市場" htmlFor="related_market">
         <Select id="related_market" name="related_market" defaultValue="">
           <option value="">未指定</option>
-          <option value="US">{"\u7f8e\u80a1"}</option>
-          <option value="TW">{"\u53f0\u80a1"}</option>
+          <option value="US">美股</option>
+          <option value="TW">台股</option>
+        </Select>
+      </FormField>
+      <FormField label="關聯持股" htmlFor="portfolio_holding_id">
+        <Select id="portfolio_holding_id" name="portfolio_holding_id" defaultValue="">
+          <option value="">不關聯持股</option>
+          {portfolioOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {optionLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </FormField>
+      <FormField label="關聯關注項目" htmlFor="watchlist_item_id">
+        <Select id="watchlist_item_id" name="watchlist_item_id" defaultValue="">
+          <option value="">不關聯關注項目</option>
+          {watchlistOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {optionLabel(option)}
+            </option>
+          ))}
         </Select>
       </FormField>
       {error ? <p className="text-sm text-red-700 md:col-span-2">{error}</p> : null}

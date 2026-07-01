@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cancelMission } from "@/app/actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { MissionDialog } from "@/components/mission-dialog";
+import type { MissionLinkOption } from "@/components/mission-form";
 import { Table, Td, Th } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -33,6 +34,20 @@ function missionTypeLabel(type: string) {
   return type;
 }
 
+function toOption(row: {
+  id: string;
+  securities: { symbol: string; market: string; name: string } | null;
+}): MissionLinkOption | null {
+  if (!row.securities) return null;
+
+  return {
+    id: row.id,
+    symbol: row.securities.symbol,
+    name: row.securities.name,
+    market: row.securities.market
+  };
+}
+
 export default async function MissionsPage() {
   const supabase = createSupabaseServerClient();
   const {
@@ -41,11 +56,37 @@ export default async function MissionsPage() {
 
   if (!user) return null;
 
-  const { data: missions } = await supabase
-    .from("missions")
-    .select("id, title, mission_type, status, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  const [missionsResult, holdingsResult, watchlistResult] = await Promise.all([
+    supabase
+      .from("missions")
+      .select("id, title, mission_type, status, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("portfolio_holdings")
+      .select("id, securities(symbol, market, name)")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("watchlist_items")
+      .select("id, securities(symbol, market, name)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+  ]);
+
+  const portfolioOptions = ((holdingsResult.data ?? []) as unknown as Array<{
+    id: string;
+    securities: { symbol: string; market: string; name: string } | null;
+  }>)
+    .map(toOption)
+    .filter(Boolean) as MissionLinkOption[];
+  const watchlistOptions = ((watchlistResult.data ?? []) as unknown as Array<{
+    id: string;
+    securities: { symbol: string; market: string; name: string } | null;
+  }>)
+    .map(toOption)
+    .filter(Boolean) as MissionLinkOption[];
 
   return (
     <div className="space-y-5">
@@ -54,7 +95,10 @@ export default async function MissionsPage() {
           <h1 className="text-2xl font-semibold text-slate-950">任務中心</h1>
           <p className="mt-1 text-sm text-slate-600">建立並追蹤指定投資分析任務。</p>
         </div>
-        <MissionDialog />
+        <MissionDialog
+          portfolioOptions={portfolioOptions}
+          watchlistOptions={watchlistOptions}
+        />
       </div>
 
       <Table>
@@ -68,7 +112,7 @@ export default async function MissionsPage() {
           </tr>
         </thead>
         <tbody>
-          {(missions ?? []).map((mission) => (
+          {(missionsResult.data ?? []).map((mission) => (
             <tr key={mission.id}>
               <Td>{mission.title}</Td>
               <Td>{missionTypeLabel(mission.mission_type)}</Td>

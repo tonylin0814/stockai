@@ -1,11 +1,17 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { MissionForm } from "@/components/mission-form";
+import { MissionForm, type MissionLinkOption } from "@/components/mission-form";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 
-export function MissionDialog() {
+export function MissionDialog({
+  portfolioOptions,
+  watchlistOptions
+}: {
+  portfolioOptions: MissionLinkOption[];
+  watchlistOptions: MissionLinkOption[];
+}) {
   return (
     <Dialog
       title="新增任務"
@@ -16,7 +22,13 @@ export function MissionDialog() {
         </Button>
       }
     >
-      {(close) => <MissionForm onSaved={close} />}
+      {(close) => (
+        <MissionForm
+          portfolioOptions={portfolioOptions}
+          watchlistOptions={watchlistOptions}
+          onSaved={close}
+        />
+      )}
     </Dialog>
   );
 }

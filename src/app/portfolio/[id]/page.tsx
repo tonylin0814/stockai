@@ -86,6 +86,24 @@ function articleBadgeClass(query: WebResearchArticle["query"]) {
   return "bg-slate-100 text-slate-600";
 }
 
+function missionStatusLabel(status: string) {
+  if (status === "completed") return "完成";
+  if (status === "running") return "執行中";
+  if (status === "cancelled") return "已取消";
+  if (status === "failed") return "失敗";
+  return "待執行";
+}
+
+function missionTypeLabel(type: string | null) {
+  if (type === "single_stock") return "單一股票分析";
+  if (type === "multi_stock") return "多股票比較";
+  if (type === "portfolio_review") return "投資組合檢視";
+  if (type === "watchlist_review") return "關注清單檢視";
+  if (type === "theme") return "主題研究";
+  if (type === "event") return "事件分析";
+  return type ?? "—";
+}
+
 export default async function StockDetailPage({
   params,
   searchParams
@@ -204,6 +222,31 @@ export default async function StockDetailPage({
     | { webResearch?: WebResearchResult }
     | null
     | undefined;
+  const { data: linkedMissionRows } = await supabase
+    .from("mission_links")
+    .select("missions(id, title, mission_type, status, created_at, completed_at)")
+    .eq("user_id", user.id)
+    .eq("portfolio_holding_id", holdingId)
+    .order("created_at", { ascending: false });
+  const linkedMissions = ((linkedMissionRows ?? []) as unknown as Array<{
+    missions: {
+      id: string;
+      title: string;
+      mission_type: string | null;
+      status: string;
+      created_at: string;
+      completed_at: string | null;
+    } | null;
+  }>)
+    .map((row) => row.missions)
+    .filter(Boolean) as Array<{
+    id: string;
+    title: string;
+    mission_type: string | null;
+    status: string;
+    created_at: string;
+    completed_at: string | null;
+  }>;
   const tavilyArticles =
     dataPackage?.webResearch?.bySymbol?.[security.symbol]?.articles ?? [];
   const refreshAction = refreshStockMarketData.bind(null, holdingId);
@@ -586,6 +629,47 @@ export default async function StockDetailPage({
           </div>
         )}
       </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">相關任務</h2>
+          <p className="mt-1 text-sm text-slate-600">建立任務時關聯到此持股的分析紀錄。</p>
+        </div>
+        <Table>
+          <thead>
+            <tr>
+              <Th>任務</Th>
+              <Th>類型</Th>
+              <Th>狀態</Th>
+              <Th>建立時間</Th>
+              <Th>完成時間</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {linkedMissions.length ? (
+              linkedMissions.map((mission) => (
+                <tr key={mission.id}>
+                  <Td>
+                    <Link href={`/missions/${mission.id}`} className="font-medium text-blue-700 hover:underline">
+                      {mission.title}
+                    </Link>
+                  </Td>
+                  <Td>{missionTypeLabel(mission.mission_type)}</Td>
+                  <Td>{missionStatusLabel(mission.status)}</Td>
+                  <Td>{formatDateTime(mission.created_at)}</Td>
+                  <Td>{mission.completed_at ? formatDateTime(mission.completed_at) : "—"}</Td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <Td colSpan={5} className="py-8 text-center text-slate-500">
+                  尚未關聯任何任務。
+                </Td>
+              </tr>
+            )}
+          </tbody>
+        </Table>
+      </section>
 
       {holding.notes ? (
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
