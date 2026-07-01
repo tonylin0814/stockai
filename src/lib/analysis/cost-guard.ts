@@ -1,7 +1,7 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 const DEFAULT_MAX_DAILY_COST_USD = 10;
-const DEFAULT_MAX_RUN_COST_USD = 3;
+const DEFAULT_MAX_RUN_COST_USD = 5;
 
 function envNumber(name: string, fallback: number) {
   const value = Number(process.env[name]);

@@ -48,6 +48,8 @@ type DailyRunState = {
   divisionResults?: StoredDivisionResult[];
   committeeResults?: StoredCommitteeResult[];
   error?: string;
+  runningTeamKey?: string | null;
+  runningTeamStartedAt?: string | null;
 };
 
 function todayIsoDate() {
@@ -65,6 +67,13 @@ function maxTeamsPerDivision() {
 
 function asState(value: unknown): DailyRunState {
   return value && typeof value === "object" ? (value as DailyRunState) : {};
+}
+
+const TEAM_LOCK_TIMEOUT_MS = 90_000;
+
+function isTeamLockStale(startedAt: string | null | undefined): boolean {
+  if (!startedAt) return true;
+  return Date.now() - new Date(startedAt).getTime() > TEAM_LOCK_TIMEOUT_MS;
 }
 
 function packageSummary(dataPackage: DailyDataPackage) {
@@ -257,13 +266,33 @@ export async function POST() {
       const team = teams[teamIndex];
 
       if (team) {
-        await runTeamPipeline({
-          team,
-          division,
-          dataPackage,
-          dailyRunId,
-          userId: user.id
+        const teamKey = `div-${divisionIndex}-team-${teamIndex}`;
+
+        if (
+          state.runningTeamKey === teamKey &&
+          !isTeamLockStale(state.runningTeamStartedAt)
+        ) {
+          return NextResponse.json({ status: "running", stage: "division", dailyRunId });
+        }
+
+        await updateRunState(dailyRunId, {
+          ...state,
+          runningTeamKey: teamKey,
+          runningTeamStartedAt: new Date().toISOString()
         });
+
+        try {
+          await runTeamPipeline({
+            team,
+            division,
+            dataPackage,
+            dailyRunId,
+            userId: user.id
+          });
+        } catch {
+          // Let the pipeline continue with the remaining completed team reports.
+        }
+
         const nextTeamIndex = teamIndex + 1;
 
         await updateRunState(dailyRunId, {
@@ -271,7 +300,9 @@ export async function POST() {
           pipelineStage: "division",
           stageMessage: `${division.name}：已完成 ${nextTeamIndex}/${teams.length} 個 team。`,
           divisionIndex,
-          teamIndex: nextTeamIndex
+          teamIndex: nextTeamIndex,
+          runningTeamKey: null,
+          runningTeamStartedAt: null
         });
 
         return NextResponse.json({ status: "running", stage: "division", dailyRunId });

@@ -554,6 +554,50 @@ export async function runTeamPipeline(params: {
     divisionManager: params.division.manager_name,
     teamRole: params.team.team_role
   };
+
+  // --- idempotency: skip if this team already has a completed report ---
+  if (params.dailyRunId) {
+    const { data: existingRow } = await supabase
+      .from("team_reports")
+      .select(
+        "id, market_view, portfolio_review, mission_analysis, market_scan_recommendations, final_team_view, team_leader"
+      )
+      .eq("daily_run_id", params.dailyRunId)
+      .eq("division", params.division.name)
+      .eq("team_name", params.team.team_name)
+      .maybeSingle();
+
+    if (existingRow) {
+      const row = existingRow as {
+        id: string;
+        market_view: unknown;
+        portfolio_review: unknown;
+        mission_analysis: unknown;
+        market_scan_recommendations: unknown;
+        final_team_view: unknown;
+        team_leader: string;
+      };
+
+      try {
+        const report = TeamReportSchema.parse({
+          teamName: params.team.team_name,
+          date: new Date().toISOString().slice(0, 10),
+          leader: row.team_leader,
+          marketView: row.market_view,
+          portfolioReview: row.portfolio_review,
+          missionAnalysis: row.mission_analysis ?? null,
+          marketScanRecommendations: row.market_scan_recommendations,
+          finalTeamView: row.final_team_view
+        });
+
+        return { status: "completed", report, teamReportId: row.id };
+      } catch {
+        // If stored data no longer matches the schema, fall through and re-run.
+      }
+    }
+  }
+  // --- end idempotency check ---
+
   const teamAgentIds = await getTeamAgentIds(params.team.id);
   const agentOutputs: Partial<Record<AgentStep["promptKey"], AgentOutput>> = {};
 
@@ -703,10 +747,10 @@ export async function runTeamPipeline(params: {
       .insert({
         user_id: params.userId,
         family_id: familyId,
-    daily_run_id: params.dailyRunId ?? null,
+        daily_run_id: params.dailyRunId ?? null,
         mission_id: params.missionId ?? null,
         division: params.division.name,
-        team_name: report.teamName,
+        team_name: params.team.team_name,
         team_leader: report.leader,
         model_provider: params.division.model_provider,
         model_name: params.division.model_name,

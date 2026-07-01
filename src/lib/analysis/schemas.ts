@@ -31,7 +31,30 @@ export const TEAM_REPORT_JSON_SCHEMA_OBJ = {
       },
       required: ["summary", "marketBias", "strongSectors", "weakSectors", "riskLevel", "confidence"]
     },
-    portfolioReview: { type: "array", items: { type: "object" } },
+    portfolioReview: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: [
+              "buy",
+              "small_buy",
+              "add",
+              "hold",
+              "wait",
+              "watch",
+              "reduce",
+              "sell",
+              "avoid",
+              "reject",
+              "insufficient_data"
+            ]
+          }
+        }
+      }
+    },
     missionAnalysis: { type: ["object", "null"] },
     marketScanRecommendations: { type: "array", items: { type: "object" } },
     finalTeamView: {
@@ -204,7 +227,7 @@ export const PortfolioReviewItemSchema = z.object({
   symbol: z.string(),
   market: z.enum(["US", "TW"]),
   name: z.string(),
-  action: z.enum(["buy", "add", "hold", "reduce", "sell", "watch"]),
+  action: ActionSchema,
   reason: z.string(),
   marketImpact: z.string(),
   buyZone: z.string(),
@@ -355,7 +378,7 @@ export const TEAM_REPORT_JSON_SCHEMA = `{
       "symbol": "AAPL",
       "market": "US",
       "name": "Apple",
-      "action": "buy | add | hold | reduce | sell | watch",
+      "action": "buy | small_buy | add | hold | wait | watch | reduce | sell | avoid | reject | insufficient_data",
       "reason": "原因",
       "marketImpact": "目前市場對此標的的影響",
       "buyZone": "建議買進或加碼區間",
