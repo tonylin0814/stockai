@@ -729,7 +729,13 @@ export default async function DailyAnalysisPage({
                     : stageError(runRecord.data_package) ?? progress.latestError ?? "分析失敗，請查看 API 用量。"}
               </p>
             </div>
-            {runRecord.status === "running" ? <StopAnalysisButton /> : null}
+            {runRecord.status === "running" ? (
+              <StopAnalysisButton />
+            ) : (
+              <p className="rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 text-xs text-slate-600">
+                目前沒有正在執行的分析
+              </p>
+            )}
             {runRecord.status === "completed" && runId ? (
               <Link
                 href={`/reports/${runId}`}
