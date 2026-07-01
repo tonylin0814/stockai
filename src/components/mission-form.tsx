@@ -57,9 +57,8 @@ export function MissionForm({ onSaved }: { onSaved: () => void }) {
       <FormField label="相關市場" htmlFor="related_market">
         <Select id="related_market" name="related_market" defaultValue="">
           <option value="">未指定</option>
-          <option value="US">US</option>
-          <option value="TW">TW</option>
-          <option value="both">both</option>
+          <option value="US">??</option>
+          <option value="TW">??</option>
         </Select>
       </FormField>
       {error ? <p className="text-sm text-red-700 md:col-span-2">{error}</p> : null}
