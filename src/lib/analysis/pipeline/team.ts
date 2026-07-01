@@ -537,6 +537,38 @@ async function saveAgentRun(params: {
   });
 }
 
+async function getCompletedAgentOutput(params: {
+  userId: string;
+  dailyRunId?: string | null;
+  teamAgentId: string | null;
+  promptKey: keyof typeof PROMPT_VERSIONS;
+  dataPackage: DailyDataPackage;
+}) {
+  if (!params.dailyRunId || !params.teamAgentId) return null;
+
+  const supabase = createSupabaseServiceClient();
+  const { data } = await supabase
+    .from("agent_runs")
+    .select("output")
+    .eq("user_id", params.userId)
+    .eq("daily_run_id", params.dailyRunId)
+    .eq("team_agent_id", params.teamAgentId)
+    .eq("prompt_key", params.promptKey)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(5);
+
+  for (const row of (data ?? []) as Array<{ output: unknown }>) {
+    try {
+      return capAgentOutput(AgentOutputSchema.parse(row.output), params.dataPackage);
+    } catch {
+      // Older output may no longer match the schema; try the next completed run.
+    }
+  }
+
+  return null;
+}
+
 export async function runTeamPipeline(params: {
   team: DivisionTeam;
   division: Division;
@@ -613,6 +645,19 @@ export async function runTeamPipeline(params: {
     let completionTokens = 0;
     let estimatedCostUsd = 0;
     const leafModel = getLeafAgentModel(params.division.model_name);
+    const teamAgentId = teamAgentIds.get(step.agentType) ?? null;
+    const cachedOutput = await getCompletedAgentOutput({
+      userId: params.userId,
+      dailyRunId: params.dailyRunId,
+      teamAgentId,
+      promptKey: step.promptKey,
+      dataPackage: params.dataPackage
+    });
+
+    if (cachedOutput) {
+      agentOutputs[step.promptKey] = cachedOutput;
+      continue;
+    }
 
     try {
       const modelResult = await callModel({
@@ -654,7 +699,7 @@ export async function runTeamPipeline(params: {
         userId: params.userId,
         dailyRunId: params.dailyRunId,
         missionId: params.missionId,
-        teamAgentId: teamAgentIds.get(step.agentType) ?? null,
+        teamAgentId,
         provider: params.division.model_provider,
         model: leafModel,
         promptKey: step.promptKey,
@@ -674,7 +719,7 @@ export async function runTeamPipeline(params: {
         userId: params.userId,
         dailyRunId: params.dailyRunId,
         missionId: params.missionId,
-        teamAgentId: teamAgentIds.get(step.agentType) ?? null,
+        teamAgentId,
         provider: params.division.model_provider,
         model: leafModel,
         promptKey: step.promptKey,
