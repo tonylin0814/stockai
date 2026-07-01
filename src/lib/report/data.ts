@@ -31,6 +31,7 @@ type CommitteeDbRow = {
   disagreement_summary: string | null;
   final_recommendations: unknown;
   is_action_allowed: boolean | null;
+  created_at?: string | null;
 };
 
 export type ReportRun = {
@@ -75,6 +76,7 @@ export type ReportCommitteeRow = {
   final_recommendations: JsonRecord[] | null;
   is_action_allowed: boolean | null;
   what_could_change_decision: string[] | null;
+  created_at: string | null;
 };
 
 export type ReportData = {
@@ -175,7 +177,8 @@ function normalizeCommittee(row: CommitteeDbRow): ReportCommitteeRow {
     final_stop_loss: firstRecommendationValue(recommendations, ["stopLoss", "stop_loss"]),
     final_recommendations: recommendations,
     is_action_allowed: row.is_action_allowed ?? false,
-    what_could_change_decision: null
+    what_could_change_decision: null,
+    created_at: row.created_at ?? null
   };
 }
 

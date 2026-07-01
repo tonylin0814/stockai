@@ -8,6 +8,7 @@ import {
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { AnalysisProgressRunner } from "@/components/analysis-progress-runner";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { StopAnalysisButton } from "@/components/stop-analysis-button";
 import { formatDateTime, formatNumber, formatSignedNumber, formatSignedPercent } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -117,6 +118,22 @@ function asRecord(value: unknown): Record<string, unknown> {
 function valueText(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
   return String(value);
+}
+
+function dedupeCommittees(rows: CommitteeDecisionRow[]) {
+  const byProvider = new Map<string, CommitteeDecisionRow>();
+  for (const row of rows) {
+    const provider = String(row.model_provider ?? "OpenAI");
+    const existing = byProvider.get(provider);
+    const existingTime = existing?.created_at ? new Date(String(existing.created_at)).getTime() : 0;
+    const rowTime = row.created_at ? new Date(String(row.created_at)).getTime() : 0;
+    if (!existing || rowTime >= existingTime) {
+      byProvider.set(provider, row);
+    }
+  }
+  return Array.from(byProvider.values()).sort((a, b) =>
+    String(a.model_provider ?? "").localeCompare(String(b.model_provider ?? ""))
+  );
 }
 
 function committeeLabel(row: CommitteeDecisionRow) {
@@ -389,7 +406,7 @@ export default async function DailyAnalysisPage({
   const today = todayIsoDate();
   const { data: run } = await supabase
     .from("daily_runs")
-    .select("id, status, run_date, data_package, created_at")
+    .select("id, status, run_date, data_package, started_at, completed_at, created_at")
     .eq("user_id", user.id)
     .eq("run_date", today)
     .order("created_at", { ascending: false })
@@ -526,7 +543,8 @@ export default async function DailyAnalysisPage({
       .eq("daily_run_id", runId)
       .eq("user_id", user.id)
       .order("created_at", { ascending: true });
-    committeeRows = (committeeData ?? []) as CommitteeDecisionRow[];
+    committeeRows = dedupeCommittees((committeeData ?? []) as CommitteeDecisionRow[]);
+    progress = { ...progress, committeeDecisions: committeeRows.length };
   }
   const { data: analysisData } = await supabase
     .from("market_analysis_runs")
@@ -543,6 +561,10 @@ export default async function DailyAnalysisPage({
   const secondaryIndex = activeMarket === "TW" ? null : snapshot.nasdaq;
   const vix = snapshot.vix;
   const runStatus = runRecord?.status ?? null;
+  const runCreatedAt = typeof runRecord?.created_at === "string" ? runRecord.created_at : null;
+  const runStartedAt = typeof runRecord?.started_at === "string" ? runRecord.started_at : runCreatedAt;
+  const runCompletedAt =
+    typeof runRecord?.completed_at === "string" ? runRecord.completed_at : null;
   const hasDataPackage = Boolean(dataPackage.marketSnapshot);
   const reportItems: AnalysisReportItem[] = [
     {
@@ -673,6 +695,9 @@ export default async function DailyAnalysisPage({
                   status={typeof runStatus === "string" ? runStatus : null}
                   title="分析執行報告"
                   summary={reportSummary}
+                  startedAt={runStartedAt ? formatDateTime(runStartedAt) : null}
+                  completedAt={runCompletedAt ? formatDateTime(runCompletedAt) : null}
+                  updatedAt={runCreatedAt ? formatDateTime(runCreatedAt) : null}
                   items={reportItems}
                   agentLogs={agentLogs}
                 />
@@ -691,6 +716,11 @@ export default async function DailyAnalysisPage({
             <div>
               <p className="text-xs font-medium uppercase tracking-wide opacity-70">今日分析狀態</p>
               <h2 className="mt-1 text-lg font-semibold">{statusLabel(runRecord.status)}</h2>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-80">
+                <span>建立：{runCreatedAt ? formatDateTime(runCreatedAt) : "—"}</span>
+                <span>開始：{runStartedAt ? formatDateTime(runStartedAt) : "—"}</span>
+                <span>結束：{runCompletedAt ? formatDateTime(runCompletedAt) : "—"}</span>
+              </div>
               <p className="mt-1 text-sm">
                 {runRecord.status === "completed"
                   ? "全系統分析已完成，可以查看市場分析與歷史報告。"
@@ -699,6 +729,7 @@ export default async function DailyAnalysisPage({
                     : stageError(runRecord.data_package) ?? progress.latestError ?? "分析失敗，請查看 API 用量。"}
               </p>
             </div>
+            {runRecord.status === "running" ? <StopAnalysisButton /> : null}
             {runRecord.status === "completed" && runId ? (
               <Link
                 href={`/reports/${runId}`}
@@ -764,6 +795,12 @@ export default async function DailyAnalysisPage({
             {committeeRows.map((committee) => (
               <div key={String(committee.id)} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-950">{committeeLabel(committee)}</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  產生時間：{committee.created_at ? formatDateTime(String(committee.created_at)) : "—"}
+                </p>
+                <p className="mt-1 font-mono text-xs text-slate-400">
+                  分析批次：{runId ? runId.slice(0, 8) : "—"}
+                </p>
                 <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                   <p>Final action:{valueText(committee.final_action)}</p>
                   <p>Action type:{valueText(committee.action_type)}</p>

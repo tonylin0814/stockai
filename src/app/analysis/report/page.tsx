@@ -1,6 +1,7 @@
 import { ReportActions } from "@/components/report-actions";
 import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { loadCompletedReportForUser, type ReportCommitteeRow, type ReportTeamRow } from "@/lib/report/data";
+import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type JsonRecord = Record<string, unknown>;
@@ -151,7 +152,12 @@ export default async function AnalysisReportPage() {
             return (
               <div key={`${committee.model_provider}-${index}`} className="space-y-3 rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="font-semibold text-slate-900">{committeeLabel(committee)}</p>
+                  <div>
+                    <p className="font-semibold text-slate-900">{committeeLabel(committee)}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      產生時間：{committee.created_at ? formatDateTime(committee.created_at) : "—"}
+                    </p>
+                  </div>
                   <span className={`rounded-full px-2 py-1 text-xs font-medium ${actionAllowedColor}`}>
                     {committee.is_action_allowed ? "允許行動" : "觀望"}
                   </span>

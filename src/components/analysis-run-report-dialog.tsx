@@ -22,6 +22,9 @@ type AnalysisRunReportDialogProps = {
   status: string | null;
   title: string;
   summary: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  updatedAt?: string | null;
   items: AnalysisReportItem[];
   agentLogs: AnalysisAgentLogItem[];
 };
@@ -46,6 +49,9 @@ export function AnalysisRunReportDialog({
   status,
   title,
   summary,
+  startedAt,
+  completedAt,
+  updatedAt,
   items,
   agentLogs
 }: AnalysisRunReportDialogProps) {
@@ -97,6 +103,11 @@ export function AnalysisRunReportDialog({
               <div>
                 <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
                 <p className="mt-1 text-sm text-slate-600">{summary}</p>
+                <div className="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-3">
+                  <p>開始：{startedAt ?? "—"}</p>
+                  <p>結束：{completedAt ?? "—"}</p>
+                  <p>更新：{updatedAt ?? "—"}</p>
+                </div>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="關閉">
                 <XCircle className="h-4 w-4" />

@@ -238,13 +238,22 @@ export async function validateOrRepair<T>(params: {
       tokenCount: 0
     };
   } catch {
-    const repairPrompt = `The following text should be valid JSON matching this schema: ${params.schemaDescription}. Fix it and return only valid JSON: ${params.rawText}`;
+    const repairPrompt = [
+      "Repair the following malformed JSON.",
+      "Return exactly one complete JSON object and nothing else.",
+      "Do not use markdown fences, comments, explanations, or trailing text.",
+      "Close every string, array, and object. Remove invalid trailing commas.",
+      "The repaired JSON must match this schema exactly:",
+      params.schemaDescription,
+      "Malformed JSON input:",
+      params.rawText
+    ].join("\n\n");
     const repairResult = await callModel({
       provider: params.provider,
       model: params.model,
       prompt: repairPrompt,
       budget: params.budget,
-      maxOutputTokens: Math.min(1500, maxOutputTokens())
+      maxOutputTokens: Math.min(2500, maxOutputTokens())
     });
 
     return {

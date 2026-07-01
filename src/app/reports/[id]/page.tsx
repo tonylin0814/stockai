@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -69,6 +70,9 @@ export default async function ReportDetailPage({ params }: PageProps) {
             {committeeRows.map((committee) => (
               <div key={String(committee.id)} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-950">{committeeLabel(committee)}</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  產生時間：{committee.created_at ? formatDateTime(String(committee.created_at)) : "—"}
+                </p>
                 <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                   <p>Final action：{valueText(committee.final_action)}</p>
                   <p>Action type：{valueText(committee.action_type)}</p>
