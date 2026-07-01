@@ -1,7 +1,9 @@
 import type { DailyDataPackage } from "@/lib/analysis/data-package";
 import { buildDailyDataPackage } from "@/lib/analysis/data-package";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
-import type { Quote } from "@/lib/market-data/types";
+import { computeTechnicals } from "@/lib/market-data/indicators";
+import type { Fundamentals, NewsItem, Quote } from "@/lib/market-data/types";
+import type { TechnicalSummary } from "@/lib/market-data/indicators";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 export type MissionDataPackage = DailyDataPackage & {
@@ -16,6 +18,12 @@ export type MissionDataPackage = DailyDataPackage & {
       market: "US" | "TW";
       name: string;
       quote: Quote;
+      currentPrice: number;
+      technicals: TechnicalSummary;
+      fundamentals: Fundamentals | null;
+      news: NewsItem[];
+      portfolioContext: DailyDataPackage["portfolio"][number] | null;
+      watchlistContext: DailyDataPackage["watchlist"][number] | null;
       inPortfolio: boolean;
       inWatchlist: boolean;
     }>;
@@ -91,14 +99,53 @@ export async function buildMissionDataPackage(
   const relatedSecurities = await Promise.all(
     symbols.map(async (symbol) => {
       const market = preferredMarket ?? inferMarket(symbol);
-      const quote = await provider.getQuote(symbol, market);
       const key = `${symbol}:${market}`;
+      const portfolioContext =
+        dailyPackage.portfolio.find(
+          (item) => `${normalizeSymbol(item.symbol)}:${item.market}` === key
+        ) ?? null;
+      const watchlistContext =
+        dailyPackage.watchlist.find(
+          (item) => `${normalizeSymbol(item.symbol)}:${item.market}` === key
+        ) ?? null;
+
+      if (portfolioContext || watchlistContext) {
+        const context = portfolioContext ?? watchlistContext!;
+
+        return {
+          symbol,
+          market,
+          name: context.name,
+          quote: context.quote,
+          currentPrice: context.currentPrice,
+          technicals: context.technicals,
+          fundamentals: context.fundamentals,
+          news: context.news,
+          portfolioContext,
+          watchlistContext,
+          inPortfolio: Boolean(portfolioContext),
+          inWatchlist: Boolean(watchlistContext)
+        };
+      }
+
+      const [quote, history, fundamentals, news] = await Promise.all([
+        provider.getQuote(symbol, market),
+        provider.getHistory(symbol, market, 252).catch(() => []),
+        provider.getFundamentals(symbol, market).catch(() => null),
+        market === "US" ? provider.getNews(symbol).catch(() => []) : Promise.resolve([])
+      ]);
 
       return {
         symbol,
         market,
         name: symbol,
         quote,
+        currentPrice: quote.price,
+        technicals: computeTechnicals(history),
+        fundamentals,
+        news: news.slice(0, 5),
+        portfolioContext: null,
+        watchlistContext: null,
         inPortfolio: portfolioKeys.has(key),
         inWatchlist: watchlistKeys.has(key)
       };
@@ -107,6 +154,34 @@ export async function buildMissionDataPackage(
 
   return {
     ...dailyPackage,
+    dataQualitySummary: {
+      ...dailyPackage.dataQualitySummary,
+      hasMissingData:
+        dailyPackage.dataQualitySummary.hasMissingData ||
+        relatedSecurities.some(
+          (security) =>
+            security.quote.qualityState === "missing" ||
+            security.technicals.dataPoints < 20 ||
+            !security.fundamentals ||
+            security.fundamentals.qualityState === "missing"
+        ),
+      missingItems: [
+        ...dailyPackage.dataQualitySummary.missingItems,
+        ...relatedSecurities.flatMap((security) => {
+          const missing: string[] = [];
+          if (security.quote.qualityState === "missing") {
+            missing.push(`${security.symbol} 缺少報價`);
+          }
+          if (security.technicals.dataPoints < 20) {
+            missing.push(`${security.symbol} 缺少足夠歷史價格`);
+          }
+          if (!security.fundamentals || security.fundamentals.qualityState === "missing") {
+            missing.push(`${security.symbol} 缺少基本面資料`);
+          }
+          return missing;
+        })
+      ]
+    },
     mission: {
       id: mission.id,
       title: mission.title,

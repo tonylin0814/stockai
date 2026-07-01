@@ -5,7 +5,6 @@ import { runWebResearch } from "@/lib/analysis/web-research";
 import { getFamilyId } from "@/lib/analysis/pipeline/db";
 import { runCommitteePipeline } from "@/lib/analysis/pipeline/committee";
 import { runDivisionPipeline } from "@/lib/analysis/pipeline/division";
-import { runSingleStockMission } from "@/lib/analysis/pipeline/single-stock";
 import { writeRecommendations } from "@/lib/analysis/pipeline/recommendations";
 import type { TeamReport } from "@/lib/analysis/schemas";
 import type { Division } from "@/lib/analysis/pipeline/team";
@@ -121,31 +120,6 @@ export async function POST(
             ]
           })
         : null;
-
-    if (dataPackage.mission.missionType === "single_stock") {
-      const result = await runSingleStockMission({
-        userId: user.id,
-        missionId,
-        dataPackage
-      });
-
-      await supabase
-        .from("missions")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          data_package: missionSummary(dataPackage)
-        })
-        .eq("id", missionId)
-        .eq("user_id", user.id);
-
-      return NextResponse.json({
-        missionId,
-        quickAnalysis: true,
-        decision: result.decision,
-        divisionDecisionId: result.divisionDecisionId
-      });
-    }
 
     const { data: divisionsData, error: divisionsError } = await supabase
       .from("divisions")

@@ -664,7 +664,9 @@ export async function runTeamPipeline(params: {
     let promptTokens = 0;
     let completionTokens = 0;
     let estimatedCostUsd = 0;
-    const leafModel = getLeafAgentModel(params.division.model_name);
+    const leafModel = params.missionId
+      ? params.division.model_name
+      : getLeafAgentModel(params.division.model_name);
     const teamAgentId = teamAgentIds.get(step.agentType) ?? null;
     const summary = inputSummary(prompt);
     const cachedOutput = await getCompletedAgentOutput({
@@ -774,7 +776,9 @@ export async function runTeamPipeline(params: {
   let promptTokens = 0;
   let completionTokens = 0;
   let estimatedCostUsd = 0;
-  const leaderModel = getTeamLeaderModel(params.division.model_name);
+  const leaderModel = params.missionId
+    ? params.division.model_name
+    : getTeamLeaderModel(params.division.model_name);
 
   try {
     const modelResult = await callModel({

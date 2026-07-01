@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { Fragment } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RunMissionButton } from "@/components/run-mission-button";
 import { TeamReportTabs } from "@/components/team-report-tabs";
@@ -118,6 +117,63 @@ function stringList(value: unknown) {
   return Array.isArray(value)
     ? value.map((item) => String(item)).filter(Boolean).join("；")
     : "—";
+}
+
+function asStringArray(value: unknown) {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+}
+
+function actionLabel(value: unknown) {
+  const action = String(value ?? "");
+  const labels: Record<string, string> = {
+    buy: "\u8cb7\u9032",
+    small_buy: "\u5c0f\u8cb7",
+    add: "\u52a0\u78bc",
+    hold: "\u6301\u6709",
+    wait: "\u7b49\u5f85",
+    reduce: "\u6e1b\u78bc",
+    sell: "\u8ce3\u51fa",
+    avoid: "\u907f\u958b",
+    no_action: "\u4e0d\u884c\u52d5"
+  };
+  return labels[action] ?? (action || "-");
+}
+
+function modelLabel(division: Record<string, unknown>) {
+  const provider = String(division.model_provider ?? division.division ?? "");
+  if (provider.includes("Anthropic") || provider.includes("Claude")) return "Claude";
+  if (provider.includes("OpenAI") || provider.includes("GPT")) return "GPT";
+  return String(division.division ?? "模型");
+}
+
+function comparisonSummary(divisions: Array<Record<string, unknown>>) {
+  const completed = divisions.filter((division) =>
+    Object.keys(asRecord(division.mission_decision)).length
+  );
+  const actions = completed.map((division) => String(division.decision_action ?? ""));
+  const confidences = completed
+    .map((division) => asNumber(division.confidence))
+    .filter((value): value is number => value !== null);
+  const priceLines = completed.map((division) => {
+    const decision = asRecord(division.mission_decision);
+    return `${modelLabel(division)} 買進區間 ${String(decision.buyZone ?? "—")}，目標 ${String(
+      decision.targetPrice ?? "—"
+    )}，停損 ${String(decision.stopLoss ?? "—")}`;
+  });
+  const sameAction = actions.length > 0 && actions.every((action) => action === actions[0]);
+
+  return {
+    consensus: sameAction
+      ? `模型共識：${actionLabel(actions[0])}`
+      : `模型分歧：${completed
+          .map((division) => `${modelLabel(division)} ${actionLabel(division.decision_action)}`)
+          .join("，")}`,
+    confidence:
+      confidences.length > 0
+        ? `信心區間：${Math.min(...confidences)} - ${Math.max(...confidences)}`
+        : "信心區間：—",
+    price: priceLines.length ? priceLines.join("；") : "價格區間：—"
+  };
 }
 
 function ScenarioSummary({ scenarios }: { scenarios: Record<string, unknown> }) {
@@ -317,9 +373,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
           .from("committee_decisions")
           .select("*")
           .eq("mission_id", params.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .order("created_at", { ascending: true }),
         supabase
           .from("division_decisions")
           .select("*")
@@ -361,8 +415,9 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       </div>
     );
   }
-  const committee = committeeResult.data as Record<string, unknown> | null;
+  const committees = (committeeResult.data ?? []) as Array<Record<string, unknown>>;
   const divisions = (divisionResult.data ?? []) as Array<Record<string, unknown>>;
+  const comparison = comparisonSummary(divisions);
   const teams = (teamResult.data ?? []) as Parameters<typeof TeamReportTabs>[0]["reports"];
   const recommendations = (recommendationResult.data ?? []) as unknown as Array<{
     id: string;
@@ -401,106 +456,152 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       {detailSection}
       {sourceSection}
 
-      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-slate-950">委員會決策</h2>
-          <span className={`rounded-md border px-2 py-1 text-sm font-medium ${consensusClass(String(committee?.consensus_level ?? "none"))}`}>
-            {String(committee?.consensus_level ?? "none")}
-          </span>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-950">{"\u59d4\u54e1\u6703\u6c7a\u7b56"}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {comparison.consensus} | {comparison.confidence}
+          </p>
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <p>Final action：{String(committee?.final_action ?? "—")}</p>
-          <p>Action type：{String(committee?.action_type ?? "—")}</p>
-          <p>允許行動：{committee?.is_action_allowed ? "是" : "否"}</p>
-          <p>信心分數：{String(committee?.confidence ?? "—")}</p>
-        </div>
-        <p className="mt-4 text-sm text-slate-700">{String(committee?.decision_summary ?? "—")}</p>
-        {(() => {
-          const finalScenarios = asRecord(committee?.final_scenarios ?? committee?.finalScenarios);
-          if (!Object.keys(finalScenarios).length) return null;
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {committees.map((item, index) => {
+            const finalScenarios = asRecord(item.final_scenarios ?? item.finalScenarios);
+            const provider = String(item.model_provider ?? "");
+            const label = provider === "Anthropic" ? "Committee B - Claude" : "Committee A - GPT";
 
-          return (
-            <div className="mt-4 rounded-md border border-slate-100 bg-slate-50 p-4">
-              <p className="mb-2 text-sm font-semibold text-slate-700">委員會情境評估</p>
-              <ScenarioSummary scenarios={finalScenarios} />
-            </div>
-          );
-        })()}
+            return (
+              <article key={`${provider}-${index}`} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-950">{label}</h3>
+                    <p className="mt-1 text-xs text-slate-500">{formatDateTime(String(item.created_at ?? ""))}</p>
+                  </div>
+                  <span className={`rounded-md border px-2 py-1 text-xs font-medium ${consensusClass(String(item.consensus_level ?? "none"))}`}>
+                    {String(item.consensus_level ?? "none")}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-500">{"\u5efa\u8b70"}</p>
+                    <p className="font-medium text-slate-950">{actionLabel(item.action_type)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">{"\u4fe1\u5fc3"}</p>
+                    <p className="font-medium text-slate-950">{String(item.confidence ?? "-")}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">{"\u5141\u8a31\u884c\u52d5"}</p>
+                    <p className="font-medium text-slate-950">{item.is_action_allowed ? "\u662f" : "\u5426"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">{"\u6700\u7d42\u52d5\u4f5c"}</p>
+                    <p className="font-medium text-slate-950">{actionLabel(item.final_action)}</p>
+                  </div>
+                </div>
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {String(item.decision_summary ?? "-")}
+                </p>
+                {Object.keys(finalScenarios).length ? (
+                  <div className="mt-4 rounded-md border border-slate-100 bg-slate-50 p-4">
+                    <p className="mb-2 text-sm font-semibold text-slate-700">{"\u60c5\u5883\u8a55\u4f30"}</p>
+                    <ScenarioSummary scenarios={finalScenarios} />
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">Division 比較</h2>
-        <Table>
-          <thead>
-            <tr>
-              <Th>Division</Th>
-              <Th>Manager</Th>
-              <Th>建議</Th>
-              <Th>信心</Th>
-              <Th>支持 Teams</Th>
-              <Th>反對 Teams</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {divisions.map((division) => (
-              <tr key={String(division.id)}>
-                <Td>{String(division.division ?? "—")}</Td>
-                <Td>{String(division.division_manager ?? "—")}</Td>
-                <Td>{String(division.decision_action ?? "—")}</Td>
-                <Td>{String(division.confidence ?? "—")}</Td>
-                <Td>{Array.isArray(division.supporting_teams) ? division.supporting_teams.join(", ") : "—"}</Td>
-                <Td>{Array.isArray(division.opposing_teams) ? division.opposing_teams.join(", ") : "—"}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      </section>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-950">{"\u6a21\u578b\u5206\u6790\u5c0d\u7167"}</h2>
+          <div className="mt-2 rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-sm">
+            <p>{comparison.consensus}</p>
+            <p className="mt-1">{comparison.price}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {divisions.map((division) => {
+            const missionDecision = asRecord(division.mission_decision);
+            const scenarios = asRecord(missionDecision.scenarios);
+            const risks = asStringArray(missionDecision.keyRisks).slice(0, 4);
+            const conditions = asStringArray(missionDecision.conditionsToAct).slice(0, 4);
+            const technicals = asStringArray(missionDecision.technicalHighlights).slice(0, 4);
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">模型分析對照</h2>
-        <Table>
-          <thead>
-            <tr>
-              <Th>模型</Th>
-              <Th>建議</Th>
-              <Th>信心</Th>
-              <Th>摘要</Th>
-              <Th>理由</Th>
-              <Th>主要風險</Th>
-              <Th>行動條件</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {divisions.map((division) => {
-              const missionDecision = asRecord(division.mission_decision);
-              const scenarios = asRecord(missionDecision.scenarios);
-
-              return (
-                <Fragment key={`analysis-${String(division.id)}`}>
-                  <tr>
-                    <Td>{String(division.division ?? "—")}</Td>
-                    <Td>{String(division.decision_action ?? "—")}</Td>
-                    <Td>{String(division.confidence ?? "—")}</Td>
-                    <Td>{String(missionDecision.summary ?? division.market_summary ?? "—")}</Td>
-                    <Td>{String(missionDecision.reason ?? "—")}</Td>
-                    <Td>{stringList(missionDecision.keyRisks)}</Td>
-                    <Td>{stringList(missionDecision.conditionsToAct)}</Td>
-                  </tr>
-                  {Object.keys(scenarios).length ? (
-                    <tr className="bg-slate-50">
-                      <Td className="text-xs font-medium text-slate-500">
-                        {String(division.division ?? "—")} 情境
-                      </Td>
-                      <Td colSpan={6}>
-                        <ScenarioSummary scenarios={scenarios} />
-                      </Td>
-                    </tr>
+            return (
+              <article key={`analysis-${String(division.id)}`} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-950">{modelLabel(division)}</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {String(division.division ?? "-")} / {String(division.division_manager ?? "-")}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-slate-950">{actionLabel(division.decision_action)}</p>
+                    <p className="text-xs text-slate-500">{"\u4fe1\u5fc3"} {String(division.confidence ?? "-")}</p>
+                  </div>
+                </div>
+                <p className="text-sm leading-6 text-slate-700">
+                  {String(missionDecision.summary ?? division.market_summary ?? "-")}
+                </p>
+                <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">{"\u8cb7\u9032\u5340\u9593"}</p>
+                    <p className="mt-1 font-medium text-slate-950">{String(missionDecision.buyZone ?? "-")}</p>
+                  </div>
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">{"\u76ee\u6a19\u50f9"}</p>
+                    <p className="mt-1 font-medium text-slate-950">{String(missionDecision.targetPrice ?? "-")}</p>
+                  </div>
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">{"\u505c\u640d"}</p>
+                    <p className="mt-1 font-medium text-slate-950">{String(missionDecision.stopLoss ?? "-")}</p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{"\u6838\u5fc3\u7406\u7531"}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                      {String(missionDecision.reason ?? "-")}
+                    </p>
+                  </div>
+                  {technicals.length ? (
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{"\u6280\u8853\u91cd\u9ede"}</p>
+                      <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-700">
+                        {technicals.map((item) => <li key={item}>- {item}</li>)}
+                      </ul>
+                    </div>
                   ) : null}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </Table>
+                  {risks.length ? (
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{"\u4e3b\u8981\u98a8\u96aa"}</p>
+                      <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-700">
+                        {risks.map((item) => <li key={item}>- {item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {conditions.length ? (
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{"\u884c\u52d5\u689d\u4ef6"}</p>
+                      <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-700">
+                        {conditions.map((item) => <li key={item}>- {item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+                {Object.keys(scenarios).length ? (
+                  <div className="mt-4 rounded-md border border-slate-100 bg-slate-50 p-4">
+                    <p className="mb-2 text-sm font-semibold text-slate-700">{"\u60c5\u5883\u8a55\u4f30"}</p>
+                    <ScenarioSummary scenarios={scenarios} />
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
       </section>
 
       <section className="space-y-3">
