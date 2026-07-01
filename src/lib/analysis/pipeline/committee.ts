@@ -37,7 +37,7 @@ function getRepairModel(provider: string): string {
   return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
 }
 
-async function getAllDivisionModels(): Promise<
+export async function getCommitteeModels(): Promise<
   Array<{ model_provider: string; model_name: string }>
 > {
   const supabase = createSupabaseServiceClient();
@@ -125,7 +125,7 @@ async function getExistingCommitteeDecision(params: {
   return null;
 }
 
-async function runSingleCommitteePass(params: {
+export async function runSingleCommitteePass(params: {
   divisionResults: Extract<DivisionPipelineResult, { status: "completed" }>[];
   model: { model_provider: string; model_name: string };
   dataPackage: DailyDataPackage;
@@ -323,7 +323,7 @@ export async function runCommitteePipeline(params: {
     ];
   }
 
-  const divisionModels = await getAllDivisionModels();
+  const divisionModels = await getCommitteeModels();
   const results: CommitteeRunResult[] = [];
 
   for (const model of divisionModels) {

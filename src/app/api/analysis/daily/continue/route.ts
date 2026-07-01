@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildDailyDataPackage, type DailyDataPackage } from "@/lib/analysis/data-package";
 import { runWebResearch } from "@/lib/analysis/web-research";
-import { runCommitteePipeline } from "@/lib/analysis/pipeline/committee";
+import { getCommitteeModels, runSingleCommitteePass } from "@/lib/analysis/pipeline/committee";
 import type { DivisionPipelineResult } from "@/lib/analysis/pipeline/division";
 import { runDivisionManagerPipeline } from "@/lib/analysis/pipeline/division";
 import { runMarketAnalysis, type MarketAnalysisResult } from "@/lib/analysis/pipeline/market-analysis";
@@ -51,6 +51,7 @@ type DailyRunState = {
   runningTeamKey?: string | null;
   runningTeamStartedAt?: string | null;
   runningCommitteeStartedAt?: string | null;
+  committeeIndex?: number;
 };
 
 function todayIsoDate() {
@@ -359,18 +360,40 @@ export async function POST() {
         return NextResponse.json({ status: "running", stage: "committee", dailyRunId });
       }
 
+      const completedDivisionResults = toDivisionPipelineResults(state.divisionResults ?? []).filter(
+        (result): result is Extract<DivisionPipelineResult, { status: "completed" }> =>
+          result.status === "completed"
+      );
+      const committeeModels = await getCommitteeModels();
+      const committeeIndex = state.committeeIndex ?? state.committeeResults?.length ?? 0;
+      const committeeModel = committeeModels[committeeIndex];
+
+      if (!committeeModel || completedDivisionResults.length < 2) {
+        await updateRunState(dailyRunId, {
+          ...state,
+          pipelineStage: "recommendations",
+          stageMessage: "委員會完成，正在寫入建議。",
+          committeeIndex: committeeModels.length,
+          runningCommitteeStartedAt: null
+        });
+
+        return NextResponse.json({ status: "running", stage: "recommendations", dailyRunId });
+      }
+
       await updateRunState(dailyRunId, {
         ...state,
+        committeeIndex,
         runningCommitteeStartedAt: new Date().toISOString()
       });
 
-      const committeeResults = await runCommitteePipeline({
-        divisionResults: toDivisionPipelineResults(state.divisionResults ?? []),
+      const result = await runSingleCommitteePass({
+        divisionResults: completedDivisionResults,
+        model: committeeModel,
         dataPackage,
         dailyRunId,
         userId: user.id
       });
-      const storedCommitteeResults: StoredCommitteeResult[] = committeeResults.map((result) =>
+      const storedCommitteeResult: StoredCommitteeResult =
         result.status === "completed"
           ? {
               status: "completed",
@@ -382,18 +405,32 @@ export async function POST() {
               status: "failed",
               error: result.error,
               modelProvider: result.modelProvider
-            }
-      );
+            };
+      const nextCommitteeResults = [
+        ...(state.committeeResults ?? []).filter(
+          (storedResult) => storedResult.modelProvider !== storedCommitteeResult.modelProvider
+        ),
+        storedCommitteeResult
+      ];
+      const nextCommitteeIndex = committeeIndex + 1;
+      const isCommitteeComplete = nextCommitteeIndex >= committeeModels.length;
 
       await updateRunState(dailyRunId, {
         ...state,
-        pipelineStage: "recommendations",
-        stageMessage: "委員會完成，正在寫入建議。",
-        committeeResults: storedCommitteeResults,
+        pipelineStage: isCommitteeComplete ? "recommendations" : "committee",
+        stageMessage: isCommitteeComplete
+          ? "委員會完成，正在寫入建議。"
+          : `已完成 ${nextCommitteeIndex}/${committeeModels.length} 份委員會決策。`,
+        committeeIndex: nextCommitteeIndex,
+        committeeResults: nextCommitteeResults,
         runningCommitteeStartedAt: null
       });
 
-      return NextResponse.json({ status: "running", stage: "recommendations", dailyRunId });
+      return NextResponse.json({
+        status: "running",
+        stage: isCommitteeComplete ? "recommendations" : "committee",
+        dailyRunId
+      });
     }
 
     if (stage === "recommendations") {
