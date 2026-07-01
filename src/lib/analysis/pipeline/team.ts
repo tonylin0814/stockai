@@ -542,21 +542,32 @@ async function getCompletedAgentOutput(params: {
   dailyRunId?: string | null;
   teamAgentId: string | null;
   promptKey: keyof typeof PROMPT_VERSIONS;
+  provider: string;
+  model: string;
+  inputSummary: string;
   dataPackage: DailyDataPackage;
 }) {
-  if (!params.dailyRunId || !params.teamAgentId) return null;
+  if (!params.dailyRunId) return null;
 
   const supabase = createSupabaseServiceClient();
-  const { data } = await supabase
+  let query = supabase
     .from("agent_runs")
     .select("output")
     .eq("user_id", params.userId)
     .eq("daily_run_id", params.dailyRunId)
-    .eq("team_agent_id", params.teamAgentId)
     .eq("prompt_key", params.promptKey)
+    .eq("model_provider", params.provider)
+    .eq("model_name", params.model)
+    .eq("input_summary", params.inputSummary)
     .eq("status", "completed")
     .order("completed_at", { ascending: false })
     .limit(5);
+
+  query = params.teamAgentId
+    ? query.eq("team_agent_id", params.teamAgentId)
+    : query.is("team_agent_id", null);
+
+  const { data } = await query;
 
   for (const row of (data ?? []) as Array<{ output: unknown }>) {
     try {
@@ -646,11 +657,15 @@ export async function runTeamPipeline(params: {
     let estimatedCostUsd = 0;
     const leafModel = getLeafAgentModel(params.division.model_name);
     const teamAgentId = teamAgentIds.get(step.agentType) ?? null;
+    const summary = inputSummary(prompt);
     const cachedOutput = await getCompletedAgentOutput({
       userId: params.userId,
       dailyRunId: params.dailyRunId,
       teamAgentId,
       promptKey: step.promptKey,
+      provider: params.division.model_provider,
+      model: leafModel,
+      inputSummary: summary,
       dataPackage: params.dataPackage
     });
 
@@ -703,7 +718,7 @@ export async function runTeamPipeline(params: {
         provider: params.division.model_provider,
         model: leafModel,
         promptKey: step.promptKey,
-        inputSummary: inputSummary(prompt),
+        inputSummary: summary,
         output: cappedOutput,
         confidence: cappedOutput.confidence,
         tokenCount,
@@ -723,7 +738,7 @@ export async function runTeamPipeline(params: {
         provider: params.division.model_provider,
         model: leafModel,
         promptKey: step.promptKey,
-        inputSummary: inputSummary(prompt),
+        inputSummary: summary,
         output: {
           error: error instanceof Error ? error.message : "Unknown agent failure"
         },
