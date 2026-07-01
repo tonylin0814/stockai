@@ -59,6 +59,72 @@ function isFinalScenariosColumnMissing(error: { message?: string } | null) {
   return Boolean(error?.message?.includes("final_scenarios"));
 }
 
+function rowToCommitteeDecision(row: Record<string, unknown>): CommitteeDecision {
+  return CommitteeDecisionSchema.parse({
+    finalAction: row.final_action,
+    actionType: row.action_type ?? "wait",
+    consensusLevel: row.consensus_level,
+    divisionConclusions: {
+      divisionInputs: row.division_inputs ?? []
+    },
+    agreements:
+      typeof row.agreement_summary === "string" && row.agreement_summary.length > 0
+        ? row.agreement_summary.split("\n").filter(Boolean)
+        : [],
+    disagreements:
+      typeof row.disagreement_summary === "string" && row.disagreement_summary.length > 0
+        ? row.disagreement_summary.split("\n").filter(Boolean)
+        : [],
+    finalBuyZone: "—",
+    finalTargetPrice: "—",
+    finalStopLoss: "—",
+    finalScenarios: row.final_scenarios ?? undefined,
+    finalPositionSize: "—",
+    finalRecommendations: row.final_recommendations ?? [],
+    confidence: Number(row.confidence ?? 0),
+    isActionAllowed: Boolean(row.is_action_allowed),
+    reason: row.decision_summary ?? "已使用既有委員會決策。",
+    mostConservativeDivision: "—",
+    mostAggressiveDivision: "—",
+    whatCouldChangeDecision: []
+  });
+}
+
+async function getExistingCommitteeDecision(params: {
+  dailyRunId?: string | null;
+  userId: string;
+  modelProvider: string;
+}): Promise<CommitteeRunResult | null> {
+  if (!params.dailyRunId) return null;
+
+  const supabase = createSupabaseServiceClient();
+  const { data } = await supabase
+    .from("committee_decisions")
+    .select(
+      "id, final_action, action_type, consensus_level, confidence, decision_summary, agreement_summary, disagreement_summary, final_recommendations, division_inputs, is_action_allowed, final_scenarios, model_provider"
+    )
+    .eq("daily_run_id", params.dailyRunId)
+    .eq("user_id", params.userId)
+    .eq("model_provider", params.modelProvider)
+    .order("created_at", { ascending: true })
+    .limit(5);
+
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    try {
+      return {
+        status: "completed",
+        decision: rowToCommitteeDecision(row),
+        committeeDecisionId: String(row.id),
+        modelProvider: params.modelProvider
+      };
+    } catch {
+      // Older or partial rows may not map cleanly; try the next row.
+    }
+  }
+
+  return null;
+}
+
 async function runSingleCommitteePass(params: {
   divisionResults: Extract<DivisionPipelineResult, { status: "completed" }>[];
   model: { model_provider: string; model_name: string };
@@ -76,6 +142,15 @@ async function runSingleCommitteePass(params: {
   let promptTokens = 0;
   let completionTokens = 0;
   let estimatedCostUsd = 0;
+  const existingDecision = await getExistingCommitteeDecision({
+    dailyRunId: params.dailyRunId,
+    userId: params.userId,
+    modelProvider: params.model.model_provider
+  });
+
+  if (existingDecision) {
+    return existingDecision;
+  }
 
   try {
     const modelResult = await callModel({

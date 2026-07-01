@@ -50,6 +50,7 @@ type DailyRunState = {
   error?: string;
   runningTeamKey?: string | null;
   runningTeamStartedAt?: string | null;
+  runningCommitteeStartedAt?: string | null;
 };
 
 function todayIsoDate() {
@@ -72,6 +73,11 @@ function asState(value: unknown): DailyRunState {
 const TEAM_LOCK_TIMEOUT_MS = 90_000;
 
 function isTeamLockStale(startedAt: string | null | undefined): boolean {
+  if (!startedAt) return true;
+  return Date.now() - new Date(startedAt).getTime() > TEAM_LOCK_TIMEOUT_MS;
+}
+
+function isCommitteeLockStale(startedAt: string | null | undefined): boolean {
   if (!startedAt) return true;
   return Date.now() - new Date(startedAt).getTime() > TEAM_LOCK_TIMEOUT_MS;
 }
@@ -349,6 +355,15 @@ export async function POST() {
     }
 
     if (stage === "committee") {
+      if (state.runningCommitteeStartedAt && !isCommitteeLockStale(state.runningCommitteeStartedAt)) {
+        return NextResponse.json({ status: "running", stage: "committee", dailyRunId });
+      }
+
+      await updateRunState(dailyRunId, {
+        ...state,
+        runningCommitteeStartedAt: new Date().toISOString()
+      });
+
       const committeeResults = await runCommitteePipeline({
         divisionResults: toDivisionPipelineResults(state.divisionResults ?? []),
         dataPackage,
@@ -374,7 +389,8 @@ export async function POST() {
         ...state,
         pipelineStage: "recommendations",
         stageMessage: "委員會完成，正在寫入建議。",
-        committeeResults: storedCommitteeResults
+        committeeResults: storedCommitteeResults,
+        runningCommitteeStartedAt: null
       });
 
       return NextResponse.json({ status: "running", stage: "recommendations", dailyRunId });
