@@ -55,7 +55,7 @@ export async function POST(
     await assertAnalysisBudget({ userId: user.id, missionId });
 
     const { data: mission } = await supabase
-      .from("missions")
+      .from("stocks_missions")
       .select("id, status, started_at")
       .eq("id", missionId)
       .eq("user_id", user.id)
@@ -75,7 +75,7 @@ export async function POST(
       }
 
       await supabase
-        .from("missions")
+        .from("stocks_missions")
         .update({
           status: "failed",
           completed_at: new Date().toISOString(),
@@ -86,15 +86,15 @@ export async function POST(
     }
 
     await supabase
-      .from("missions")
+      .from("stocks_missions")
       .update({ status: "running", started_at: new Date().toISOString(), error_message: null })
       .eq("id", missionId)
       .eq("user_id", user.id);
 
     await Promise.all([
-      supabase.from("committee_decisions").delete().eq("mission_id", missionId).eq("user_id", user.id),
-      supabase.from("division_decisions").delete().eq("mission_id", missionId).eq("user_id", user.id),
-      supabase.from("team_reports").delete().eq("mission_id", missionId).eq("user_id", user.id)
+      supabase.from("stocks_committee_decisions").delete().eq("mission_id", missionId).eq("user_id", user.id),
+      supabase.from("stocks_division_decisions").delete().eq("mission_id", missionId).eq("user_id", user.id),
+      supabase.from("stocks_team_reports").delete().eq("mission_id", missionId).eq("user_id", user.id)
     ]);
 
     const dataPackage = await buildMissionDataPackage(user.id, missionId);
@@ -122,7 +122,7 @@ export async function POST(
         : null;
 
     const { data: divisionsData, error: divisionsError } = await supabase
-      .from("divisions")
+      .from("stocks_divisions")
       .select("*")
       .eq("is_enabled", true)
       .eq("participates_in_committee", true)
@@ -157,7 +157,7 @@ export async function POST(
         divisionDecisionId: result.divisionDecisionId
       }));
     const { data: savedTeamReports } = await supabase
-      .from("team_reports")
+      .from("stocks_team_reports")
       .select("id, division, team_name, team_leader, market_view, portfolio_review, mission_analysis, market_scan_recommendations, final_team_view")
       .eq("mission_id", missionId);
     const teamReports = ((savedTeamReports ?? []) as Array<Record<string, unknown>>).map((row) => ({
@@ -196,7 +196,7 @@ export async function POST(
     });
 
     await supabase
-      .from("missions")
+      .from("stocks_missions")
       .update({
         status: "completed",
         completed_at: new Date().toISOString(),
@@ -221,7 +221,7 @@ export async function POST(
     });
   } catch (error) {
     await supabase
-      .from("missions")
+      .from("stocks_missions")
       .update({
         status: "failed",
         completed_at: new Date().toISOString(),

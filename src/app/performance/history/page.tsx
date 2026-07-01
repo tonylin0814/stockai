@@ -80,9 +80,9 @@ export default async function PerformanceHistoryPage({
   if (!user) return null;
 
   const { data } = await supabase
-    .from("recommendation_outcomes")
+    .from("stocks_recommendation_outcomes")
     .select(
-      "id, evaluation_date, horizon_days, start_price, end_price, return_pct, max_drawdown_pct, hit_target, hit_stop_loss, direction_correct, missed_opportunity, score_delta, recommendations!inner(id, source_type, source_name, division, team_name, action, confidence, reason, user_rating, target_price, stop_loss, user_id, securities(symbol, market, name))"
+      "id, evaluation_date, horizon_days, start_price, end_price, return_pct, max_drawdown_pct, hit_target, hit_stop_loss, direction_correct, missed_opportunity, score_delta, recommendations:stocks_recommendations!inner(id, source_type, source_name, division, team_name, action, confidence, reason, user_rating, target_price, stop_loss, user_id, securities:stocks_securities(symbol, market, name))"
     )
     .eq("recommendations.user_id", user.id)
     .order("evaluation_date", { ascending: false })

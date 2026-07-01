@@ -68,7 +68,7 @@ export async function runDivisionPipeline(params: {
 }): Promise<DivisionPipelineResult> {
   const supabase = createSupabaseServiceClient();
   const { data: teamsData, error: teamsError } = await supabase
-    .from("division_teams")
+    .from("stocks_division_teams")
     .select("*")
     .eq("division_id", params.division.id)
     .eq("is_enabled", true)
@@ -169,7 +169,7 @@ export async function runDivisionManagerPipeline(params: {
     const decision = validation.parsed;
     const familyId = await getFamilyId(params.userId);
     const { data, error } = await supabase
-      .from("division_decisions")
+      .from("stocks_division_decisions")
       .insert({
         user_id: params.userId,
         family_id: familyId,

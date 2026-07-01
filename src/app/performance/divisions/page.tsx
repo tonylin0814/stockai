@@ -37,7 +37,7 @@ export default async function DivisionPerformancePage() {
   if (!user) return null;
 
   const { data } = await supabase
-    .from("influence_scores")
+    .from("stocks_influence_scores")
     .select(
       "id, entity_name, division, score_date, accuracy_score, return_score, risk_control_score, confidence_calibration_score, influence_points, decision_weight"
     )

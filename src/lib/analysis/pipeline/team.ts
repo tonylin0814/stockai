@@ -479,7 +479,7 @@ async function validateOrRepair<T>(params: {
 async function getFamilyId(userId: string) {
   const supabase = createSupabaseServiceClient();
   const { data } = await supabase
-    .from("profiles")
+    .from("stocks_profiles")
     .select("family_id")
     .eq("id", userId)
     .maybeSingle();
@@ -490,7 +490,7 @@ async function getFamilyId(userId: string) {
 async function getTeamAgentIds(teamId: string) {
   const supabase = createSupabaseServiceClient();
   const { data } = await supabase
-    .from("team_agents")
+    .from("stocks_team_agents")
     .select("id, agent_type")
     .eq("division_team_id", teamId);
 
@@ -523,7 +523,7 @@ async function saveAgentRun(params: {
   errorMessage?: string;
 }) {
   const supabase = createSupabaseServiceClient();
-  await supabase.from("agent_runs").insert({
+  await supabase.from("stocks_agent_runs").insert({
     user_id: params.userId,
     daily_run_id: params.dailyRunId,
     mission_id: params.missionId ?? null,
@@ -560,7 +560,7 @@ async function getCompletedAgentOutput(params: {
 
   const supabase = createSupabaseServiceClient();
   let query = supabase
-    .from("agent_runs")
+    .from("stocks_agent_runs")
     .select("output")
     .eq("user_id", params.userId)
     .eq("daily_run_id", params.dailyRunId)
@@ -610,7 +610,7 @@ export async function runTeamPipeline(params: {
   // --- idempotency: skip if this team already has a completed report ---
   if (params.dailyRunId) {
     const { data: existingRow } = await supabase
-      .from("team_reports")
+      .from("stocks_team_reports")
       .select(
         "id, market_view, portfolio_review, mission_analysis, market_scan_recommendations, final_team_view, team_leader"
       )
@@ -816,7 +816,7 @@ export async function runTeamPipeline(params: {
     const report = capTeamReport(validation.parsed, params.dataPackage);
     const familyId = await getFamilyId(params.userId);
     const { data, error } = await supabase
-      .from("team_reports")
+      .from("stocks_team_reports")
       .insert({
         user_id: params.userId,
         family_id: familyId,

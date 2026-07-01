@@ -58,19 +58,19 @@ export default async function MissionsPage() {
 
   const [missionsResult, holdingsResult, watchlistResult] = await Promise.all([
     supabase
-      .from("missions")
+      .from("stocks_missions")
       .select("id, title, mission_type, status, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
     supabase
-      .from("portfolio_holdings")
-      .select("id, securities(symbol, market, name)")
+      .from("stocks_portfolio_holdings")
+      .select("id, securities:stocks_securities(symbol, market, name)")
       .eq("user_id", user.id)
       .eq("is_active", true)
       .order("created_at", { ascending: false }),
     supabase
-      .from("watchlist_items")
-      .select("id, securities(symbol, market, name)")
+      .from("stocks_watchlist_items")
+      .select("id, securities:stocks_securities(symbol, market, name)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
   ]);

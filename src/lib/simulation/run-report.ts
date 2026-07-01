@@ -134,7 +134,7 @@ export async function runReportForUser(
 
   for (const division of ["gpt", "anthropic"] as Division[]) {
     const { data: portfoliosData } = await supabase
-      .from("sim_portfolios")
+      .from("stocks_sim_portfolios")
       .select("*")
       .eq("user_id", userId)
       .eq("division", division);
@@ -143,12 +143,12 @@ export async function runReportForUser(
 
     const [{ data: tradesData }, { data: positionsData }] = await Promise.all([
       supabase
-        .from("sim_trades")
+        .from("stocks_sim_trades")
         .select("*")
         .eq("session_date", reportDate)
         .in("portfolio_id", portfolioIds.length ? portfolioIds : ["00000000-0000-0000-0000-000000000000"]),
       supabase
-        .from("sim_positions")
+        .from("stocks_sim_positions")
         .select("*")
         .eq("status", "open")
         .in("portfolio_id", portfolioIds.length ? portfolioIds : ["00000000-0000-0000-0000-000000000000"])
@@ -162,7 +162,7 @@ export async function runReportForUser(
     const usValue = portfolioValue(usPortfolio, usPositions);
     const twValue = portfolioValue(twPortfolio, twPositions);
     const { data: prevReport } = await supabase
-      .from("sim_daily_reports")
+      .from("stocks_sim_daily_reports")
       .select("us_portfolio_value, tw_portfolio_value")
       .eq("user_id", userId)
       .eq("division", division)
@@ -206,7 +206,7 @@ export async function runReportForUser(
     });
     const report = validation.parsed;
 
-    await supabase.from("sim_daily_reports").upsert(
+    await supabase.from("stocks_sim_daily_reports").upsert(
       {
         user_id: userId,
         division,
@@ -237,7 +237,7 @@ export async function runReportForUser(
       plannedActions: report.planned_actions ?? null
     });
     await saveExtractedPredictions({ supabase, userId, division, reportDate, predictions });
-    await supabase.from("agent_runs").insert({
+    await supabase.from("stocks_agent_runs").insert({
       user_id: userId,
       status: "completed",
       model_provider: model.provider,

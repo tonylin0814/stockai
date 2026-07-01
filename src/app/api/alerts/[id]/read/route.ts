@@ -16,7 +16,7 @@ export async function POST(
   }
 
   await createSupabaseServiceClient()
-    .from("alerts")
+    .from("stocks_alerts")
     .update({ is_read: true })
     .eq("id", params.id)
     .eq("user_id", user.id);

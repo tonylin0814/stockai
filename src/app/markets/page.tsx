@@ -116,19 +116,19 @@ export default async function MarketsPage({
   if (user) {
     const [holdingsResult, watchlistResult, simPositionsResult] = await Promise.all([
       supabase
-        .from("portfolio_holdings")
-        .select("id, shares, average_cost, cost_currency, securities(symbol, market, name)")
+        .from("stocks_portfolio_holdings")
+        .select("id, shares, average_cost, cost_currency, securities:stocks_securities(symbol, market, name)")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .order("created_at", { ascending: false }),
       supabase
-        .from("watchlist_items")
-        .select("id, target_buy_price, reason, securities(symbol, market, name)")
+        .from("stocks_watchlist_items")
+        .select("id, target_buy_price, reason, securities:stocks_securities(symbol, market, name)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
-        .from("sim_positions")
-        .select("id, symbol, market, name, shares, avg_cost_price, current_price, sim_portfolios!inner(division, market, user_id)")
+        .from("stocks_sim_positions")
+        .select("id, symbol, market, name, shares, avg_cost_price, current_price, sim_portfolios:stocks_sim_portfolios!inner(division, market, user_id)")
         .eq("sim_portfolios.user_id", user.id)
         .eq("status", "open")
         .order("opened_at", { ascending: false })
@@ -182,7 +182,7 @@ export default async function MarketsPage({
   let lastAnalysisAt: string | null = null;
   if (user) {
     const { data: lastRun } = await supabase
-      .from("daily_runs")
+      .from("stocks_daily_runs")
       .select("completed_at, started_at, created_at")
       .eq("user_id", user.id)
       .eq("status", "completed")

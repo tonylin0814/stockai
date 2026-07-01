@@ -47,7 +47,7 @@ export default async function PerformancePage() {
 
   const [{ data: influenceData }, { count: outcomeCount }] = await Promise.all([
     supabase
-      .from("influence_scores")
+      .from("stocks_influence_scores")
       .select(
         "id, entity_type, entity_name, division, score_date, influence_points, accuracy_score, return_score, risk_control_score, confidence_calibration_score"
       )
@@ -55,8 +55,8 @@ export default async function PerformancePage() {
       .order("score_date", { ascending: false })
       .order("created_at", { ascending: false }),
     supabase
-      .from("recommendation_outcomes")
-      .select("id, recommendations!inner(user_id)", { count: "exact", head: true })
+      .from("stocks_recommendation_outcomes")
+      .select("id, recommendations:stocks_recommendations!inner(user_id)", { count: "exact", head: true })
       .eq("recommendations.user_id", user.id)
   ]);
   const latestScores = latestByEntity((influenceData ?? []) as InfluenceRow[]);

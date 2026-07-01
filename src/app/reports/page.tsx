@@ -30,8 +30,8 @@ export default async function ReportsPage() {
   if (!user) return null;
 
   const { data } = await supabase
-    .from("daily_runs")
-    .select("id, run_date, status, created_at, committee_decisions(final_action, consensus_level, confidence, is_action_allowed)")
+    .from("stocks_daily_runs")
+    .select("id, run_date, status, created_at, committee_decisions:stocks_committee_decisions(final_action, consensus_level, confidence, is_action_allowed)")
     .eq("user_id", user.id)
     .order("run_date", { ascending: false })
     .limit(90);

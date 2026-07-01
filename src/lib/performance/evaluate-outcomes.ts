@@ -94,9 +94,9 @@ export async function evaluateOutcomes(
   let skipped = 0;
 
   const { data: recommendations, error } = await supabase
-    .from("recommendations")
+    .from("stocks_recommendations")
     .select(
-      "id, action, recommendation_date, target_price, stop_loss, status, securities(symbol, market), recommendation_outcomes(horizon_days)"
+      "id, action, recommendation_date, target_price, stop_loss, status, securities:stocks_securities(symbol, market), recommendation_outcomes:stocks_recommendation_outcomes(horizon_days)"
     )
     .eq("user_id", userId)
     .eq("status", "open")
@@ -177,7 +177,7 @@ export async function evaluateOutcomes(
       const missedOpportunity =
         returnPct === null ? null : WAIT_ACTIONS.has(action) ? returnPct > 10 : false;
 
-      const { error: insertError } = await supabase.from("recommendation_outcomes").insert({
+      const { error: insertError } = await supabase.from("stocks_recommendation_outcomes").insert({
         recommendation_id: recommendation.id,
         evaluation_date: evaluationDate,
         horizon_days: horizonDays,
@@ -204,7 +204,7 @@ export async function evaluateOutcomes(
 
     if (HORIZONS.every((horizon) => existingHorizons.has(horizon))) {
       await supabase
-        .from("recommendations")
+        .from("stocks_recommendations")
         .update({ status: "evaluated" })
         .eq("id", recommendation.id)
         .eq("user_id", userId);

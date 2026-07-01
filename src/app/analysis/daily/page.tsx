@@ -405,7 +405,7 @@ export default async function DailyAnalysisPage({
 
   const today = todayIsoDate();
   const { data: run } = await supabase
-    .from("daily_runs")
+    .from("stocks_daily_runs")
     .select("id, status, run_date, data_package, started_at, completed_at, created_at")
     .eq("user_id", user.id)
     .eq("run_date", today)
@@ -449,50 +449,50 @@ export default async function DailyAnalysisPage({
       latestAgentRuns
     ] = await Promise.all([
       supabase
-        .from("divisions")
+        .from("stocks_divisions")
         .select("id", { count: "exact", head: true })
         .eq("is_enabled", true)
         .eq("participates_in_committee", true),
       supabase
-        .from("division_teams")
+        .from("stocks_division_teams")
         .select("id", { count: "exact", head: true })
         .eq("is_enabled", true),
       supabase
-        .from("team_reports")
+        .from("stocks_team_reports")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId),
       supabase
-        .from("division_decisions")
+        .from("stocks_division_decisions")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId),
       supabase
-        .from("committee_decisions")
+        .from("stocks_committee_decisions")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId),
       supabase
-        .from("recommendations")
+        .from("stocks_recommendations")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId),
       supabase
-        .from("daily_scan_picks")
+        .from("stocks_daily_scan_picks")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId),
       supabase
-        .from("market_analysis_runs")
+        .from("stocks_market_analysis_runs")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId),
       supabase
-        .from("agent_runs")
+        .from("stocks_agent_runs")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId)
         .eq("status", "completed"),
       supabase
-        .from("agent_runs")
+        .from("stocks_agent_runs")
         .select("id", { count: "exact", head: true })
         .eq("daily_run_id", runId)
         .eq("status", "failed"),
       supabase
-        .from("agent_runs")
+        .from("stocks_agent_runs")
         .select("prompt_key, error_message")
         .eq("daily_run_id", runId)
         .eq("status", "failed")
@@ -500,7 +500,7 @@ export default async function DailyAnalysisPage({
         .limit(1)
         .maybeSingle(),
       supabase
-        .from("agent_runs")
+        .from("stocks_agent_runs")
         .select("prompt_key, model_provider, model_name, status, error_message, created_at")
         .eq("daily_run_id", runId)
         .order("created_at", { ascending: false })
@@ -538,7 +538,7 @@ export default async function DailyAnalysisPage({
     }));
 
     const { data: committeeData } = await supabase
-      .from("committee_decisions")
+      .from("stocks_committee_decisions")
       .select("*")
       .eq("daily_run_id", runId)
       .eq("user_id", user.id)
@@ -547,7 +547,7 @@ export default async function DailyAnalysisPage({
     progress = { ...progress, committeeDecisions: committeeRows.length };
   }
   const { data: analysisData } = await supabase
-    .from("market_analysis_runs")
+    .from("stocks_market_analysis_runs")
     .select("*")
     .eq("user_id", user.id)
     .eq("market", activeMarket)

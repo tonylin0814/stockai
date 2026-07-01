@@ -83,8 +83,8 @@ export default async function PaperTradesPage() {
   if (!user) return null;
 
   const { data } = await supabase
-    .from("paper_trades")
-    .select("id, direction, entry_date, entry_price, shares, target_price, stop_loss, exit_date, exit_price, return_pct, status, securities(symbol, market)")
+    .from("stocks_paper_trades")
+    .select("id, direction, entry_date, entry_price, shares, target_price, stop_loss, exit_date, exit_price, return_pct, status, securities:stocks_securities(symbol, market)")
     .eq("user_id", user.id)
     .order("entry_date", { ascending: false });
   const trades = (data ?? []) as unknown as PaperTrade[];

@@ -119,22 +119,22 @@ export default async function SimulationPage({
     weeklyEvalsResult,
     allScoresResult
   ] = await Promise.all([
-    supabase.from("sim_portfolios").select("*").eq("user_id", user.id).eq("division", division),
+    supabase.from("stocks_sim_portfolios").select("*").eq("user_id", user.id).eq("division", division),
     supabase
-      .from("sim_positions")
-      .select("*, sim_portfolios!inner(division, market, user_id)")
+      .from("stocks_sim_positions")
+      .select("*, sim_portfolios:stocks_sim_portfolios!inner(division, market, user_id)")
       .eq("sim_portfolios.user_id", user.id)
       .eq("sim_portfolios.division", division)
       .eq("status", "open"),
     supabase
-      .from("sim_trades")
-      .select("*, sim_portfolios!inner(division, market, user_id)")
+      .from("stocks_sim_trades")
+      .select("*, sim_portfolios:stocks_sim_portfolios!inner(division, market, user_id)")
       .eq("sim_portfolios.user_id", user.id)
       .eq("sim_portfolios.division", division)
       .order("executed_at", { ascending: false })
       .limit(20),
     supabase
-      .from("sim_daily_reports")
+      .from("stocks_sim_daily_reports")
       .select("*")
       .eq("user_id", user.id)
       .eq("division", division)
@@ -142,7 +142,7 @@ export default async function SimulationPage({
       .limit(1)
       .maybeSingle(),
     supabase
-      .from("sim_scores")
+      .from("stocks_sim_scores")
       .select("*")
       .eq("user_id", user.id)
       .eq("division", division)
@@ -150,21 +150,21 @@ export default async function SimulationPage({
       .limit(1)
       .maybeSingle(),
     supabase
-      .from("sim_scores")
+      .from("stocks_sim_scores")
       .select("*")
       .eq("user_id", user.id)
       .eq("division", division)
       .order("score_date", { ascending: true })
       .limit(8),
     supabase
-      .from("sim_weekly_evals")
+      .from("stocks_sim_weekly_evals")
       .select("*")
       .eq("user_id", user.id)
       .eq("division", division)
       .order("week_end", { ascending: false })
       .limit(8),
     supabase
-      .from("sim_scores")
+      .from("stocks_sim_scores")
       .select("division, total_score, badges")
       .eq("user_id", user.id)
       .order("score_date", { ascending: false })

@@ -121,7 +121,7 @@ technicalHighlights 是技術面專屬摘要，每條 1 句話，必須包含具
 async function getQuickModels() {
   const supabase = createSupabaseServiceClient();
   const { data, error } = await supabase
-    .from("divisions")
+    .from("stocks_divisions")
     .select("name, manager_name, model_provider, model_name")
     .eq("is_enabled", true)
     .order("sort_order", { ascending: true })
@@ -421,7 +421,7 @@ export async function runSingleStockMission(params: {
 
   for (const result of completed) {
     const { data, error } = await supabase
-      .from("division_decisions")
+      .from("stocks_division_decisions")
       .insert({
         user_id: params.userId,
         family_id: familyId,
@@ -474,7 +474,7 @@ export async function runSingleStockMission(params: {
     is_action_allowed: consensus.isActionAllowed
   };
   let { data: committeeData, error: committeeError } = await supabase
-    .from("committee_decisions")
+    .from("stocks_committee_decisions")
     .insert(committeePayload)
     .select("id")
     .single();
@@ -482,7 +482,7 @@ export async function runSingleStockMission(params: {
   if (isFinalScenariosColumnMissing(committeeError)) {
     delete committeePayload.final_scenarios;
     ({ data: committeeData, error: committeeError } = await supabase
-      .from("committee_decisions")
+      .from("stocks_committee_decisions")
       .insert(committeePayload)
       .select("id")
       .single());

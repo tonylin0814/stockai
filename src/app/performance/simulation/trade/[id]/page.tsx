@@ -42,8 +42,8 @@ export default async function TradeDetailPage({ params }: { params: { id: string
   if (!user) return null;
 
   const { data } = await supabase
-    .from("sim_trades")
-    .select("*, sim_portfolios!inner(division, user_id)")
+    .from("stocks_sim_trades")
+    .select("*, sim_portfolios:stocks_sim_portfolios!inner(division, user_id)")
     .eq("id", params.id)
     .eq("sim_portfolios.user_id", user.id)
     .maybeSingle();

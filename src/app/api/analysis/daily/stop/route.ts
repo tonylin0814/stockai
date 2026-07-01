@@ -20,7 +20,7 @@ export async function POST() {
 
   const supabase = createSupabaseServiceClient();
   const { data: run } = await supabase
-    .from("daily_runs")
+    .from("stocks_daily_runs")
     .select("id, data_package")
     .eq("user_id", user.id)
     .eq("run_date", todayIsoDate())
@@ -40,7 +40,7 @@ export async function POST() {
   const stoppedAt = new Date().toISOString();
 
   const { error } = await supabase
-    .from("daily_runs")
+    .from("stocks_daily_runs")
     .update({
       status: "failed",
       completed_at: stoppedAt,

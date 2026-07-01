@@ -28,9 +28,9 @@ type WatchlistItem = {
 export default async function WatchlistPage() {
   const supabase = createSupabaseServerClient();
   const { data: items, error } = await supabase
-    .from("watchlist_items")
+    .from("stocks_watchlist_items")
     .select(
-      "id, visibility, reason, target_buy_price, alert_price, status, notes, securities(symbol, market, name, security_type)"
+      "id, visibility, reason, target_buy_price, alert_price, status, notes, securities:stocks_securities(symbol, market, name, security_type)"
     )
     .order("created_at", { ascending: false });
 

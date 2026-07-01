@@ -55,7 +55,7 @@ export async function buildDecisionMemory(
   cutoff.setDate(cutoff.getDate() - 60);
 
   const { data, error } = await supabase
-    .from("recommendations")
+    .from("stocks_recommendations")
     .select(
       `
       id,
@@ -66,8 +66,8 @@ export async function buildDecisionMemory(
       target_price,
       stop_loss,
       recommendation_date,
-      securities!inner(symbol, market),
-      recommendation_outcomes(
+      securities:stocks_securities!inner(symbol, market),
+      recommendation_outcomes:stocks_recommendation_outcomes(
         horizon_days,
         return_pct,
         direction_correct,

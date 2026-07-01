@@ -115,14 +115,14 @@ async function ensureConfig(
   userId: string
 ) {
   const { data: existing } = await supabase
-    .from("sim_config")
+    .from("stocks_sim_config")
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
   if (existing) return existing as Record<string, unknown>;
 
   const { data, error } = await supabase
-    .from("sim_config")
+    .from("stocks_sim_config")
     .insert({ user_id: userId })
     .select("*")
     .single();
@@ -138,7 +138,7 @@ async function ensurePortfolio(
 ) {
   const startingCash = market === "US" ? 10000 : 300000;
   const { data: existing } = await supabase
-    .from("sim_portfolios")
+    .from("stocks_sim_portfolios")
     .select("*")
     .eq("user_id", userId)
     .eq("division", division)
@@ -148,7 +148,7 @@ async function ensurePortfolio(
   if (existing) return existing as Portfolio;
 
   const { data, error } = await supabase
-    .from("sim_portfolios")
+    .from("stocks_sim_portfolios")
     .insert({
       user_id: userId,
       division,
@@ -168,7 +168,7 @@ async function reconcilePortfolioCash(
   portfolio: Portfolio
 ) {
   const { data: trades } = await supabase
-    .from("sim_trades")
+    .from("stocks_sim_trades")
     .select("action, total_amount")
     .eq("portfolio_id", portfolio.id);
   const currentCash = (trades ?? []).reduce(
@@ -181,7 +181,7 @@ async function reconcilePortfolioCash(
 
   if (Math.abs(currentCash - Number(portfolio.current_cash)) > 0.01) {
     await supabase
-      .from("sim_portfolios")
+      .from("stocks_sim_portfolios")
       .update({ current_cash: currentCash })
       .eq("id", portfolio.id);
     return { ...portfolio, current_cash: currentCash };
@@ -195,7 +195,7 @@ async function loadPortfolioById(
   portfolioId: string
 ) {
   const { data, error } = await supabase
-    .from("sim_portfolios")
+    .from("stocks_sim_portfolios")
     .select("*")
     .eq("id", portfolioId)
     .single();
@@ -208,7 +208,7 @@ async function loadOpenPositions(
   portfolioId: string
 ) {
   const { data } = await supabase
-    .from("sim_positions")
+    .from("stocks_sim_positions")
     .select("*")
     .eq("portfolio_id", portfolioId)
     .eq("status", "open");
@@ -251,7 +251,7 @@ async function hasSameDayConflict(
   sessionDate: string
 ) {
   const { data } = await supabase
-    .from("sim_trades")
+    .from("stocks_sim_trades")
     .select("action")
     .eq("portfolio_id", portfolioId)
     .eq("symbol", symbol)
@@ -312,14 +312,14 @@ async function executeTrade(params: {
         (Number(existing.shares) * Number(existing.avg_cost_price) + totalAmount) / newShares;
       await requireMutation(
         params.supabase
-          .from("sim_positions")
+          .from("stocks_sim_positions")
           .update({ shares: newShares, avg_cost_price: newAvgCost, current_price: executionPrice })
           .eq("id", existing.id),
         "更新模擬持倉失敗。"
       );
     } else {
       const { data: created, error } = await params.supabase
-        .from("sim_positions")
+        .from("stocks_sim_positions")
         .insert({
           portfolio_id: params.portfolio.id,
           symbol: decision.symbol,
@@ -337,14 +337,14 @@ async function executeTrade(params: {
 
     await requireMutation(
       params.supabase
-        .from("sim_portfolios")
+        .from("stocks_sim_portfolios")
         .update({ current_cash: Number(params.portfolio.current_cash) - totalAmount })
         .eq("id", params.portfolio.id),
       "更新模擬現金失敗。"
     );
 
     await requireMutation(
-      params.supabase.from("sim_trades").insert({
+      params.supabase.from("stocks_sim_trades").insert({
         portfolio_id: params.portfolio.id,
         position_id: positionId,
         action: "buy",
@@ -379,7 +379,7 @@ async function executeTrade(params: {
   if (sharesToSell >= Number(existing.shares)) {
     await requireMutation(
       params.supabase
-        .from("sim_positions")
+        .from("stocks_sim_positions")
         .update({
           status: "closed",
           closed_at: new Date().toISOString(),
@@ -391,7 +391,7 @@ async function executeTrade(params: {
   } else {
     await requireMutation(
       params.supabase
-        .from("sim_positions")
+        .from("stocks_sim_positions")
         .update({ shares: Number(existing.shares) - sharesToSell, current_price: executionPrice })
         .eq("id", existing.id),
       "更新模擬持倉失敗。"
@@ -400,14 +400,14 @@ async function executeTrade(params: {
 
   await requireMutation(
     params.supabase
-      .from("sim_portfolios")
+      .from("stocks_sim_portfolios")
       .update({ current_cash: Number(params.portfolio.current_cash) + proceeds })
       .eq("id", params.portfolio.id),
     "更新模擬現金失敗。"
   );
 
   await requireMutation(
-    params.supabase.from("sim_trades").insert({
+    params.supabase.from("stocks_sim_trades").insert({
       portfolio_id: params.portfolio.id,
       position_id: existing.id,
       action: "sell",
@@ -453,7 +453,7 @@ export async function runTradeForUser(
       await ensurePortfolio(supabase, userId, division, market)
     );
     const { data: existingSession } = await supabase
-      .from("sim_trades")
+      .from("stocks_sim_trades")
       .select("id")
       .eq("portfolio_id", portfolio.id)
       .eq("session_date", sessionDate)
@@ -464,7 +464,7 @@ export async function runTradeForUser(
     }
 
     const { data: positionsData } = await supabase
-      .from("sim_positions")
+      .from("stocks_sim_positions")
       .select("*")
       .eq("portfolio_id", portfolio.id)
       .eq("status", "open");
@@ -556,7 +556,7 @@ export async function runTradeForUser(
       if (ok) executed += 1;
     }
 
-    await supabase.from("agent_runs").insert({
+    await supabase.from("stocks_agent_runs").insert({
       user_id: userId,
       status: "completed",
       model_provider: model.provider,

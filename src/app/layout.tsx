@@ -31,9 +31,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
+  const user = error ? null : data.user;
 
   return (
     <html lang="zh-Hant">

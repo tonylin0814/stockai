@@ -106,7 +106,7 @@ export default async function CioDecisionPage() {
   if (!user) return null;
 
   const { data: latestRun } = await supabase
-    .from("daily_runs")
+    .from("stocks_daily_runs")
     .select("id, run_date, status")
     .eq("user_id", user.id)
     .eq("status", "completed")
@@ -129,20 +129,20 @@ export default async function CioDecisionPage() {
   const run = latestRun as LatestRun;
   const [teamReportsRes, divisionRes, committeeRes] = await Promise.all([
     supabase
-      .from("team_reports")
+      .from("stocks_team_reports")
       .select("team_name, team_leader, division, final_team_view, confidence, created_at")
       .eq("daily_run_id", run.id)
       .eq("user_id", user.id)
       .order("division")
       .order("created_at"),
     supabase
-      .from("division_decisions")
+      .from("stocks_division_decisions")
       .select("division, division_manager, market_summary, decision_action, confidence, top_recommendations, created_at")
       .eq("daily_run_id", run.id)
       .eq("user_id", user.id)
       .order("created_at"),
     supabase
-      .from("committee_decisions")
+      .from("stocks_committee_decisions")
       .select("model_provider, final_action, action_type, consensus_level, confidence, weighted_confidence, decision_summary, agreement_summary, disagreement_summary, final_recommendations, is_action_allowed, created_at")
       .eq("daily_run_id", run.id)
       .eq("user_id", user.id)

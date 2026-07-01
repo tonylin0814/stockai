@@ -59,7 +59,7 @@ export async function buildMissionDataPackage(
   const supabase = createSupabaseServiceClient();
   const provider = getMarketDataProvider();
   const { data: missionData, error } = await supabase
-    .from("missions")
+    .from("stocks_missions")
     .select("id, title, mission_type, original_question, related_symbols, data_package")
     .eq("id", missionId)
     .eq("user_id", userId)
@@ -74,7 +74,7 @@ export async function buildMissionDataPackage(
   const symbols = (mission.related_symbols ?? []).map(normalizeSymbol).filter(Boolean);
   const preferredMarket = marketPreference(mission.data_package?.relatedMarket);
   const { data: linkRows } = await supabase
-    .from("mission_links")
+    .from("stocks_mission_links")
     .select("security_id")
     .eq("user_id", userId)
     .eq("mission_id", missionId)
@@ -88,7 +88,7 @@ export async function buildMissionDataPackage(
   );
   const { data: linkedSecurityRows } = linkedSecurityIds.length
     ? await supabase
-        .from("securities")
+        .from("stocks_securities")
         .select("id, symbol, market, name")
         .in("id", linkedSecurityIds)
     : { data: [] };
@@ -115,13 +115,13 @@ export async function buildMissionDataPackage(
   const targets = Array.from(targetMap.values());
   const [portfolioRows, watchlistRows] = await Promise.all([
     supabase
-      .from("portfolio_holdings")
-      .select("securities(symbol, market, name)")
+      .from("stocks_portfolio_holdings")
+      .select("securities:stocks_securities(symbol, market, name)")
       .eq("user_id", userId)
       .eq("is_active", true),
     supabase
-      .from("watchlist_items")
-      .select("securities(symbol, market, name)")
+      .from("stocks_watchlist_items")
+      .select("securities:stocks_securities(symbol, market, name)")
       .eq("user_id", userId)
   ]);
   const portfolioKeys = new Set(

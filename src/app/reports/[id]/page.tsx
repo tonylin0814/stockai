@@ -28,19 +28,19 @@ export default async function ReportDetailPage({ params }: PageProps) {
 
   const [{ data: run }, { data: committees }, { data: divisions }] = await Promise.all([
     supabase
-      .from("daily_runs")
+      .from("stocks_daily_runs")
       .select("id, run_date, status")
       .eq("id", params.id)
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase
-      .from("committee_decisions")
+      .from("stocks_committee_decisions")
       .select("*")
       .eq("daily_run_id", params.id)
       .eq("user_id", user.id)
       .order("created_at", { ascending: true }),
     supabase
-      .from("division_decisions")
+      .from("stocks_division_decisions")
       .select("*")
       .eq("daily_run_id", params.id)
       .eq("user_id", user.id)

@@ -93,7 +93,7 @@ export async function saveExtractedPredictions(params: {
     }));
 
   if (rows.length) {
-    await params.supabase.from("sim_predictions").insert(rows);
+    await params.supabase.from("stocks_sim_predictions").insert(rows);
   }
 }
 
@@ -105,7 +105,7 @@ export async function verifyPredictions(params: {
   provider: MarketDataProvider;
 }) {
   const { data: pending } = await params.supabase
-    .from("sim_predictions")
+    .from("stocks_sim_predictions")
     .select("*")
     .eq("user_id", params.userId)
     .eq("division", params.division)
@@ -113,7 +113,7 @@ export async function verifyPredictions(params: {
     .is("verified_at", null);
 
   const { data: portfolios } = await params.supabase
-    .from("sim_portfolios")
+    .from("stocks_sim_portfolios")
     .select("id")
     .eq("user_id", params.userId)
     .eq("division", params.division);
@@ -137,7 +137,7 @@ export async function verifyPredictions(params: {
 
     if (conditionMet && portfolioIds.length) {
       const { data: trades } = await params.supabase
-        .from("sim_trades")
+        .from("stocks_sim_trades")
         .select("action")
         .eq("session_date", params.verifyDate)
         .eq("symbol", symbol)
@@ -148,7 +148,7 @@ export async function verifyPredictions(params: {
     }
 
     await params.supabase
-      .from("sim_predictions")
+      .from("stocks_sim_predictions")
       .update({
         condition_met: conditionMet,
         action_taken: actionTaken,

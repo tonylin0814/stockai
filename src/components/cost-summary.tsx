@@ -5,7 +5,7 @@ export default async function CostSummary({ userId }: { userId: string }) {
     const supabase = createSupabaseServiceClient();
     const today = new Date().toISOString().slice(0, 10);
     const { data } = await supabase
-      .from("agent_runs")
+      .from("stocks_agent_runs")
       .select("estimated_cost_usd, token_count")
       .eq("user_id", userId)
       .gte("created_at", `${today}T00:00:00.000Z`);

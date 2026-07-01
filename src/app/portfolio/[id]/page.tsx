@@ -120,9 +120,9 @@ export default async function StockDetailPage({
   if (!user) notFound();
 
   const { data: holdingData } = await supabase
-    .from("portfolio_holdings")
+    .from("stocks_portfolio_holdings")
     .select(
-      "id, shares, average_cost, cost_currency, strategy, notes, opened_at, securities(id, symbol, market, name, security_type)"
+      "id, shares, average_cost, cost_currency, strategy, notes, opened_at, securities:stocks_securities(id, symbol, market, name, security_type)"
     )
     .eq("id", holdingId)
     .eq("user_id", user.id)
@@ -153,7 +153,7 @@ export default async function StockDetailPage({
 
   const provider = getMarketDataProvider();
   const recommendationsQuery = supabase
-    .from("recommendations")
+    .from("stocks_recommendations")
     .select(
       "id, action, reason, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, key_risks, technical_highlights, time_horizon, source_type, source_name, recommendation_date, created_at, user_rating"
     )
@@ -162,7 +162,7 @@ export default async function StockDetailPage({
     .order("created_at", { ascending: false })
     .limit(10);
   const missionQuery = supabase
-    .from("missions")
+    .from("stocks_missions")
     .select("id, data_package")
     .eq("user_id", user.id)
     .contains("related_symbols", [security.symbol])
@@ -223,8 +223,8 @@ export default async function StockDetailPage({
     | null
     | undefined;
   const { data: linkedMissionRows } = await supabase
-    .from("mission_links")
-    .select("missions(id, title, mission_type, status, created_at, completed_at)")
+    .from("stocks_mission_links")
+    .select("missions:stocks_missions(id, title, mission_type, status, created_at, completed_at)")
     .eq("user_id", user.id)
     .eq("portfolio_holding_id", holdingId)
     .order("created_at", { ascending: false });

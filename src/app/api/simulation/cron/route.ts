@@ -39,7 +39,7 @@ async function handleCron(request: NextRequest) {
 
   const supabase = createSupabaseServiceClient();
   const { data: configs, error: configError } = await supabase
-    .from("sim_config")
+    .from("stocks_sim_config")
     .select("user_id")
     .eq("is_active", true);
 

@@ -64,7 +64,7 @@ async function upsertSecurity(formData: FormData) {
   const { supabase } = await requireUser();
 
   const { data, error } = await supabase
-    .from("securities")
+    .from("stocks_securities")
     .upsert(
       {
         symbol: input.symbol,
@@ -126,7 +126,7 @@ export async function signUp(formData: FormData) {
     authErrorRedirect("/register", "註冊失敗，請稍後再試。");
   }
 
-  const { error: profileError } = await supabase.from("profiles").upsert({
+  const { error: profileError } = await supabase.from("stocks_profiles").upsert({
     id: data.user.id,
     display_name: input.data.display_name,
     base_currency: "TWD",
@@ -137,7 +137,7 @@ export async function signUp(formData: FormData) {
     authErrorRedirect("/register", "帳號已建立，但個人資料建立失敗。請確認是否已關閉信箱驗證。");
   }
 
-  const { error: settingsError } = await supabase.from("user_settings").upsert(
+  const { error: settingsError } = await supabase.from("stocks_user_settings").upsert(
     {
       user_id: data.user.id,
       max_single_position_pct: 15,
@@ -184,7 +184,7 @@ export async function createHolding(formData: FormData) {
     opened_at: getDateOrNull(formData, "opened_at")
   });
 
-  const { error } = await supabase.from("portfolio_holdings").insert({
+  const { error } = await supabase.from("stocks_portfolio_holdings").insert({
     user_id: user.id,
     security_id: securityId,
     shares: input.shares,
@@ -226,7 +226,7 @@ export async function updateHolding(formData: FormData) {
   });
 
   const { error } = await supabase
-    .from("portfolio_holdings")
+    .from("stocks_portfolio_holdings")
     .update({
       security_id: securityId,
       shares: input.shares,
@@ -252,7 +252,7 @@ export async function softDeleteHolding(formData: FormData) {
   const id = requiredText.parse(getString(formData, "id"));
 
   const { error } = await supabase
-    .from("portfolio_holdings")
+    .from("stocks_portfolio_holdings")
     .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", user.id);
@@ -289,7 +289,7 @@ export async function createWatchlistItem(formData: FormData) {
     notes: getString(formData, "notes")
   });
 
-  const { error } = await supabase.from("watchlist_items").insert({
+  const { error } = await supabase.from("stocks_watchlist_items").insert({
     user_id: user.id,
     security_id: securityId,
     visibility: input.visibility,
@@ -334,7 +334,7 @@ export async function updateWatchlistItem(formData: FormData) {
   });
 
   const { error } = await supabase
-    .from("watchlist_items")
+    .from("stocks_watchlist_items")
     .update({
       security_id: securityId,
       visibility: input.visibility,
@@ -360,7 +360,7 @@ export async function deleteWatchlistItem(formData: FormData) {
   const id = requiredText.parse(getString(formData, "id"));
 
   const { error } = await supabase
-    .from("watchlist_items")
+    .from("stocks_watchlist_items")
     .delete()
     .eq("id", id)
     .eq("user_id", user.id);
@@ -386,7 +386,7 @@ export async function addScanPickToWatchlist(formData: FormData) {
   });
 
   const { data: security, error: securityError } = await supabase
-    .from("securities")
+    .from("stocks_securities")
     .upsert(
       {
         symbol: input.symbol,
@@ -406,14 +406,14 @@ export async function addScanPickToWatchlist(formData: FormData) {
 
   const securityId = (security as { id: string }).id;
   const { data: existing } = await supabase
-    .from("watchlist_items")
+    .from("stocks_watchlist_items")
     .select("id")
     .eq("user_id", user.id)
     .eq("security_id", securityId)
     .maybeSingle();
 
   if (!existing) {
-    const { error } = await supabase.from("watchlist_items").insert({
+    const { error } = await supabase.from("stocks_watchlist_items").insert({
       user_id: user.id,
       security_id: securityId,
       reason: "每日台股掃描推薦",
@@ -427,7 +427,7 @@ export async function addScanPickToWatchlist(formData: FormData) {
   }
 
   const { error: updateError } = await supabase
-    .from("daily_scan_picks")
+    .from("stocks_daily_scan_picks")
     .update({ added_to_watchlist: true })
     .eq("id", input.pickId)
     .eq("user_id", user.id);
@@ -457,7 +457,7 @@ export async function addMarketPickToWatchlist(formData: FormData) {
     reason: getString(formData, "reason")
   });
   const { data: security, error: securityError } = await supabase
-    .from("securities")
+    .from("stocks_securities")
     .upsert(
       {
         symbol: input.symbol,
@@ -477,14 +477,14 @@ export async function addMarketPickToWatchlist(formData: FormData) {
 
   const securityId = (security as { id: string }).id;
   const { data: existing } = await supabase
-    .from("watchlist_items")
+    .from("stocks_watchlist_items")
     .select("id")
     .eq("user_id", user.id)
     .eq("security_id", securityId)
     .maybeSingle();
 
   if (!existing) {
-    const { error } = await supabase.from("watchlist_items").insert({
+    const { error } = await supabase.from("stocks_watchlist_items").insert({
       user_id: user.id,
       security_id: securityId,
       reason: input.reason ? `市場分析推薦：${input.reason}` : "市場分析推薦",
@@ -568,7 +568,7 @@ export async function createMission(formData: FormData) {
 
   if (input.portfolio_holding_id) {
     const { data: holding, error: holdingError } = await supabase
-      .from("portfolio_holdings")
+      .from("stocks_portfolio_holdings")
       .select("id, security_id")
       .eq("id", input.portfolio_holding_id)
       .eq("user_id", user.id)
@@ -584,7 +584,7 @@ export async function createMission(formData: FormData) {
 
   if (input.watchlist_item_id) {
     const { data: watchlistItem, error: watchlistError } = await supabase
-      .from("watchlist_items")
+      .from("stocks_watchlist_items")
       .select("id, security_id")
       .eq("id", input.watchlist_item_id)
       .eq("user_id", user.id)
@@ -598,7 +598,7 @@ export async function createMission(formData: FormData) {
   }
 
   const { data: mission, error } = await supabase
-    .from("missions")
+    .from("stocks_missions")
     .insert({
       user_id: user.id,
       title: input.title,
@@ -618,7 +618,7 @@ export async function createMission(formData: FormData) {
 
   if (input.portfolio_holding_id) {
     const { data: holding } = await supabase
-      .from("portfolio_holdings")
+      .from("stocks_portfolio_holdings")
       .select("security_id")
       .eq("id", input.portfolio_holding_id)
       .eq("user_id", user.id)
@@ -638,7 +638,7 @@ export async function createMission(formData: FormData) {
 
   if (input.watchlist_item_id) {
     const { data: watchlistItem } = await supabase
-      .from("watchlist_items")
+      .from("stocks_watchlist_items")
       .select("security_id")
       .eq("id", input.watchlist_item_id)
       .eq("user_id", user.id)
@@ -656,7 +656,7 @@ export async function createMission(formData: FormData) {
   }
 
   if (missionLinks.length > 0) {
-    const { error: linkError } = await supabase.from("mission_links").insert(missionLinks);
+    const { error: linkError } = await supabase.from("stocks_mission_links").insert(missionLinks);
 
     if (linkError) {
       throw new Error(linkError.message);
@@ -673,7 +673,7 @@ export async function cancelMission(formData: FormData) {
   const id = requiredText.parse(getString(formData, "id"));
 
   const { error } = await supabase
-    .from("missions")
+    .from("stocks_missions")
     .update({ status: "cancelled" })
     .eq("id", id)
     .eq("user_id", user.id)
@@ -709,7 +709,7 @@ export async function createPaperTrade(_prev: unknown, formData: FormData) {
 
   const input = parsed.data;
   const { data: security, error: securityError } = await supabase
-    .from("securities")
+    .from("stocks_securities")
     .upsert(
       {
         symbol: input.symbol,
@@ -727,7 +727,7 @@ export async function createPaperTrade(_prev: unknown, formData: FormData) {
     return { error: securityError?.message ?? "找不到標的。" };
   }
 
-  const { error } = await supabase.from("paper_trades").insert({
+  const { error } = await supabase.from("stocks_paper_trades").insert({
     user_id: user.id,
     recommendation_id: input.recommendationId ?? null,
     security_id: security.id,
@@ -765,7 +765,7 @@ export async function closePaperTrade(_prev: unknown, formData: FormData) {
 
   const input = parsed.data;
   const { data: trade } = await supabase
-    .from("paper_trades")
+    .from("stocks_paper_trades")
     .select("entry_price, direction")
     .eq("id", input.id)
     .eq("user_id", user.id)
@@ -782,7 +782,7 @@ export async function closePaperTrade(_prev: unknown, formData: FormData) {
       : ((current.entry_price - input.exitPrice) / current.entry_price) * 100;
 
   const { error } = await supabase
-    .from("paper_trades")
+    .from("stocks_paper_trades")
     .update({
       exit_date: input.exitDate,
       exit_price: input.exitPrice,
@@ -816,7 +816,7 @@ export async function rateRecommendation(_prev: unknown, formData: FormData) {
 
   const input = parsed.data;
   const { error } = await supabase
-    .from("recommendations")
+    .from("stocks_recommendations")
     .update({
       user_rating: input.rating,
       user_notes: input.notes ?? null,
@@ -851,7 +851,7 @@ export async function updateUserSettings(_prev: unknown, formData: FormData) {
   }
 
   const { error } = await supabase
-    .from("user_settings")
+    .from("stocks_user_settings")
     .update({ ...parsed.data, updated_at: new Date().toISOString() })
     .eq("user_id", user.id);
 

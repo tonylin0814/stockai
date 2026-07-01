@@ -41,8 +41,8 @@ export async function POST(
   await assertAnalysisBudget({ userId: user.id });
 
   const { data: holding, error: holdingError } = await supabase
-    .from("portfolio_holdings")
-    .select("id, shares, securities(symbol, market, name)")
+    .from("stocks_portfolio_holdings")
+    .select("id, shares, securities:stocks_securities(symbol, market, name)")
     .eq("id", params.holdingId)
     .eq("user_id", user.id)
     .eq("is_active", true)
@@ -65,7 +65,7 @@ export async function POST(
   try {
     const title = `快速分析：${security.symbol} ${security.name}`;
     const { data: mission, error: missionError } = await supabase
-      .from("missions")
+      .from("stocks_missions")
       .insert({
         user_id: user.id,
         title,
@@ -99,7 +99,7 @@ export async function POST(
     });
 
     await supabase
-      .from("missions")
+      .from("stocks_missions")
       .update({
         status: "completed",
         completed_at: new Date().toISOString(),
@@ -118,7 +118,7 @@ export async function POST(
 
     if (missionId) {
       await supabase
-        .from("missions")
+        .from("stocks_missions")
         .update({
           status: "failed",
           completed_at: new Date().toISOString(),

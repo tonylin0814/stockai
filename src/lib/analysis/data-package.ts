@@ -190,7 +190,7 @@ async function logQualityIssues(
 
   const sourceNames = Array.from(new Set(issues.map((item) => item.quote.source)));
   const { data: sources } = await supabase
-    .from("data_sources")
+    .from("stocks_data_sources")
     .select("id, name")
     .in("name", sourceNames);
   const sourceIdByName = new Map(
@@ -200,7 +200,7 @@ async function logQualityIssues(
     ])
   );
 
-  await supabase.from("data_fetch_logs").insert(
+  await supabase.from("stocks_data_fetch_logs").insert(
     issues.map((item) => ({
       source_id: sourceIdByName.get(item.quote.source) ?? null,
       fetch_type: "daily_package",
@@ -220,16 +220,16 @@ export async function buildDailyDataPackage(userId: string): Promise<DailyDataPa
 
   const [holdingsResult, watchlistResult] = await Promise.all([
     supabase
-      .from("portfolio_holdings")
+      .from("stocks_portfolio_holdings")
       .select(
-        "id, shares, average_cost, cost_currency, strategy, notes, securities(symbol, market, name, security_type)"
+        "id, shares, average_cost, cost_currency, strategy, notes, securities:stocks_securities(symbol, market, name, security_type)"
       )
       .eq("user_id", userId)
       .eq("is_active", true),
     supabase
-      .from("watchlist_items")
+      .from("stocks_watchlist_items")
       .select(
-        "id, visibility, reason, target_buy_price, alert_price, status, notes, securities(symbol, market, name, security_type)"
+        "id, visibility, reason, target_buy_price, alert_price, status, notes, securities:stocks_securities(symbol, market, name, security_type)"
       )
       .eq("user_id", userId)
   ]);

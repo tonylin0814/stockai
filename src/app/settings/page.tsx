@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   if (!user) return null;
 
   const { data: settings } = await supabase
-    .from("user_settings")
+    .from("stocks_user_settings")
     .select("*")
     .eq("user_id", user.id)
     .single();

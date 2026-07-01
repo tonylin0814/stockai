@@ -92,7 +92,7 @@ async function upsertSecurity(params: {
 }) {
   const supabase = createSupabaseServiceClient();
   const { data, error } = await supabase
-    .from("securities")
+    .from("stocks_securities")
     .upsert(
       {
         symbol: params.symbol,
@@ -304,7 +304,7 @@ export async function writeRecommendations(params: {
   }
 
   const supabase = createSupabaseServiceClient();
-  const { error } = await supabase.from("recommendations").insert(rows);
+  const { error } = await supabase.from("stocks_recommendations").insert(rows);
 
   if (error) {
     throw new Error(error.message);

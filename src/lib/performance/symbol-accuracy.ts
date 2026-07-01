@@ -34,9 +34,9 @@ export async function getSymbolAccuracy(
 ): Promise<SymbolAccuracy> {
   const supabase = createSupabaseServerClient();
   const { data } = await supabase
-    .from("recommendation_outcomes")
+    .from("stocks_recommendation_outcomes")
     .select(
-      "return_pct, hit_target, direction_correct, recommendations!inner(security_id, user_id)"
+      "return_pct, hit_target, direction_correct, recommendations:stocks_recommendations!inner(security_id, user_id)"
     )
     .eq("recommendations.user_id", userId)
     .eq("recommendations.security_id", securityId)

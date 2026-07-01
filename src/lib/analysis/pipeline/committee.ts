@@ -42,7 +42,7 @@ export async function getCommitteeModels(): Promise<
 > {
   const supabase = createSupabaseServiceClient();
   const { data, error } = await supabase
-    .from("divisions")
+    .from("stocks_divisions")
     .select("model_provider, model_name")
     .eq("is_enabled", true)
     .eq("participates_in_committee", true)
@@ -99,7 +99,7 @@ async function getExistingCommitteeDecision(params: {
 
   const supabase = createSupabaseServiceClient();
   const { data } = await supabase
-    .from("committee_decisions")
+    .from("stocks_committee_decisions")
     .select(
       "id, final_action, action_type, consensus_level, confidence, decision_summary, agreement_summary, disagreement_summary, final_recommendations, division_inputs, is_action_allowed, final_scenarios, model_provider"
     )
@@ -216,7 +216,7 @@ export async function runSingleCommitteePass(params: {
       is_action_allowed: safeguardedDecision.isActionAllowed
     };
     let { data, error } = await supabase
-      .from("committee_decisions")
+      .from("stocks_committee_decisions")
       .insert(committeePayload)
       .select("id")
       .single();
@@ -224,7 +224,7 @@ export async function runSingleCommitteePass(params: {
     if (isFinalScenariosColumnMissing(error)) {
       delete committeePayload.final_scenarios;
       ({ data, error } = await supabase
-        .from("committee_decisions")
+        .from("stocks_committee_decisions")
         .insert(committeePayload)
         .select("id")
         .single());

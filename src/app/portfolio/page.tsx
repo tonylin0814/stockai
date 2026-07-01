@@ -65,9 +65,9 @@ export default async function PortfolioPage({
     data: { user }
   } = await supabase.auth.getUser();
   const { data: holdings, error } = await supabase
-    .from("portfolio_holdings")
+    .from("stocks_portfolio_holdings")
     .select(
-      "id, shares, average_cost, cost_currency, strategy, notes, opened_at, securities(symbol, market, name, security_type)"
+      "id, shares, average_cost, cost_currency, strategy, notes, opened_at, securities:stocks_securities(symbol, market, name, security_type)"
     )
     .eq("is_active", true)
     .order("created_at", { ascending: false });
@@ -111,7 +111,7 @@ export default async function PortfolioPage({
   let lastAnalysisAt: string | null = null;
   if (user) {
     const { data: lastRun } = await supabase
-      .from("daily_runs")
+      .from("stocks_daily_runs")
       .select("completed_at, started_at, created_at")
       .eq("user_id", user.id)
       .eq("status", "completed")

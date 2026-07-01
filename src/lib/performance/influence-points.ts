@@ -216,9 +216,9 @@ export async function updateInfluencePoints(userId: string): Promise<void> {
   const scoreDate = todayDateOnly();
 
   const { data, error } = await supabase
-    .from("recommendation_outcomes")
+    .from("stocks_recommendation_outcomes")
     .select(
-      "horizon_days, return_pct, max_drawdown_pct, hit_stop_loss, direction_correct, missed_opportunity, recommendations(id, user_id, family_id, source_type, source_name, division, team_name, action, confidence)"
+      "horizon_days, return_pct, max_drawdown_pct, hit_stop_loss, direction_correct, missed_opportunity, recommendations:stocks_recommendations(id, user_id, family_id, source_type, source_name, division, team_name, action, confidence)"
     )
     .eq("recommendations.user_id", userId);
 
@@ -251,7 +251,7 @@ export async function updateInfluencePoints(userId: string): Promise<void> {
       .map((row) => row.direction_correct)
       .filter((value): value is boolean => value !== null);
 
-    await supabase.from("influence_scores").insert({
+    await supabase.from("stocks_influence_scores").insert({
       user_id: userId,
       family_id: entity.familyId,
       entity_type: entity.type,
@@ -267,7 +267,7 @@ export async function updateInfluencePoints(userId: string): Promise<void> {
       change_reason: "自動績效更新"
     });
 
-    await supabase.from("performance_snapshots").insert({
+    await supabase.from("stocks_performance_snapshots").insert({
       user_id: userId,
       family_id: entity.familyId,
       snapshot_date: scoreDate,

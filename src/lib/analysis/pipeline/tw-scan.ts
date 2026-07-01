@@ -109,7 +109,7 @@ export async function runTaiwanScan(params: {
 
     if (picks.length > 0) {
       const supabase = createSupabaseServiceClient();
-      await supabase.from("securities").upsert(
+      await supabase.from("stocks_securities").upsert(
         picks.map((pick) => ({
           symbol: pick.symbol,
           market: pick.market,
@@ -120,7 +120,7 @@ export async function runTaiwanScan(params: {
         { onConflict: "symbol,market" }
       );
 
-      const { error } = await supabase.from("daily_scan_picks").insert(
+      const { error } = await supabase.from("stocks_daily_scan_picks").insert(
         picks.map((pick) => ({
           user_id: params.userId,
           daily_run_id: params.dailyRunId,

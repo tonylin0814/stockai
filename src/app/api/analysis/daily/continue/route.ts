@@ -132,7 +132,7 @@ async function saveMarketAnalysis(params: {
   result: MarketAnalysisResult;
 }) {
   const supabase = createSupabaseServiceClient();
-  const { error } = await supabase.from("market_analysis_runs").insert({
+  const { error } = await supabase.from("stocks_market_analysis_runs").insert({
     user_id: params.userId,
     daily_run_id: params.dailyRunId,
     market: params.result.market,
@@ -152,7 +152,7 @@ async function saveMarketAnalysis(params: {
 async function updateRunState(dailyRunId: string, state: DailyRunState) {
   const supabase = createSupabaseServiceClient();
   await supabase
-    .from("daily_runs")
+    .from("stocks_daily_runs")
     .update({ data_package: state })
     .eq("id", dailyRunId);
 }
@@ -169,7 +169,7 @@ export async function POST() {
 
   const supabase = createSupabaseServiceClient();
   const { data: run } = await supabase
-    .from("daily_runs")
+    .from("stocks_daily_runs")
     .select("id, status, data_package")
     .eq("user_id", user.id)
     .eq("run_date", todayIsoDate())
@@ -234,7 +234,7 @@ export async function POST() {
 
     if (stage === "division") {
       const { data: divisionsData, error: divisionsError } = await supabase
-        .from("divisions")
+        .from("stocks_divisions")
         .select("*")
         .eq("is_enabled", true)
         .eq("participates_in_committee", true)
@@ -259,7 +259,7 @@ export async function POST() {
       }
 
       const { data: teamsData, error: teamsError } = await supabase
-        .from("division_teams")
+        .from("stocks_division_teams")
         .select("*")
         .eq("division_id", division.id)
         .eq("is_enabled", true)
@@ -316,7 +316,7 @@ export async function POST() {
       }
 
       const { data: savedTeamReports } = await supabase
-        .from("team_reports")
+        .from("stocks_team_reports")
         .select("id, division, team_name, team_leader, market_view, portfolio_review, mission_analysis, market_scan_recommendations, final_team_view")
         .eq("daily_run_id", dailyRunId)
         .eq("division", division.name);
@@ -435,7 +435,7 @@ export async function POST() {
 
     if (stage === "recommendations") {
       const { data: savedTeamReports } = await supabase
-        .from("team_reports")
+        .from("stocks_team_reports")
         .select("id, division, team_name, team_leader, market_view, portfolio_review, mission_analysis, market_scan_recommendations, final_team_view")
         .eq("daily_run_id", dailyRunId);
       const teamReports =
@@ -534,7 +534,7 @@ export async function POST() {
     }
 
     await supabase
-      .from("daily_runs")
+      .from("stocks_daily_runs")
       .update({
         status: "completed",
         completed_at: new Date().toISOString(),
@@ -546,7 +546,7 @@ export async function POST() {
     return NextResponse.json({ status: "completed", dailyRunId });
   } catch (error) {
     await supabase
-      .from("daily_runs")
+      .from("stocks_daily_runs")
       .update({
         status: "failed",
         completed_at: new Date().toISOString(),

@@ -76,7 +76,7 @@ export async function runWeeklyEvalForUser(
     await verifyPredictions({ supabase, userId, division, verifyDate: today, provider });
 
     const { data: portfoliosData } = await supabase
-      .from("sim_portfolios")
+      .from("stocks_sim_portfolios")
       .select("*")
       .eq("user_id", userId)
       .eq("division", division);
@@ -86,25 +86,25 @@ export async function runWeeklyEvalForUser(
     const [{ data: positionsData }, { data: tradesData }, { data: predictionsData }, { data: reportsData }] =
       await Promise.all([
         supabase
-          .from("sim_positions")
+          .from("stocks_sim_positions")
           .select("*")
           .eq("status", "open")
           .in("portfolio_id", portfolioIds.length ? portfolioIds : emptyIds),
         supabase
-          .from("sim_trades")
+          .from("stocks_sim_trades")
           .select("*")
           .gte("session_date", weekStart)
           .lte("session_date", weekEnd)
           .in("portfolio_id", portfolioIds.length ? portfolioIds : emptyIds),
         supabase
-          .from("sim_predictions")
+          .from("stocks_sim_predictions")
           .select("*")
           .eq("user_id", userId)
           .eq("division", division)
           .gte("report_date", weekStart)
           .lte("report_date", weekEnd),
         supabase
-          .from("sim_daily_reports")
+          .from("stocks_sim_daily_reports")
           .select("report_date, us_portfolio_value, tw_portfolio_value")
           .eq("user_id", userId)
           .eq("division", division)
@@ -154,7 +154,7 @@ export async function runWeeklyEvalForUser(
       }>
     });
     const previousScores = await supabase
-      .from("sim_scores")
+      .from("stocks_sim_scores")
       .select("total_score, us_alpha_pct, win_rate_pct")
       .eq("user_id", userId)
       .eq("division", division);
@@ -170,7 +170,7 @@ export async function runWeeklyEvalForUser(
       ) /
       (previous.length + 1);
 
-    await supabase.from("sim_scores").upsert(
+    await supabase.from("stocks_sim_scores").upsert(
       {
         user_id: userId,
         division,
@@ -209,7 +209,7 @@ export async function runWeeklyEvalForUser(
       { onConflict: "user_id,division,score_date" }
     );
 
-    await supabase.from("sim_weekly_evals").upsert(
+    await supabase.from("stocks_sim_weekly_evals").upsert(
       {
         user_id: userId,
         division,

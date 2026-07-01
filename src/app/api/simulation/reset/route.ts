@@ -22,34 +22,34 @@ export async function POST() {
 
   try {
     const { data: portfolios } = await supabase
-      .from("sim_portfolios")
+      .from("stocks_sim_portfolios")
       .select("id")
       .eq("user_id", user.id);
     const portfolioIds = (portfolios ?? []).map((portfolio: { id: string }) => portfolio.id);
 
     if (portfolioIds.length) {
-      await requireSuccess(supabase.from("sim_trades").delete().in("portfolio_id", portfolioIds));
-      await requireSuccess(supabase.from("sim_positions").delete().in("portfolio_id", portfolioIds));
+      await requireSuccess(supabase.from("stocks_sim_trades").delete().in("portfolio_id", portfolioIds));
+      await requireSuccess(supabase.from("stocks_sim_positions").delete().in("portfolio_id", portfolioIds));
     }
 
     await Promise.all([
-      requireSuccess(supabase.from("sim_predictions").delete().eq("user_id", user.id)),
-      requireSuccess(supabase.from("sim_daily_reports").delete().eq("user_id", user.id)),
-      requireSuccess(supabase.from("sim_weekly_evals").delete().eq("user_id", user.id)),
-      requireSuccess(supabase.from("sim_scores").delete().eq("user_id", user.id))
+      requireSuccess(supabase.from("stocks_sim_predictions").delete().eq("user_id", user.id)),
+      requireSuccess(supabase.from("stocks_sim_daily_reports").delete().eq("user_id", user.id)),
+      requireSuccess(supabase.from("stocks_sim_weekly_evals").delete().eq("user_id", user.id)),
+      requireSuccess(supabase.from("stocks_sim_scores").delete().eq("user_id", user.id))
     ]);
 
     await Promise.all([
       requireSuccess(
         supabase
-          .from("sim_portfolios")
+          .from("stocks_sim_portfolios")
           .update({ current_cash: 10000, reset_at: new Date().toISOString() })
           .eq("user_id", user.id)
           .eq("market", "US")
       ),
       requireSuccess(
         supabase
-          .from("sim_portfolios")
+          .from("stocks_sim_portfolios")
           .update({ current_cash: 300000, reset_at: new Date().toISOString() })
           .eq("user_id", user.id)
           .eq("market", "TW")

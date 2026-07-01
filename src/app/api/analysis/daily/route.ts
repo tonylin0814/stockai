@@ -33,7 +33,7 @@ export async function POST() {
     await assertAnalysisBudget({ userId: user.id });
 
     const { data: existingRun } = await supabase
-      .from("daily_runs")
+      .from("stocks_daily_runs")
       .select("id, status, started_at")
       .eq("user_id", user.id)
       .eq("run_date", runDate)
@@ -56,7 +56,7 @@ export async function POST() {
       }
 
       await supabase
-        .from("daily_runs")
+        .from("stocks_daily_runs")
         .update({
           status: "failed",
           completed_at: new Date().toISOString(),
@@ -70,7 +70,7 @@ export async function POST() {
 
     const familyId = await getFamilyId(user.id);
     const { data: dailyRun, error: insertError } = await supabase
-      .from("daily_runs")
+      .from("stocks_daily_runs")
       .insert({
         user_id: user.id,
         family_id: familyId,

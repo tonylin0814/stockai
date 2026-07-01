@@ -40,15 +40,15 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
   const today = new Date().toISOString().slice(0, 10);
 
   const { data: recs } = await supabase
-    .from("recommendations")
-    .select("id, action, buy_zone_low, buy_zone_high, target_price, stop_loss, securities(symbol, market, name)")
+    .from("stocks_recommendations")
+    .select("id, action, buy_zone_low, buy_zone_high, target_price, stop_loss, securities:stocks_securities(symbol, market, name)")
     .eq("user_id", userId)
     .eq("status", "open");
   const openRecs = ((recs ?? []) as unknown as OpenRecommendation[]).filter(
     (recommendation) => recommendation.securities?.symbol
   );
   const { data: existing } = await supabase
-    .from("alerts")
+    .from("stocks_alerts")
     .select("recommendation_id, alert_type")
     .eq("user_id", userId)
     .eq("alert_date", today);
@@ -130,7 +130,7 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
       const key = alertKey({ recommendation_id: rec.id, alert_type: alert.alert_type });
       if (alreadyAlerted.has(key)) continue;
 
-      await supabase.from("alerts").insert({
+      await supabase.from("stocks_alerts").insert({
         user_id: userId,
         recommendation_id: rec.id,
         alert_type: alert.alert_type,
@@ -146,7 +146,7 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
   }
 
   const { data: recentRun } = await supabase
-    .from("daily_runs")
+    .from("stocks_daily_runs")
     .select("completed_at")
     .eq("user_id", userId)
     .eq("status", "completed")
@@ -157,7 +157,7 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
 
   if (!recentRun) {
     if (!alreadyAlerted.has(staleKey)) {
-      await supabase.from("alerts").insert({
+      await supabase.from("stocks_alerts").insert({
         user_id: userId,
         alert_type: "data_stale",
         message: "尚未完成任何每日分析，建議先執行分析取得最新數據。",
@@ -169,7 +169,7 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
     const ageHours = (Date.now() - completedAt.getTime()) / 3_600_000;
 
     if (ageHours > 25 && !alreadyAlerted.has(staleKey)) {
-      await supabase.from("alerts").insert({
+      await supabase.from("stocks_alerts").insert({
         user_id: userId,
         alert_type: "data_stale",
         message: `上次分析已超過 ${Math.floor(ageHours)} 小時，建議重新執行分析。`,
@@ -179,7 +179,7 @@ export async function refreshAndGetAlerts(userId: string): Promise<Alert[]> {
   }
 
   const { data: allAlerts } = await supabase
-    .from("alerts")
+    .from("stocks_alerts")
     .select("id, alert_type, symbol, market, message, current_price, threshold_price, is_read, created_at")
     .eq("user_id", userId)
     .eq("is_read", false)

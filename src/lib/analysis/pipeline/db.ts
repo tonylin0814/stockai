@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service";
 export async function getFamilyId(userId: string) {
   const supabase = createSupabaseServiceClient();
   const { data } = await supabase
-    .from("profiles")
+    .from("stocks_profiles")
     .select("family_id")
     .eq("id", userId)
     .maybeSingle();
@@ -33,7 +33,7 @@ export async function savePipelineAgentRun(params: {
   errorMessage?: string;
 }) {
   const supabase = createSupabaseServiceClient();
-  await supabase.from("agent_runs").insert({
+  await supabase.from("stocks_agent_runs").insert({
     user_id: params.userId,
     daily_run_id: params.dailyRunId ?? null,
     mission_id: params.missionId ?? null,

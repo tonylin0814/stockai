@@ -40,9 +40,9 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
   if (!user) notFound();
 
   const { data: itemData } = await supabase
-    .from("watchlist_items")
+    .from("stocks_watchlist_items")
     .select(
-      "id, visibility, reason, target_buy_price, alert_price, status, notes, created_at, securities(id, symbol, market, name, security_type)"
+      "id, visibility, reason, target_buy_price, alert_price, status, notes, created_at, securities:stocks_securities(id, symbol, market, name, security_type)"
     )
     .eq("id", params.id)
     .eq("user_id", user.id)
@@ -69,8 +69,8 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
   };
 
   const { data: linkedRows } = await supabase
-    .from("mission_links")
-    .select("missions(id, title, mission_type, status, created_at, completed_at)")
+    .from("stocks_mission_links")
+    .select("missions:stocks_missions(id, title, mission_type, status, created_at, completed_at)")
     .eq("user_id", user.id)
     .eq("watchlist_item_id", params.id)
     .order("created_at", { ascending: false });

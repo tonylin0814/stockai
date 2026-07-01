@@ -234,7 +234,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   if (!user) return null;
 
   const { data: mission, error: missionError } = await supabase
-    .from("missions")
+    .from("stocks_missions")
     .select("*")
     .eq("id", params.id)
     .eq("user_id", user.id)
@@ -251,7 +251,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
 
   if (status === "running" && isStaleRunningMission(missionRow.started_at)) {
     const { error: staleUpdateError } = await supabase
-      .from("missions")
+      .from("stocks_missions")
       .update({
         status: "failed",
         completed_at: new Date().toISOString(),
@@ -370,23 +370,23 @@ export default async function MissionResultPage({ params }: { params: { id: stri
     [committeeResult, divisionResult, teamResult, recommendationResult] =
       await Promise.all([
         supabase
-          .from("committee_decisions")
+          .from("stocks_committee_decisions")
           .select("*")
           .eq("mission_id", params.id)
           .order("created_at", { ascending: true }),
         supabase
-          .from("division_decisions")
+          .from("stocks_division_decisions")
           .select("*")
           .eq("mission_id", params.id)
           .order("created_at", { ascending: true }),
         supabase
-          .from("team_reports")
+          .from("stocks_team_reports")
           .select("id, division, team_name, market_view, portfolio_review, final_team_view")
           .eq("mission_id", params.id)
           .order("created_at", { ascending: true }),
         supabase
-          .from("recommendations")
-          .select("id, source_type, source_name, action, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, securities(symbol, market)")
+          .from("stocks_recommendations")
+          .select("id, source_type, source_name, action, confidence, buy_zone_low, buy_zone_high, target_price, stop_loss, securities:stocks_securities(symbol, market)")
           .eq("mission_id", params.id)
           .order("created_at", { ascending: true })
       ]);
@@ -434,7 +434,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   const recommendationIds = recommendations.map((recommendation) => recommendation.id);
   const { data: outcomes, error: outcomesError } = recommendationIds.length
     ? await supabase
-        .from("recommendation_outcomes")
+        .from("stocks_recommendation_outcomes")
         .select("horizon_days")
         .in("recommendation_id", recommendationIds)
     : { data: [], error: null };

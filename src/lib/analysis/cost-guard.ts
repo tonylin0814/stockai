@@ -30,7 +30,7 @@ async function getCost(params: {
 }) {
   const supabase = createSupabaseServiceClient();
   const { data: dailyRows } = await supabase
-    .from("agent_runs")
+    .from("stocks_agent_runs")
     .select("estimated_cost_usd")
     .eq("user_id", params.userId)
     .gte("created_at", todayUtcStart());
@@ -39,14 +39,14 @@ async function getCost(params: {
 
   if (params.dailyRunId) {
     const { data } = await supabase
-      .from("agent_runs")
+      .from("stocks_agent_runs")
       .select("estimated_cost_usd")
       .eq("user_id", params.userId)
       .eq("daily_run_id", params.dailyRunId);
     runRows = (data ?? []) as Array<{ estimated_cost_usd: number | null }>;
   } else if (params.missionId) {
     const { data } = await supabase
-      .from("agent_runs")
+      .from("stocks_agent_runs")
       .select("estimated_cost_usd")
       .eq("user_id", params.userId)
       .eq("mission_id", params.missionId);
