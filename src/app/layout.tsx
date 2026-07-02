@@ -9,8 +9,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Stocks AI",
-  description: "Private investment decision platform"
+  title: "RH 台美股分析",
+  description: "RH 台美股投資決策系統",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/brand/rh-favicon.png"
+  }
 };
 
 const navLinks = [
