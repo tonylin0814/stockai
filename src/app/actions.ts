@@ -11,6 +11,22 @@ const optionalUuid = z.string().trim().uuid().optional().or(z.literal("")).trans
 const marketSchema = z.enum(["TW", "US"]);
 const securityTypeSchema = z.enum(["stock", "etf"]);
 const currencySchema = z.enum(["TWD", "USD"]);
+const transactionTypeSchema = z.enum(["buy", "sell"]);
+
+type PortfolioTransactionInput = {
+  id?: string;
+  transaction_type: "buy" | "sell";
+  trade_date: string;
+  shares: number;
+  price: number;
+  currency: "TWD" | "USD";
+  fees: number;
+  notes: string | null;
+};
+
+type PortfolioTransactionRow = PortfolioTransactionInput & {
+  id: string;
+};
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -83,6 +99,132 @@ async function upsertSecurity(formData: FormData) {
   }
 
   return data.id as string;
+}
+
+function calculatePosition(transactions: PortfolioTransactionInput[]) {
+  const sorted = [...transactions].sort((a, b) => {
+    const dateDiff = a.trade_date.localeCompare(b.trade_date);
+    if (dateDiff !== 0) return dateDiff;
+    return (a.id ?? "").localeCompare(b.id ?? "");
+  });
+  let shares = 0;
+  let costBasis = 0;
+
+  for (const transaction of sorted) {
+    if (transaction.transaction_type === "buy") {
+      shares += transaction.shares;
+      costBasis += transaction.shares * transaction.price + transaction.fees;
+      continue;
+    }
+
+    if (transaction.shares > shares + 0.000001) {
+      throw new Error("賣出股數不能超過目前持股。");
+    }
+
+    const averageCost = shares > 0 ? costBasis / shares : 0;
+    shares -= transaction.shares;
+    costBasis -= averageCost * transaction.shares;
+
+    if (shares < 0.000001) {
+      shares = 0;
+      costBasis = 0;
+    }
+  }
+
+  return {
+    shares,
+    averageCost: shares > 0 ? costBasis / shares : 0
+  };
+}
+
+async function loadHoldingForTransaction(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  userId: string,
+  holdingId: string
+) {
+  const { data, error } = await supabase
+    .from("stocks_portfolio_holdings")
+    .select("id, user_id, family_id, security_id, cost_currency")
+    .eq("id", holdingId)
+    .eq("user_id", userId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "找不到持股。");
+  }
+
+  return data as {
+    id: string;
+    user_id: string;
+    family_id: string | null;
+    security_id: string;
+    cost_currency: "TWD" | "USD";
+  };
+}
+
+async function loadPortfolioTransactions(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  userId: string,
+  holdingId: string
+) {
+  const { data, error } = await supabase
+    .from("stocks_portfolio_transactions")
+    .select("id, transaction_type, trade_date, shares, price, currency, fees, notes")
+    .eq("user_id", userId)
+    .eq("holding_id", holdingId)
+    .order("trade_date", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as unknown as PortfolioTransactionRow[];
+}
+
+async function updateHoldingFromTransactions(
+  supabase: ReturnType<typeof createSupabaseServerClient>,
+  userId: string,
+  holdingId: string,
+  transactions: PortfolioTransactionInput[]
+) {
+  const position = calculatePosition(transactions);
+  const { error } = await supabase
+    .from("stocks_portfolio_holdings")
+    .update({
+      shares: position.shares,
+      average_cost: position.averageCost,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", holdingId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+function parsePortfolioTransactionForm(formData: FormData) {
+  const schema = z.object({
+    transaction_type: transactionTypeSchema,
+    trade_date: requiredText,
+    shares: z.number().positive(),
+    price: z.number().nonnegative(),
+    currency: currencySchema,
+    fees: z.number().nonnegative(),
+    notes: optionalText
+  });
+
+  return schema.parse({
+    transaction_type: getString(formData, "transaction_type"),
+    trade_date: getString(formData, "trade_date"),
+    shares: getNumber(formData, "shares"),
+    price: getNumber(formData, "price"),
+    currency: getString(formData, "currency"),
+    fees: getString(formData, "fees") ? getNumber(formData, "fees") : 0,
+    notes: getString(formData, "notes")
+  });
 }
 
 export async function signIn(formData: FormData) {
@@ -184,20 +326,46 @@ export async function createHolding(formData: FormData) {
     opened_at: getDateOrNull(formData, "opened_at")
   });
 
-  const { error } = await supabase.from("stocks_portfolio_holdings").insert({
-    user_id: user.id,
-    security_id: securityId,
-    shares: input.shares,
-    average_cost: input.average_cost,
-    cost_currency: input.cost_currency,
-    strategy: input.strategy,
-    notes: input.notes,
-    opened_at: input.opened_at,
-    is_active: true
-  });
+  const { data: holding, error } = await supabase
+    .from("stocks_portfolio_holdings")
+    .insert({
+      user_id: user.id,
+      security_id: securityId,
+      shares: input.shares,
+      average_cost: input.average_cost,
+      cost_currency: input.cost_currency,
+      strategy: input.strategy,
+      notes: input.notes,
+      opened_at: input.opened_at,
+      is_active: true
+    })
+    .select("id, family_id")
+    .single();
 
-  if (error) {
-    throw new Error(error.message);
+  if (error || !holding) {
+    throw new Error(error?.message ?? "無法建立持股。");
+  }
+
+  if (input.shares > 0) {
+    const { error: transactionError } = await supabase
+      .from("stocks_portfolio_transactions")
+      .insert({
+        user_id: user.id,
+        family_id: holding.family_id,
+        holding_id: holding.id,
+        security_id: securityId,
+        transaction_type: "buy",
+        trade_date: input.opened_at ?? new Date().toISOString().slice(0, 10),
+        shares: input.shares,
+        price: input.average_cost,
+        currency: input.cost_currency,
+        fees: 0,
+        notes: input.notes ? `初始持股：${input.notes}` : "初始持股"
+      });
+
+    if (transactionError) {
+      throw new Error(transactionError.message);
+    }
   }
 
   revalidatePath("/portfolio");
@@ -262,6 +430,110 @@ export async function softDeleteHolding(formData: FormData) {
   }
 
   revalidatePath("/portfolio");
+}
+
+export async function createPortfolioTransaction(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const holdingId = requiredText.parse(getString(formData, "holding_id"));
+  const holding = await loadHoldingForTransaction(supabase, user.id, holdingId);
+  const input = parsePortfolioTransactionForm(formData);
+  const existingTransactions = await loadPortfolioTransactions(supabase, user.id, holdingId);
+  const proposedTransactions = [...existingTransactions, input];
+  calculatePosition(proposedTransactions);
+
+  const { error } = await supabase.from("stocks_portfolio_transactions").insert({
+    user_id: user.id,
+    family_id: holding.family_id,
+    holding_id: holding.id,
+    security_id: holding.security_id,
+    transaction_type: input.transaction_type,
+    trade_date: input.trade_date,
+    shares: input.shares,
+    price: input.price,
+    currency: input.currency,
+    fees: input.fees,
+    notes: input.notes
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await updateHoldingFromTransactions(supabase, user.id, holdingId, proposedTransactions);
+  revalidatePath("/portfolio");
+  revalidatePath(`/portfolio/${holdingId}`);
+}
+
+export async function updatePortfolioTransaction(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const holdingId = requiredText.parse(getString(formData, "holding_id"));
+  const id = requiredText.parse(getString(formData, "id"));
+  await loadHoldingForTransaction(supabase, user.id, holdingId);
+  const input = parsePortfolioTransactionForm(formData);
+  const existingTransactions = await loadPortfolioTransactions(supabase, user.id, holdingId);
+  const proposedTransactions = existingTransactions.map((transaction) =>
+    transaction.id === id ? { ...input, id } : transaction
+  );
+
+  if (!existingTransactions.some((transaction) => transaction.id === id)) {
+    throw new Error("找不到交易紀錄。");
+  }
+
+  calculatePosition(proposedTransactions);
+
+  const { error } = await supabase
+    .from("stocks_portfolio_transactions")
+    .update({
+      transaction_type: input.transaction_type,
+      trade_date: input.trade_date,
+      shares: input.shares,
+      price: input.price,
+      currency: input.currency,
+      fees: input.fees,
+      notes: input.notes,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", id)
+    .eq("holding_id", holdingId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await updateHoldingFromTransactions(supabase, user.id, holdingId, proposedTransactions);
+  revalidatePath("/portfolio");
+  revalidatePath(`/portfolio/${holdingId}`);
+}
+
+export async function deletePortfolioTransaction(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const holdingId = requiredText.parse(getString(formData, "holding_id"));
+  const id = requiredText.parse(getString(formData, "id"));
+  await loadHoldingForTransaction(supabase, user.id, holdingId);
+  const existingTransactions = await loadPortfolioTransactions(supabase, user.id, holdingId);
+  const proposedTransactions = existingTransactions.filter((transaction) => transaction.id !== id);
+
+  if (proposedTransactions.length === existingTransactions.length) {
+    throw new Error("找不到交易紀錄。");
+  }
+
+  calculatePosition(proposedTransactions);
+
+  const { error } = await supabase
+    .from("stocks_portfolio_transactions")
+    .delete()
+    .eq("id", id)
+    .eq("holding_id", holdingId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await updateHoldingFromTransactions(supabase, user.id, holdingId, proposedTransactions);
+  revalidatePath("/portfolio");
+  revalidatePath(`/portfolio/${holdingId}`);
 }
 
 export async function createWatchlistItem(formData: FormData) {
