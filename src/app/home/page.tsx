@@ -135,13 +135,15 @@ function FlagPair({ base, quote }: { base: string; quote: string }) {
   };
 
   return (
-    <span className="flex items-center gap-1">
+    <span className="inline-flex items-center gap-1">
       {[base, quote].map((currency) => (
-        <span
+        <Image
           key={currency}
-          aria-label={currency}
-          className="inline-block h-4 w-6 rounded-sm bg-cover bg-center ring-1 ring-slate-200"
-          style={{ backgroundImage: `url('${flags[currency]}')` }}
+          src={flags[currency]}
+          alt={currency}
+          width={24}
+          height={16}
+          className="h-4 w-6 rounded-sm object-cover ring-1 ring-slate-200"
         />
       ))}
     </span>
@@ -202,10 +204,12 @@ function MarketAnalysisCard({ report }: { report: MarketAnalysisRow }) {
           />
           <div>
             <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
-              <span
-                aria-hidden="true"
-                className="inline-block h-4 w-6 rounded-sm bg-cover bg-center ring-1 ring-slate-200"
-                style={{ backgroundImage: `url('${advisor.flag}')` }}
+              <Image
+                src={advisor.flag}
+                alt=""
+                width={24}
+                height={16}
+                className="h-4 w-6 rounded-sm object-cover ring-1 ring-slate-200"
               />
               <span>{advisor.name}</span>
             </h3>
@@ -401,9 +405,9 @@ export default async function MarketsPage() {
         <div className="grid gap-3 md:grid-cols-5">
           {fxPairs.map((pair, index) => (
             <div key={pair.label} className="rounded-md border border-violet-100 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-2 text-sm text-slate-600">
-                <span>{pair.label}</span>
+              <div className="flex items-center gap-2 text-sm text-slate-600">
                 <FlagPair base={pair.base} quote={pair.quote} />
+                <span>{pair.label}</span>
               </div>
               <div className="mt-1 text-xl font-semibold text-slate-950">
                 {Number.isFinite(fxRates[index]) ? formatNumber(fxRates[index], 4) : "-"}
