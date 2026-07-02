@@ -8,6 +8,10 @@ import {
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { Table, Td, Th } from "@/components/ui/table";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type WatchlistItem = {
   id: string;
@@ -26,12 +30,26 @@ type WatchlistItem = {
 };
 
 export default async function WatchlistPage() {
-  const supabase = createSupabaseServerClient();
+  const authClient = createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await authClient.auth.getUser();
+
+  if (!user) {
+    return (
+      <div className="rounded-md border border-slate-200 bg-white p-5 text-slate-600 shadow-sm">
+        請先登入後查看關注清單。
+      </div>
+    );
+  }
+
+  const supabase = createSupabaseServiceClient();
   const { data: items, error } = await supabase
     .from("stocks_watchlist_items")
     .select(
       "id, visibility, reason, target_buy_price, alert_price, status, notes, securities:stocks_securities(symbol, market, name, security_type)"
     )
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
   if (error) {

@@ -4,6 +4,10 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function statusLabel(status: string | null) {
   if (status === "觀察中") return "觀察中";
@@ -13,13 +17,14 @@ function statusLabel(status: string | null) {
 }
 
 export default async function WatchlistDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
+  const authClient = createSupabaseServerClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await authClient.auth.getUser();
 
   if (!user) notFound();
 
+  const supabase = createSupabaseServiceClient();
   const { data: itemData } = await supabase
     .from("stocks_watchlist_items")
     .select(
