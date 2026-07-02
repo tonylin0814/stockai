@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 
-const publicRoutes = ["/login", "/register"];
+const publicRoutes = ["/index", "/login", "/register"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -36,12 +36,22 @@ export async function middleware(request: NextRequest) {
   const { data, error } = await supabase.auth.getUser();
   const user = error ? null : data.user;
 
+  if (request.nextUrl.pathname === "/index") {
+    if (user) {
+      return NextResponse.redirect(new URL("/home", request.url));
+    }
+
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.rewrite(url);
+  }
+
   const isPublicRoute = publicRoutes.some((route) =>
     request.nextUrl.pathname.startsWith(route)
   );
 
   if (!user && !isPublicRoute) {
-    const redirectResponse = NextResponse.redirect(new URL("/login", request.url));
+    const redirectResponse = NextResponse.redirect(new URL("/index", request.url));
 
     if (error) {
       request.cookies.getAll().forEach((cookie) => {
@@ -55,7 +65,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && isPublicRoute) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/home", request.url));
   }
 
   return response;

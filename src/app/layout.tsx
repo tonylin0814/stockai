@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
-import { signOut } from "@/app/actions";
+import { signOutToIndex } from "@/app/account-actions";
 import { FloatingMarketRefreshButton } from "@/components/floating-market-refresh-button";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 const navLinks = [
   { href: "/home", label: "首頁" },
   { href: "/markets", label: "市場分析" },
-  { href: "/portfolio", label: "投資組合" },
+  { href: "/portfolio", label: "我的投資" },
   { href: "/watchlist", label: "關注清單" },
-  { href: "/missions", label: "任務" },
+  { href: "/missions", label: "分析個股" },
   { href: "/settings", label: "設定" },
 ];
 
@@ -35,6 +35,19 @@ export default async function RootLayout({
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase.auth.getUser();
   const user = error ? null : data.user;
+  let nickname = "";
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("stocks_profiles")
+      .select("nickname, display_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    nickname =
+      String(profile?.nickname ?? profile?.display_name ?? "").trim() ||
+      String(user.email ?? "").split("@")[0] ||
+      "User";
+  }
 
   return (
     <html lang="zh-Hant">
@@ -64,7 +77,10 @@ export default async function RootLayout({
                     {link.label}
                   </Link>
                 ))}
-                <form action={signOut}>
+                <span className="px-2 py-2 text-base font-medium text-slate-700">
+                  Hi! {nickname}
+                </span>
+                <form action={signOutToIndex}>
                   <PendingSubmitButton
                     idleLabel="登出"
                     pendingLabel="登出中..."

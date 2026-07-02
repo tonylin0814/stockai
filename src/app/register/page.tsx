@@ -48,7 +48,7 @@ export default function RegisterPage({ searchParams }: RegisterPageProps) {
       </form>
       <p className="mt-4 text-center text-sm text-slate-600">
         已經有帳號？{" "}
-        <Link href="/login" className="font-medium text-slate-950 underline">
+        <Link href="/index" className="font-medium text-slate-950 underline">
           前往登入
         </Link>
       </p>
