@@ -127,6 +127,31 @@ function asStringArray(value: unknown) {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }
 
+function latestRowsByIdentity(rows: Array<Record<string, unknown>>) {
+  const latest = new Map<string, Record<string, unknown>>();
+
+  for (const row of rows) {
+    const key = [
+      String(row.model_provider ?? ""),
+      String(row.division_manager ?? ""),
+      String(row.division ?? "")
+    ].join("|");
+    const current = latest.get(key);
+    const currentTime = current ? new Date(String(current.created_at ?? "")).getTime() : 0;
+    const rowTime = new Date(String(row.created_at ?? "")).getTime();
+
+    if (!current || rowTime >= currentTime) {
+      latest.set(key, row);
+    }
+  }
+
+  return Array.from(latest.values()).sort(
+    (a, b) =>
+      new Date(String(a.created_at ?? "")).getTime() -
+      new Date(String(b.created_at ?? "")).getTime()
+  );
+}
+
 function actionLabel(value: unknown) {
   const action = String(value ?? "");
   const labels: Record<string, string> = {
@@ -531,8 +556,8 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       </div>
     );
   }
-  const committees = (committeeResult.data ?? []) as Array<Record<string, unknown>>;
-  const divisions = (divisionResult.data ?? []) as Array<Record<string, unknown>>;
+  const committees = latestRowsByIdentity((committeeResult.data ?? []) as Array<Record<string, unknown>>);
+  const divisions = latestRowsByIdentity((divisionResult.data ?? []) as Array<Record<string, unknown>>);
   const comparison = comparisonSummary(divisions);
   const teams = (teamResult.data ?? []) as Parameters<typeof TeamReportTabs>[0]["reports"];
   const recommendations = (recommendationResult.data ?? []) as unknown as Array<{
@@ -600,7 +625,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
                     <div>
                       <h3 className="text-base font-semibold text-slate-950">{label}</h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        {formatDateTime(String(item.created_at ?? ""))}
+                        決策時間：{formatDateTime(String(item.created_at ?? ""))}
                       </p>
                     </div>
                   </div>
@@ -673,6 +698,9 @@ export default async function MissionResultPage({ params }: { params: { id: stri
                       <h3 className="text-base font-semibold text-slate-950">{advisorTitle(advisor)}</h3>
                       <p className="mt-1 text-xs text-slate-500">
                         {modelLabel(division)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        分析時間：{formatDateTime(String(division.created_at ?? ""))}
                       </p>
                     </div>
                   </div>
