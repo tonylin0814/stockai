@@ -163,7 +163,7 @@ function normalizeDivision(row: DivisionDbRow): ReportDivisionRow {
 function normalizeCommittee(row: CommitteeDbRow): ReportCommitteeRow {
   const recommendations = asRecommendationArray(row.final_recommendations);
   return {
-    model_provider: row.model_provider ?? "OpenAI",
+    model_provider: row.model_provider ?? "Legacy Provider",
     final_action: row.final_action ?? null,
     action_type: row.action_type ?? null,
     consensus_level: row.consensus_level ?? null,

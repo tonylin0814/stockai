@@ -35,7 +35,7 @@ export type TradingContext = {
 };
 
 export function buildTradingDecisionPrompt(
-  division: "gpt" | "anthropic",
+  division: "legacy_a" | "legacy_b",
   market: "US" | "TW",
   context: TradingContext
 ) {
@@ -76,7 +76,7 @@ export function buildTradingDecisionPrompt(
         .join("\n")
     : "（今日尚無操作）";
 
-  return `你是 ${division === "gpt" ? "GPT Division" : "Anthropic Division"} 的 ${market} 市場交易員。
+  return `你是 ${division === "legacy_a" ? "Legacy Division A" : "Legacy Division B"} 的 ${market} 市場交易員。
 
 ## 當前狀況
 

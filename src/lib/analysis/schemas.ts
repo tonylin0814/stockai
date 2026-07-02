@@ -447,7 +447,7 @@ export const AGENT_OUTPUT_JSON_SCHEMA = `{
 }`;
 
 export const DIVISION_DECISION_JSON_SCHEMA = `{
-  "division": "GPT Division",
+  "division": "Legacy Division A",
   "divisionManager": "Monica",
   "marketSummary": "今日市場觀點",
   "portfolioActions": [],

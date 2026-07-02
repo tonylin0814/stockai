@@ -31,13 +31,8 @@ export type DivisionPipelineResult =
       teamReports: TeamReport[];
     };
 
-const REPAIR_MODEL_MAP: Record<string, string> = {
-  OpenAI: "gpt-4o-mini",
-  Anthropic: "claude-haiku-4-5-20251001"
-};
-
 function getRepairModel(provider: string): string {
-  return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
+  return process.env.CODEX_MODEL_NAME ?? "codex-local";
 }
 
 function envNumber(name: string, fallback: number) {

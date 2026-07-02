@@ -8,7 +8,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { TW_SCAN_UNIVERSE } from "@/lib/analysis/tw-universe";
 import { US_UNIVERSE_UNDER_50, US_UNIVERSE_50_TO_100, US_UNIVERSE_100_TO_200 } from "@/lib/analysis/us-universe";
 
-type Division = "gpt" | "anthropic";
+type Division = "legacy_a" | "legacy_b";
 type Market = "US" | "TW";
 type Portfolio = {
   id: string;
@@ -87,17 +87,14 @@ const TradingResponseSchema = z.object({
 
 type TradeDecision = z.infer<typeof TradeDecisionSchema>;
 
-const divisions: Division[] = ["gpt", "anthropic"];
+const divisions: Division[] = ["legacy_a", "legacy_b"];
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
 function modelForDivision(division: Division) {
-  if (division === "anthropic") {
-    return { provider: "Anthropic", model: "claude-haiku-4-5-20251001" };
-  }
-  return { provider: "OpenAI", model: "gpt-4o" };
+  return { provider: "Codex", model: "codex-local" };
 }
 
 function isWithinTradingHours(config: Record<string, unknown>, market: Market) {
@@ -529,7 +526,7 @@ export async function runTradeForUser(
       schema: TradingResponseSchema,
       schemaDescription: "AI paper trading decisions",
       provider: model.provider,
-      model: model.provider === "OpenAI" ? "gpt-4o-mini" : "claude-haiku-4-5-20251001",
+      model: model.model,
       budget: { userId }
     });
     const parsed = validation.parsed;

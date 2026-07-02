@@ -436,7 +436,6 @@ export async function addScanPickToWatchlist(formData: FormData) {
     throw new Error(updateError.message);
   }
 
-  revalidatePath("/analysis/daily");
   revalidatePath("/watchlist");
 }
 
@@ -487,7 +486,7 @@ export async function addMarketPickToWatchlist(formData: FormData) {
     const { error } = await supabase.from("stocks_watchlist_items").insert({
       user_id: user.id,
       security_id: securityId,
-      reason: input.reason ? `市場分析推薦：${input.reason}` : "市場分析推薦",
+      reason: input.reason ?? "手動加入關注清單",
       target_buy_price: input.targetPrice,
       status: "觀察中",
       visibility: "private"
@@ -498,192 +497,15 @@ export async function addMarketPickToWatchlist(formData: FormData) {
     }
   }
 
-  revalidatePath("/analysis/daily");
   revalidatePath("/watchlist");
 }
 
 export async function createMission(formData: FormData) {
-  const { supabase, user } = await requireUser();
-  const schema = z.object({
-    title: requiredText,
-    original_question: requiredText,
-    mission_type: z.enum([
-      "single_stock",
-      "multi_stock",
-      "portfolio_review",
-      "watchlist_review",
-      "theme",
-      "event"
-    ]),
-    related_symbols: z.string().optional(),
-    related_market: z.enum(["", "US", "TW"]).optional(),
-    portfolio_holding_id: optionalUuid,
-    watchlist_item_id: optionalUuid
-  });
-  const input = schema.parse({
-    title: getString(formData, "title"),
-    original_question: getString(formData, "original_question"),
-    mission_type: getString(formData, "mission_type"),
-    related_symbols: getString(formData, "related_symbols"),
-    related_market: getString(formData, "related_market"),
-    portfolio_holding_id: getString(formData, "portfolio_holding_id"),
-    watchlist_item_id: getString(formData, "watchlist_item_id")
-  });
-  const explicitSymbols = (input.related_symbols ?? "")
-    .split(",")
-    .map((symbol) => symbol.trim().toUpperCase())
-    .filter(Boolean);
-  const inferredSymbols = Array.from(
-    new Set(
-      `${input.title} ${input.original_question}`
-        .toUpperCase()
-        .match(/\b[A-Z]{1,5}(?:\.[A-Z]{1,3})?\b|\b\d{4}(?:\.TW)?\b/g) ?? []
-    )
-  ).filter(
-    (symbol) =>
-      ![
-        "US",
-        "TW",
-        "ETF",
-        "AI",
-        "BUY",
-        "SELL",
-        "HOLD",
-        "WAIT",
-        "OR",
-        "AND"
-      ].includes(symbol)
-  );
-  const relatedSymbols = explicitSymbols.length ? explicitSymbols : inferredSymbols;
-
-  const linkedSecurityIds = new Set<string>();
-  const missionLinks: Array<{
-    user_id: string;
-    mission_id: string;
-    security_id: string;
-    portfolio_holding_id?: string;
-    watchlist_item_id?: string;
-    link_type: "portfolio" | "watchlist";
-  }> = [];
-
-  if (input.portfolio_holding_id) {
-    const { data: holding, error: holdingError } = await supabase
-      .from("stocks_portfolio_holdings")
-      .select("id, security_id")
-      .eq("id", input.portfolio_holding_id)
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .single();
-
-    if (holdingError || !holding?.security_id) {
-      throw new Error("找不到可關聯的持股。");
-    }
-
-    linkedSecurityIds.add(holding.security_id);
-  }
-
-  if (input.watchlist_item_id) {
-    const { data: watchlistItem, error: watchlistError } = await supabase
-      .from("stocks_watchlist_items")
-      .select("id, security_id")
-      .eq("id", input.watchlist_item_id)
-      .eq("user_id", user.id)
-      .single();
-
-    if (watchlistError || !watchlistItem?.security_id) {
-      throw new Error("找不到可關聯的關注項目。");
-    }
-
-    linkedSecurityIds.add(watchlistItem.security_id);
-  }
-
-  const { data: mission, error } = await supabase
-    .from("stocks_missions")
-    .insert({
-      user_id: user.id,
-      title: input.title,
-      mission_type: input.mission_type,
-      original_question: input.original_question,
-      related_symbols: relatedSymbols,
-      related_security_ids: Array.from(linkedSecurityIds),
-      status: "pending",
-      data_package: input.related_market ? { relatedMarket: input.related_market } : null
-    })
-    .select("id")
-    .single();
-
-  if (error || !mission) {
-    throw new Error(error?.message ?? "任務建立失敗。");
-  }
-
-  if (input.portfolio_holding_id) {
-    const { data: holding } = await supabase
-      .from("stocks_portfolio_holdings")
-      .select("security_id")
-      .eq("id", input.portfolio_holding_id)
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .single();
-
-    if (holding?.security_id) {
-      missionLinks.push({
-        user_id: user.id,
-        mission_id: mission.id,
-        security_id: holding.security_id,
-        portfolio_holding_id: input.portfolio_holding_id,
-        link_type: "portfolio"
-      });
-    }
-  }
-
-  if (input.watchlist_item_id) {
-    const { data: watchlistItem } = await supabase
-      .from("stocks_watchlist_items")
-      .select("security_id")
-      .eq("id", input.watchlist_item_id)
-      .eq("user_id", user.id)
-      .single();
-
-    if (watchlistItem?.security_id) {
-      missionLinks.push({
-        user_id: user.id,
-        mission_id: mission.id,
-        security_id: watchlistItem.security_id,
-        watchlist_item_id: input.watchlist_item_id,
-        link_type: "watchlist"
-      });
-    }
-  }
-
-  if (missionLinks.length > 0) {
-    const { error: linkError } = await supabase.from("stocks_mission_links").insert(missionLinks);
-
-    if (linkError) {
-      throw new Error(linkError.message);
-    }
-  }
-
-  revalidatePath("/missions");
-  revalidatePath("/portfolio");
-  revalidatePath("/watchlist");
+  throw new Error("AI analysis has been removed.");
 }
 
 export async function cancelMission(formData: FormData) {
-  const { supabase, user } = await requireUser();
-  const id = requiredText.parse(getString(formData, "id"));
-
-  const { error } = await supabase
-    .from("stocks_missions")
-    .update({ status: "cancelled" })
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .eq("status", "pending");
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/missions");
+  throw new Error("AI analysis has been removed.");
 }
 
 const CreatePaperTradeSchema = z.object({

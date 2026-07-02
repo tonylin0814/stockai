@@ -56,12 +56,12 @@ export async function runTaiwanScan(params: {
     taiexChangePct: params.dataPackage.marketSnapshot.taiex.changePct,
     vix: params.dataPackage.marketSnapshot.vix.price
   });
-  const model = process.env.TW_SCAN_MODEL ?? "gpt-4o-mini";
+  const model = process.env.CODEX_MODEL_NAME ?? "codex-local";
   const startedAt = new Date().toISOString();
 
   try {
     const result = await callModel({
-      provider: "OpenAI",
+      provider: "Codex",
       model,
       prompt,
       budget: {
@@ -73,7 +73,7 @@ export async function runTaiwanScan(params: {
       rawText: result.text,
       schema: TwScanResultSchema,
       schemaDescription: "Taiwan scan result JSON",
-      provider: "OpenAI",
+      provider: "Codex",
       model,
       budget: {
         userId: params.userId,
@@ -90,7 +90,7 @@ export async function runTaiwanScan(params: {
     await savePipelineAgentRun({
       userId: params.userId,
       dailyRunId: params.dailyRunId,
-      provider: "OpenAI",
+      provider: "Codex",
       model,
       promptKey: "twScan",
       inputSummary: inputSummary(prompt),
@@ -150,7 +150,7 @@ export async function runTaiwanScan(params: {
     await savePipelineAgentRun({
       userId: params.userId,
       dailyRunId: params.dailyRunId,
-      provider: "OpenAI",
+      provider: "Codex",
       model,
       promptKey: "twScan",
       inputSummary: inputSummary(prompt),

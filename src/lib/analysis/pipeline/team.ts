@@ -1,8 +1,12 @@
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
-import type { z } from "zod";
 import type { DailyDataPackage } from "@/lib/analysis/data-package";
-import { enforceConfidenceCap } from "@/lib/analysis/pipeline/model";
+import {
+  callModel,
+  enforceConfidenceCap,
+  inputSummary,
+  maxOutputTokens,
+  parseJson,
+  validateOrRepair
+} from "@/lib/analysis/pipeline/model";
 import {
   AgentOutputSchema,
   AGENT_OUTPUT_JSON_SCHEMA_OBJ,
@@ -20,7 +24,6 @@ import { buildMarketScanPrompt } from "@/lib/analysis/prompts/market-scan";
 import { buildTeamLeaderPrompt } from "@/lib/analysis/prompts/team-leader";
 import { PROMPT_VERSIONS } from "@/lib/analysis/prompts/versions";
 import type { PromptIdentity } from "@/lib/analysis/prompts/common";
-import { assertAnalysisBudget } from "@/lib/analysis/cost-guard";
 import type { DataQualityState } from "@/lib/market-data/types";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -65,59 +68,9 @@ type AgentStep = {
   buildPrompt: (identity: PromptIdentity, dataPackage: DailyDataPackage) => string;
 };
 
-type ModelCallResult = {
-  text: string;
-  promptTokens: number;
-  completionTokens: number;
-  estimatedCostUsd: number;
-  tokenCount: number;
-};
-
-const LEAF_AGENT_MODEL_MAP: Record<string, string> = {
-  "gpt-5.5": "gpt-4o-mini",
-  "gpt-5": "gpt-4o-mini",
-  "gpt-4o": "gpt-4o-mini",
-  "claude-sonnet-4-6": "claude-haiku-4-5-20251001",
-  "claude-sonnet-latest": "claude-haiku-4-5-20251001",
-  "claude-sonnet-4-5": "claude-haiku-4-5-20251001"
-};
-
-const TEAM_LEADER_MODEL_MAP: Record<string, string> = {
-  "gpt-5.5": "gpt-4o",
-  "gpt-5": "gpt-4o",
-  "gpt-4o": "gpt-4o",
-  "claude-sonnet-4-6": "claude-sonnet-4-6",
-  "claude-sonnet-latest": "claude-sonnet-latest",
-  "claude-sonnet-4-5": "claude-sonnet-4-5"
-};
-
-const REPAIR_MODEL_MAP: Record<string, string> = {
-  OpenAI: "gpt-4o-mini",
-  Anthropic: "claude-haiku-4-5-20251001"
-};
-
-const MODEL_COST_PER_1M: Record<string, { input: number; output: number }> = {
-  "gpt-5": { input: 10, output: 40 },
-  "gpt-5.5": { input: 10, output: 40 },
-  "gpt-4o": { input: 5, output: 15 },
-  "gpt-4o-mini": { input: 0.15, output: 0.6 },
-  "claude-sonnet-4-5": { input: 3, output: 15 },
-  "claude-sonnet-4-6": { input: 3, output: 15 },
-  "claude-sonnet-latest": { input: 3, output: 15 },
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4 }
-};
-
 function envNumber(name: string, fallback: number) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function approximateTokens(text: string) {
-  return Math.ceil(text.length / 4);
-}
-
-function maxOutputTokens() {
-  return Math.round(envNumber("ANALYSIS_MAX_OUTPUT_TOKENS", 2500));
 }
 
 const agentSteps: AgentStep[] = [
@@ -143,37 +96,6 @@ const agentSteps: AgentStep[] = [
   }
 ];
 
-function inputSummary(prompt: string) {
-  return prompt.replace(/\s+/g, " ").slice(0, 200);
-}
-
-function stripJsonFence(text: string) {
-  return text
-    .trim()
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-}
-
-function extractJsonFromOutput(text: string) {
-  const marker = "---JSON_START---";
-  const markedIndex = text.lastIndexOf(marker);
-  const candidate = markedIndex >= 0 ? text.slice(markedIndex + marker.length) : text;
-  const stripped = stripJsonFence(candidate);
-  const firstBrace = stripped.indexOf("{");
-  const lastBrace = stripped.lastIndexOf("}");
-
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    return stripped.slice(firstBrace, lastBrace + 1).trim();
-  }
-
-  return stripped;
-}
-
-function parseJson(text: string): unknown {
-  return JSON.parse(extractJsonFromOutput(text));
-}
 
 function getWorstQualityState(dataPackage: DailyDataPackage): DataQualityState {
   const qualityCaps: Record<DataQualityState, number> = {
@@ -286,194 +208,15 @@ function capTeamReport(report: TeamReport, dataPackage: DailyDataPackage): TeamR
 }
 
 function getLeafAgentModel(divisionModel: string): string {
-  if (process.env.ANALYSIS_ECONOMY_MODE !== "false") {
-    return divisionModel.toLowerCase().includes("claude")
-      ? "claude-haiku-4-5-20251001"
-      : "gpt-4o-mini";
-  }
-  return LEAF_AGENT_MODEL_MAP[divisionModel] ?? divisionModel;
+  return process.env.CODEX_MODEL_NAME ?? "codex-local";
 }
 
 function getTeamLeaderModel(divisionModel: string): string {
-  if (process.env.ANALYSIS_ECONOMY_MODE !== "false") {
-    return divisionModel.toLowerCase().includes("claude")
-      ? "claude-haiku-4-5-20251001"
-      : "gpt-4o-mini";
-  }
-  return TEAM_LEADER_MODEL_MAP[divisionModel] ?? divisionModel;
+  return process.env.CODEX_MODEL_NAME ?? "codex-local";
 }
 
 function getRepairModel(provider: string): string {
-  return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
-}
-
-function estimateCostUsd(model: string, promptTokens: number, completionTokens: number): number {
-  const pricing = MODEL_COST_PER_1M[model] ?? { input: 5, output: 20 };
-  return (
-    (promptTokens / 1_000_000) * pricing.input +
-    (completionTokens / 1_000_000) * pricing.output
-  );
-}
-
-async function callModel(params: {
-  provider: string;
-  model: string;
-  prompt: string;
-  budget?: {
-    userId: string;
-    dailyRunId?: string | null;
-    missionId?: string | null;
-  };
-  maxOutputTokens?: number;
-  outputSchema?: object;
-}): Promise<ModelCallResult> {
-  const outputLimit = Math.round(params.maxOutputTokens ?? maxOutputTokens());
-  if (params.budget) {
-    await assertAnalysisBudget({
-      ...params.budget,
-      projectedCostUsd: estimateCostUsd(params.model, approximateTokens(params.prompt), outputLimit)
-    });
-  }
-
-  if (params.provider === "OpenAI") {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const responseFormat = params.outputSchema
-      ? {
-          type: "json_schema" as const,
-          json_schema: {
-            name: "analysis_output",
-            strict: false,
-            schema: params.outputSchema as Record<string, unknown>
-          }
-        }
-      : params.prompt.includes("---JSON_START---")
-        ? undefined
-        : { type: "json_object" as const };
-    const response = await client.chat.completions.create({
-      model: params.model,
-      messages: [{ role: "user", content: params.prompt }],
-      ...(responseFormat ? { response_format: responseFormat } : {}),
-      max_completion_tokens: outputLimit
-    });
-
-    const promptTokens = response.usage?.prompt_tokens ?? 0;
-    const completionTokens = response.usage?.completion_tokens ?? 0;
-
-    return {
-      text: response.choices[0]?.message?.content ?? "{}",
-      promptTokens,
-      completionTokens,
-      estimatedCostUsd: estimateCostUsd(params.model, promptTokens, completionTokens),
-      tokenCount: promptTokens + completionTokens
-    };
-  }
-
-  if (params.provider === "Anthropic") {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    if (params.outputSchema) {
-      const response = await client.messages.create({
-        model: params.model,
-        max_tokens: outputLimit,
-        tools: [
-          {
-            name: "analysis_output",
-            description: "Output the structured analysis result",
-            input_schema: params.outputSchema as Anthropic.Tool["input_schema"]
-          }
-        ],
-        tool_choice: { type: "tool", name: "analysis_output" },
-        messages: [{ role: "user", content: params.prompt }]
-      });
-      const toolBlock = response.content.find(
-        (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
-      );
-      const text = toolBlock ? JSON.stringify(toolBlock.input) : "{}";
-      const promptTokens = response.usage.input_tokens ?? 0;
-      const completionTokens = response.usage.output_tokens ?? 0;
-
-      return {
-        text,
-        promptTokens,
-        completionTokens,
-        estimatedCostUsd: estimateCostUsd(params.model, promptTokens, completionTokens),
-        tokenCount: promptTokens + completionTokens
-      };
-    }
-
-    const response = await client.messages.create({
-      model: params.model,
-      max_tokens: outputLimit,
-      messages: [{ role: "user", content: params.prompt }]
-    });
-    const text = response.content
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .join("");
-
-    const promptTokens = response.usage.input_tokens ?? 0;
-    const completionTokens = response.usage.output_tokens ?? 0;
-
-    return {
-      text,
-      promptTokens,
-      completionTokens,
-      estimatedCostUsd: estimateCostUsd(params.model, promptTokens, completionTokens),
-      tokenCount: promptTokens + completionTokens
-    };
-  }
-
-  throw new Error(`Unsupported model provider: ${params.provider}`);
-}
-
-async function validateOrRepair<T>(params: {
-  rawText: string;
-  schema: z.ZodType<T>;
-  schemaDescription: string;
-  provider: string;
-  model: string;
-  budget?: {
-    userId: string;
-    dailyRunId?: string | null;
-    missionId?: string | null;
-  };
-}) {
-  try {
-    return {
-      parsed: params.schema.parse(parseJson(params.rawText)),
-      repaired: false,
-      promptTokens: 0,
-      completionTokens: 0,
-      estimatedCostUsd: 0,
-      tokenCount: 0
-    };
-  } catch {
-    const repairPrompt = [
-      "Repair the following malformed JSON.",
-      "Return exactly one complete JSON object and nothing else.",
-      "Do not use markdown fences, comments, explanations, or trailing text.",
-      "Close every string, array, and object. Remove invalid trailing commas.",
-      "The repaired JSON must match this schema exactly:",
-      params.schemaDescription,
-      "Malformed JSON input:",
-      params.rawText
-    ].join("\n\n");
-    const repairResult = await callModel({
-      provider: params.provider,
-      model: params.model,
-      prompt: repairPrompt,
-      budget: params.budget,
-      maxOutputTokens: Math.min(2500, maxOutputTokens())
-    });
-
-    return {
-      parsed: params.schema.parse(parseJson(repairResult.text)),
-      repaired: true,
-      promptTokens: repairResult.promptTokens,
-      completionTokens: repairResult.completionTokens,
-      estimatedCostUsd: repairResult.estimatedCostUsd,
-      tokenCount: repairResult.tokenCount
-    };
-  }
+  return process.env.CODEX_MODEL_NAME ?? "codex-local";
 }
 
 async function getFamilyId(userId: string) {

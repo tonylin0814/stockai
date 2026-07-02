@@ -28,13 +28,8 @@ export type CommitteeRunResult =
 
 export type CommitteePipelineResult = CommitteeRunResult[];
 
-const REPAIR_MODEL_MAP: Record<string, string> = {
-  OpenAI: "gpt-4o-mini",
-  Anthropic: "claude-haiku-4-5-20251001"
-};
-
 function getRepairModel(provider: string): string {
-  return REPAIR_MODEL_MAP[provider] ?? "gpt-4o-mini";
+  return process.env.CODEX_MODEL_NAME ?? "codex-local";
 }
 
 export async function getCommitteeModels(): Promise<
@@ -52,7 +47,10 @@ export async function getCommitteeModels(): Promise<
     throw new Error(error?.message ?? "Cannot find division models for committee");
   }
 
-  return data as Array<{ model_provider: string; model_name: string }>;
+  return (data as Array<{ model_provider: string; model_name: string }>).map(() => ({
+    model_provider: "Codex",
+    model_name: process.env.CODEX_MODEL_NAME ?? "codex-local"
+  }));
 }
 
 function isFinalScenariosColumnMissing(error: { message?: string } | null) {
@@ -311,14 +309,14 @@ export async function runCommitteePipeline(params: {
         error: "Committee requires at least 2 completed division decisions.",
         decision: null,
         committeeDecisionId: null,
-        modelProvider: "OpenAI"
+        modelProvider: "Codex"
       },
       {
         status: "failed",
         error: "Committee requires at least 2 completed division decisions.",
         decision: null,
         committeeDecisionId: null,
-        modelProvider: "Anthropic"
+        modelProvider: "Codex"
       }
     ];
   }

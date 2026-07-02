@@ -4,7 +4,6 @@ import { AddHoldingDialog, EditHoldingDialog } from "@/app/portfolio/holding-dia
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { MarketStatusDot } from "@/components/market-status-dot";
 import { PortfolioStatusBar } from "@/components/portfolio-status-bar";
-import { RunAnalysisButton } from "@/components/run-analysis-button";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -61,9 +60,6 @@ export default async function PortfolioPage({
   searchParams?: { updated?: string };
 }) {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
   const { data: holdings, error } = await supabase
     .from("stocks_portfolio_holdings")
     .select(
@@ -108,20 +104,6 @@ export default async function PortfolioPage({
     .map((holding) => holding.quote!.sourceUpdatedAt)
     .sort()
     .at(-1);
-  let lastAnalysisAt: string | null = null;
-  if (user) {
-    const { data: lastRun } = await supabase
-      .from("stocks_daily_runs")
-      .select("completed_at, started_at, created_at")
-      .eq("user_id", user.id)
-      .eq("status", "completed")
-      .order("completed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const run = lastRun as { completed_at?: string | null; started_at?: string | null; created_at?: string | null } | null;
-    lastAnalysisAt = run?.completed_at ?? run?.started_at ?? run?.created_at ?? null;
-  }
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -130,12 +112,6 @@ export default async function PortfolioPage({
           <p className="mt-1 text-sm text-slate-600">管理手動輸入的台股、美股與 ETF 持股。</p>
         </div>
         <div className="flex flex-wrap items-start justify-end gap-3">
-          <div className="space-y-1 text-right">
-            <RunAnalysisButton label="執行投資組合分析" redirectTo="/analysis/daily" />
-            <p className="text-xs text-slate-500">
-              上一次投資組合分析：{lastAnalysisAt ? formatDateTime(lastAnalysisAt) : "—"}
-            </p>
-          </div>
           <AddHoldingDialog />
         </div>
       </div>

@@ -58,8 +58,7 @@ function normalizeAction(suggestion: MissionAnalysis["suggestion"]) {
 }
 
 function getAnalysisModel(provider: string, configuredModel: string): string {
-  if (process.env.ANALYSIS_ECONOMY_MODE === "false") return configuredModel;
-  return provider === "Anthropic" ? "claude-haiku-4-5-20251001" : "gpt-4o-mini";
+  return process.env.CODEX_MODEL_NAME ?? "codex-local";
 }
 
 function actionRank(action: DivisionDecision["decisionAction"]) {
@@ -132,9 +131,7 @@ async function getQuickModels() {
   }
 
   const rows = (data ?? []) as QuickModel[];
-  const openAi = rows.find((row) => row.model_provider === "OpenAI");
-  const anthropic = rows.find((row) => row.model_provider === "Anthropic");
-  const models = [openAi, anthropic].filter(Boolean) as QuickModel[];
+  const models = rows.slice(0, 2).map((row) => ({ ...row, model_provider: "Codex" }));
 
   if (!models.length) {
     throw new Error("找不到可用的快速分析模型。");

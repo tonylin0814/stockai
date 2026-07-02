@@ -3,7 +3,7 @@ import { verifyPredictions } from "@/lib/analysis/pipeline/sim-predictions";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
-type Division = "gpt" | "anthropic";
+type Division = "legacy_a" | "legacy_b";
 type Portfolio = {
   id: string;
   market: "US" | "TW";
@@ -72,7 +72,7 @@ export async function runWeeklyEvalForUser(
   const today = todayIsoDate();
   const provider = getMarketDataProvider();
 
-  for (const division of ["gpt", "anthropic"] as Division[]) {
+  for (const division of ["legacy_a", "legacy_b"] as Division[]) {
     await verifyPredictions({ supabase, userId, division, verifyDate: today, provider });
 
     const { data: portfoliosData } = await supabase

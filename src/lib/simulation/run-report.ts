@@ -6,7 +6,7 @@ import {
 } from "@/lib/analysis/pipeline/sim-predictions";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
-type Division = "gpt" | "anthropic";
+type Division = "legacy_a" | "legacy_b";
 type Portfolio = {
   id: string;
   market: "US" | "TW";
@@ -52,10 +52,7 @@ function yesterdayIsoDate() {
 }
 
 function modelForDivision(division: Division) {
-  if (division === "anthropic") {
-    return { provider: "Anthropic", model: "claude-haiku-4-5-20251001" };
-  }
-  return { provider: "OpenAI", model: "gpt-4o" };
+  return { provider: "Codex", model: "codex-local" };
 }
 
 function portfolioValue(portfolio: Portfolio | undefined, positions: Position[]) {
@@ -101,7 +98,7 @@ function buildReportPrompt(params: {
         .join("\n")
     : "目前無持倉";
 
-  return `你是 ${params.division === "gpt" ? "GPT Division" : "Anthropic Division"} 的投資組合經理，今日交易結束，撰寫每日報告。
+  return `你是 ${params.division === "legacy_a" ? "Legacy Division A" : "Legacy Division B"} 的投資組合經理，今日交易結束，撰寫每日報告。
 
 日期：${params.date}
 
@@ -132,7 +129,7 @@ export async function runReportForUser(
   const reportDate = todayIsoDate();
   const messages: string[] = [];
 
-  for (const division of ["gpt", "anthropic"] as Division[]) {
+  for (const division of ["legacy_a", "legacy_b"] as Division[]) {
     const { data: portfoliosData } = await supabase
       .from("stocks_sim_portfolios")
       .select("*")
@@ -201,7 +198,7 @@ export async function runReportForUser(
       schema: ReportSchema,
       schemaDescription: "simulation daily report",
       provider: model.provider,
-      model: model.provider === "OpenAI" ? "gpt-4o-mini" : "claude-haiku-4-5-20251001",
+      model: model.model,
       budget: { userId }
     });
     const report = validation.parsed;

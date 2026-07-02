@@ -238,19 +238,19 @@ function recommendationValue(rec: Record<string, unknown>, keys: string[]) {
 }
 
 function ReportDocument({ data }: { data: ReportData }) {
-  const gptTeams = byDivision(data.teamReports, "GPT Division");
-  const claudeTeams = byDivision(data.teamReports, "Claude Division");
+  const legacyDivisionATeams = byDivision(data.teamReports, "Legacy Division A");
+  const legacyDivisionBTeams = byDivision(data.teamReports, "Legacy Division B");
   const otherTeams = data.teamReports.filter(
-    (team) => team.division !== "GPT Division" && team.division !== "Claude Division"
+    (team) => team.division !== "Legacy Division A" && team.division !== "Legacy Division B"
   );
-  const committeeA = data.committees.find((committee) => committee.model_provider === "OpenAI");
-  const committeeB = data.committees.find((committee) => committee.model_provider === "Anthropic");
+  const committeeA = data.committees.find((committee) => committee.model_provider === "external provider");
+  const committeeB = data.committees.find((committee) => committee.model_provider === "external provider");
 
   return (
     <Document
       title={`CIO 每日簡報 ${data.runDate}`}
       author="台美股投資決策系統"
-      subject="每日市場分析報告"
+      subject="每日市場資料報告"
       creator="Stocks AI"
     >
       <Page size="A4" style={styles.coverPage}>
@@ -289,8 +289,8 @@ function ReportDocument({ data }: { data: ReportData }) {
 
         <Text style={styles.sectionTitle}>二、AI 團隊總結</Text>
         {[
-          { label: "GPT Division", teams: gptTeams },
-          { label: "Claude Division", teams: claudeTeams },
+          { label: "Legacy Division A", teams: legacyDivisionATeams },
+          { label: "Legacy Division B", teams: legacyDivisionBTeams },
           { label: "Other", teams: otherTeams }
         ]
           .filter((group) => group.teams.length > 0)
@@ -331,8 +331,8 @@ function ReportDocument({ data }: { data: ReportData }) {
         <Text style={styles.sectionTitle}>三、委員會決策對比</Text>
         <View style={styles.row2}>
           {[
-            { committee: committeeA, label: "Committee A - GPT" },
-            { committee: committeeB, label: "Committee B - Claude" }
+            { committee: committeeA, label: "Committee A" },
+            { committee: committeeB, label: "Committee B - legacy model" }
           ].map(({ committee, label }, index) => {
             if (!committee) return null;
             return (
@@ -415,8 +415,8 @@ function ReportDocument({ data }: { data: ReportData }) {
         <PageHeader runDate={data.runDate} />
         <Text style={styles.sectionTitle}>四、具體建議清單</Text>
         {[
-          { committee: committeeA, label: "Committee A (GPT)" },
-          { committee: committeeB, label: "Committee B (Claude)" }
+          { committee: committeeA, label: "Committee A" },
+          { committee: committeeB, label: "Committee B (legacy model)" }
         ].map(({ committee, label }) => {
           const recommendations = committee?.final_recommendations ?? [];
           if (recommendations.length === 0) return null;
@@ -452,7 +452,7 @@ function ReportDocument({ data }: { data: ReportData }) {
         <View style={[styles.card, { backgroundColor: "#FEF9C3", borderColor: "#FDE68A", marginTop: 8 }]}>
           <Text style={[styles.body, { color: "#92400E", fontFamily: "Helvetica-Bold" }]}>免責聲明</Text>
           <Text style={[styles.body, { color: "#92400E", marginTop: 4 }]}>
-            本報告由 AI 分析系統自動生成，僅供參考，不構成投資建議。投資涉及風險，請自行評估並諮詢專業意見。
+            本報告僅供資料整理參考，不構成投資建議。投資涉及風險，請自行評估並諮詢專業意見。
           </Text>
         </View>
         <PageFooter pageNumber={3} />

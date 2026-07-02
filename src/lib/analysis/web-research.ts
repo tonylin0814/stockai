@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 export type SymbolResearch = {
   symbol: string;
   earningsNote: string;
@@ -23,10 +21,7 @@ export type WebResearchArticle = {
   query: "earnings" | "analyst" | "risk" | "catalyst";
 };
 
-const SYNTHESIS_MODEL = process.env.WEB_RESEARCH_MODEL ?? "gpt-4o-mini";
-const SYNTHESIS_INPUT_COST_PER_1M = SYNTHESIS_MODEL.includes("mini") ? 0.15 : 5;
-const SYNTHESIS_OUTPUT_COST_PER_1M = SYNTHESIS_MODEL.includes("mini") ? 0.6 : 15;
-const NO_RECENT_INFO = "無最新資訊";
+const NO_RECENT_INFO = "No recent information";
 
 type TavilyResult = {
   title?: string;
@@ -38,13 +33,6 @@ type TavilyResponse = {
   results?: TavilyResult[];
   answer?: string;
 };
-
-function estimateCost(inputTokens: number, outputTokens: number): number {
-  return (
-    (inputTokens / 1_000_000) * SYNTHESIS_INPUT_COST_PER_1M +
-    (outputTokens / 1_000_000) * SYNTHESIS_OUTPUT_COST_PER_1M
-  );
-}
 
 async function tavilySearch(
   query: string,
@@ -95,95 +83,52 @@ async function tavilySearch(
   }
 }
 
-function parseField(text: string, label: string) {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = text.match(new RegExp(`${escaped}[：:]\\s*(.+)`, "i"));
-  return match?.[1]?.trim() || NO_RECENT_INFO;
+function firstUsefulLine(text: string) {
+  return (
+    text
+      .split(/\r?\n/)
+      .map((line) => line.replace(/\[[^\]]+\]\s*/, "").trim())
+      .find((line) => line.length > 0)
+      ?.slice(0, 220) || NO_RECENT_INFO
+  );
 }
 
-async function synthesizeResearch(
-  client: OpenAI,
+function synthesizeResearch(
   symbol: string,
-  name: string,
   rawSearchResults: Record<string, string>
-): Promise<{ research: SymbolResearch; inputTokens: number; outputTokens: number }> {
+): SymbolResearch {
   const fetchedAt = new Date().toISOString();
-  const emptyResearch: SymbolResearch = {
+
+  if (!Object.values(rawSearchResults).some((value) => value.length > 0)) {
+    return {
+      symbol,
+      earningsNote: "",
+      analystNote: "",
+      riskNote: "",
+      catalystNote: "",
+      fetchedAt,
+      articles: []
+    };
+  }
+
+  return {
     symbol,
-    earningsNote: "",
-    analystNote: "",
-    riskNote: "",
-    catalystNote: "",
+    earningsNote: firstUsefulLine(rawSearchResults.earnings),
+    analystNote: firstUsefulLine(rawSearchResults.analyst),
+    riskNote: firstUsefulLine(rawSearchResults.risk),
+    catalystNote: firstUsefulLine(rawSearchResults.catalyst),
     fetchedAt,
     articles: []
   };
-
-  if (!Object.values(rawSearchResults).some((value) => value.length > 0)) {
-    return { research: emptyResearch, inputTokens: 0, outputTokens: 0 };
-  }
-
-  const prompt = `你是投資研究助理。根據以下搜尋結果，用繁體中文整理 ${symbol}（${name}）的最新投資訊息。
-
-搜尋結果：
----
-財報相關：
-${rawSearchResults.earnings || "無結果"}
-
-分析師評等：
-${rawSearchResults.analyst || "無結果"}
-
-風險消息：
-${rawSearchResults.risk || "無結果"}
-
-催化劑/正面消息：
-${rawSearchResults.catalyst || "無結果"}
----
-
-請整理成以下四個欄位，每個欄位 1-2 句話。若無相關資料請填「${NO_RECENT_INFO}」。
-
-格式：
-財報：...
-分析師：...
-風險：...
-催化劑：...`;
-
-  try {
-    const response = await client.chat.completions.create({
-      model: SYNTHESIS_MODEL,
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 400,
-      temperature: 0
-    });
-    const text = response.choices[0]?.message?.content ?? "";
-    const inputTokens = response.usage?.prompt_tokens ?? 0;
-    const outputTokens = response.usage?.completion_tokens ?? 0;
-
-    return {
-      research: {
-        symbol,
-        earningsNote: parseField(text, "財報"),
-        analystNote: parseField(text, "分析師"),
-        riskNote: parseField(text, "風險"),
-        catalystNote: parseField(text, "催化劑"),
-        fetchedAt,
-        articles: []
-      },
-      inputTokens,
-      outputTokens
-    };
-  } catch {
-    return { research: emptyResearch, inputTokens: 0, outputTokens: 0 };
-  }
 }
 
 export async function runWebResearch(params: {
   symbols: Array<{ symbol: string; name: string; market: string }>;
 }): Promise<WebResearchResult> {
-  const openaiKey = process.env.OPENAI_API_KEY;
   const tavilyKey = process.env.TAVILY_API_KEY;
 
-  if (!openaiKey || !tavilyKey) {
-    console.warn("[web-research] Missing API keys, skipping.");
+  if (!tavilyKey) {
+    console.warn("[web-research] Missing Tavily API key, skipping.");
     return { bySymbol: {}, totalCostUsd: 0, symbolCount: 0 };
   }
 
@@ -199,24 +144,15 @@ export async function runWebResearch(params: {
   );
   if (!usSymbols.length) return { bySymbol: {}, totalCostUsd: 0, symbolCount: 0 };
 
-  const client = new OpenAI({ apiKey: openaiKey });
   const bySymbol: Record<string, SymbolResearch> = {};
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
 
   for (const item of usSymbols) {
     try {
       const [earnings, analyst, risk, catalyst] = await Promise.all([
-        tavilySearch(
-          `${item.symbol} ${item.name} next earnings date EPS estimate`,
-          "earnings"
-        ),
+        tavilySearch(`${item.symbol} ${item.name} next earnings date EPS estimate`, "earnings"),
         tavilySearch(`${item.symbol} ${item.name} analyst rating price target`, "analyst"),
         tavilySearch(`${item.symbol} ${item.name} risk downside concern`, "risk"),
-        tavilySearch(
-          `${item.symbol} ${item.name} positive news catalyst upcoming event`,
-          "catalyst"
-        )
+        tavilySearch(`${item.symbol} ${item.name} positive news catalyst upcoming event`, "catalyst")
       ]);
       const articles = [
         ...earnings.articles,
@@ -224,17 +160,12 @@ export async function runWebResearch(params: {
         ...risk.articles,
         ...catalyst.articles
       ];
-      const { research, inputTokens, outputTokens } = await synthesizeResearch(
-        client,
-        item.symbol,
-        item.name,
-        {
-          earnings: earnings.text,
-          analyst: analyst.text,
-          risk: risk.text,
-          catalyst: catalyst.text
-        }
-      );
+      const research = synthesizeResearch(item.symbol, {
+        earnings: earnings.text,
+        analyst: analyst.text,
+        risk: risk.text,
+        catalyst: catalyst.text
+      });
 
       if (
         research.earningsNote === NO_RECENT_INFO &&
@@ -246,8 +177,6 @@ export async function runWebResearch(params: {
       }
 
       bySymbol[item.symbol] = { ...research, articles };
-      totalInputTokens += inputTokens;
-      totalOutputTokens += outputTokens;
     } catch (error) {
       console.warn(`[web-research] Failed for ${item.symbol}:`, error);
     }
@@ -255,12 +184,7 @@ export async function runWebResearch(params: {
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
-  const totalCostUsd = estimateCost(totalInputTokens, totalOutputTokens);
-  console.log(
-    `[web-research] Done. ${usSymbols.length} symbols, ${SYNTHESIS_MODEL} cost: $${totalCostUsd.toFixed(
-      4
-    )} (${totalInputTokens} in / ${totalOutputTokens} out tokens)`
-  );
+  console.log(`[web-research] Done. ${usSymbols.length} symbols, Codex mode cost: $0.0000`);
 
-  return { bySymbol, totalCostUsd, symbolCount: usSymbols.length };
+  return { bySymbol, totalCostUsd: 0, symbolCount: usSymbols.length };
 }

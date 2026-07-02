@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MarketDataProvider } from "@/lib/market-data/types";
 
@@ -18,61 +17,19 @@ function nextDay(date: string) {
   return value.toISOString().slice(0, 10);
 }
 
-export async function extractPredictions(params: {
-  division: "gpt" | "anthropic";
+export async function extractPredictions(_params?: {
+  division: "legacy_a" | "legacy_b";
   reportDate: string;
   tomorrowOutlook: string;
   plannedActions: string | null;
 }): Promise<ExtractedPrediction[]> {
-  if (!process.env.OPENAI_API_KEY) return [];
-
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const prompt = `從以下投資日報的「明日展望」和「明日計劃」中，提取所有可在明日驗證的具體預測或行動計劃。
-
-明日展望：
-${params.tomorrowOutlook}
-
-明日計劃：
-${params.plannedActions ?? "（無）"}
-
-輸出 JSON：
-{
-  "predictions": [
-    {
-      "condition_text": "原文描述",
-      "condition_type": "price_trigger" | "action_follow_through" | "market_direction",
-      "symbol": "代號或null",
-      "market": "US" | "TW" | null,
-      "trigger_price": 數字或null,
-      "trigger_direction": "above" | "below" | null,
-      "predicted_action": "buy" | "sell" | "hold" | "market_up" | "market_down"
-    }
-  ]
-}
-
-只提取有明確條件的預測，不提取模糊陳述。`;
-
-  try {
-    const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      temperature: 0,
-      max_completion_tokens: 1200
-    });
-    const json = JSON.parse(response.choices[0]?.message?.content ?? "{}") as {
-      predictions?: ExtractedPrediction[];
-    };
-    return Array.isArray(json.predictions) ? json.predictions : [];
-  } catch {
-    return [];
-  }
+  return [];
 }
 
 export async function saveExtractedPredictions(params: {
   supabase: SupabaseClient;
   userId: string;
-  division: "gpt" | "anthropic";
+  division: "legacy_a" | "legacy_b";
   reportDate: string;
   predictions: ExtractedPrediction[];
 }) {
@@ -100,7 +57,7 @@ export async function saveExtractedPredictions(params: {
 export async function verifyPredictions(params: {
   supabase: SupabaseClient;
   userId: string;
-  division: "gpt" | "anthropic";
+  division: "legacy_a" | "legacy_b";
   verifyDate: string;
   provider: MarketDataProvider;
 }) {

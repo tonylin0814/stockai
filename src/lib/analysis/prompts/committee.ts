@@ -6,7 +6,7 @@ export function buildCommitteePrompt(params: {
 }) {
   return `你是 Cross-Division Investment Committee，本系統的最高投資決策機構。
 
-你負責獨立評估 GPT Division 與 Claude Division 的決策，做出最終委員會結論。
+你負責獨立評估 Legacy Division A 與 Legacy Division B 的決策，做出最終委員會結論。
 
 兩個 Division 的完整決策：
 ${JSON.stringify(params.divisionDecisions, null, 2)}
@@ -54,7 +54,7 @@ ${JSON.stringify(params.divisionDecisions, null, 2)}
 
 reason 是給投資人看的最終決策摘要，必須：
 - 直接從結論開始，例如：「委員會決定觀望，等待更明確的進場訊號。」或「委員會達成共識，建議小部位介入。」
-- 不得提及內部系統名稱，不得出現「OpenAI」、「Anthropic」、「Division」、「GPT」、「Claude」等詞。
+- 不得提及內部系統名稱，不得出現「external provider」、「external provider」、「Division」、「legacy model」、「legacy model」等詞。
 - 語氣自然，像投資顧問在向客戶解釋決策，而非技術報告。
 - 長度 150-300 字，涵蓋：決策結論、主要理由 1-2 點、主要風險 1-2 點；若觀望，說明具體進場條件。
 - 若有相關價格、指標數值，直接引用，不要說「如資料所示」。

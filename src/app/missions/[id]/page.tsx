@@ -286,38 +286,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       </div>
     </section>
   );
-  const sourceRows = quoteRows(missionRow.data_package);
-  const sourceSection = sourceRows.length ? (
-    <section className="space-y-3">
-      <h2 className="text-xl font-semibold text-slate-950">使用資料</h2>
-      <Table>
-        <thead>
-          <tr>
-            <Th>項目</Th>
-            <Th>價格</Th>
-            <Th>漲跌</Th>
-            <Th>漲跌幅</Th>
-            <Th>資料來源</Th>
-            <Th>資料時間</Th>
-            <Th>品質</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {sourceRows.map((row) => (
-            <tr key={row.label}>
-              <Td>{row.label}</Td>
-              <Td>{priceText(row.quote.price, row.quote.qualityState)}</Td>
-              <Td>{signedText(row.quote.change)}</Td>
-              <Td>{percentText(row.quote.changePct)}</Td>
-              <Td>{String(row.quote.source ?? "—")}</Td>
-              <Td>{formatDateTime(String(row.quote.sourceUpdatedAt ?? ""))}</Td>
-              <Td>{String(row.quote.qualityState ?? "—")}</Td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
-    </section>
-  ) : null;
+  const sourceSection = null;
 
   if (status === "pending") {
     return (
@@ -463,7 +432,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
             {comparison.consensus} | {comparison.confidence}
           </p>
         </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4">
           {committees.map((item, index) => {
             const finalScenarios = asRecord(item.final_scenarios ?? item.finalScenarios);
             const provider = String(item.model_provider ?? "");

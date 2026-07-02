@@ -190,10 +190,10 @@ export async function runMarketAnalysis(params: {
     params.marketSnapshot,
     tiers
   );
-  const model = process.env.MARKET_ANALYSIS_MODEL ?? "gpt-4o-mini";
+  const model = process.env.CODEX_MODEL_NAME ?? "codex-local";
   const startedAt = new Date().toISOString();
   const modelResult = await callModel({
-    provider: "OpenAI",
+    provider: "Codex",
     model,
     prompt,
     budget: { userId: params.userId, dailyRunId: params.dailyRunId }
@@ -202,7 +202,7 @@ export async function runMarketAnalysis(params: {
     rawText: modelResult.text,
     schema: MarketAnalysisResultSchema,
     schemaDescription: "Market analysis result JSON",
-    provider: "OpenAI",
+    provider: "Codex",
     model,
     budget: { userId: params.userId, dailyRunId: params.dailyRunId }
   });
@@ -221,7 +221,7 @@ export async function runMarketAnalysis(params: {
   await savePipelineAgentRun({
     userId: params.userId,
     dailyRunId: params.dailyRunId,
-    provider: "OpenAI",
+    provider: "Codex",
     model,
     promptKey: "marketAnalysis",
     inputSummary: inputSummary(prompt),
