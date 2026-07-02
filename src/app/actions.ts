@@ -525,6 +525,107 @@ export async function deleteMission(formData: FormData) {
   revalidatePath("/missions");
 }
 
+export async function updateMissionAssociations(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const schema = z.object({
+    missionId: z.string().uuid(),
+    portfolioHoldingId: optionalUuid,
+    watchlistItemId: optionalUuid
+  });
+  const input = schema.parse({
+    missionId: getString(formData, "missionId"),
+    portfolioHoldingId: getString(formData, "portfolioHoldingId"),
+    watchlistItemId: getString(formData, "watchlistItemId")
+  });
+
+  const { data: mission, error: missionError } = await supabase
+    .from("stocks_missions")
+    .select("id")
+    .eq("id", input.missionId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (missionError || !mission) {
+    throw new Error(missionError?.message ?? "找不到任務。");
+  }
+
+  const inserts: Array<{
+    user_id: string;
+    mission_id: string;
+    security_id: string;
+    portfolio_holding_id?: string;
+    watchlist_item_id?: string;
+    link_type: "portfolio" | "watchlist";
+  }> = [];
+
+  if (input.portfolioHoldingId) {
+    const { data: holding, error } = await supabase
+      .from("stocks_portfolio_holdings")
+      .select("id, security_id")
+      .eq("id", input.portfolioHoldingId)
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .single();
+
+    if (error || !holding?.security_id) {
+      throw new Error(error?.message ?? "找不到可關聯的投資組合股票。");
+    }
+
+    inserts.push({
+      user_id: user.id,
+      mission_id: input.missionId,
+      security_id: holding.security_id,
+      portfolio_holding_id: holding.id,
+      link_type: "portfolio"
+    });
+  }
+
+  if (input.watchlistItemId) {
+    const { data: watchlistItem, error } = await supabase
+      .from("stocks_watchlist_items")
+      .select("id, security_id")
+      .eq("id", input.watchlistItemId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (error || !watchlistItem?.security_id) {
+      throw new Error(error?.message ?? "找不到可關聯的關注清單股票。");
+    }
+
+    inserts.push({
+      user_id: user.id,
+      mission_id: input.missionId,
+      security_id: watchlistItem.security_id,
+      watchlist_item_id: watchlistItem.id,
+      link_type: "watchlist"
+    });
+  }
+
+  const { error: deleteError } = await supabase
+    .from("stocks_mission_links")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("mission_id", input.missionId)
+    .in("link_type", ["portfolio", "watchlist"]);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  if (inserts.length > 0) {
+    const { error: insertError } = await supabase.from("stocks_mission_links").insert(inserts);
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+  }
+
+  revalidatePath("/missions");
+  revalidatePath(`/missions/${input.missionId}`);
+  revalidatePath("/portfolio");
+  revalidatePath("/watchlist");
+}
+
 const CreatePaperTradeSchema = z.object({
   recommendationId: z.string().uuid().optional(),
   symbol: z.string().trim().min(1).transform((value) => value.toUpperCase()),

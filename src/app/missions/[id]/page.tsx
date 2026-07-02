@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { updateMissionAssociations } from "@/app/actions";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { RunMissionButton } from "@/components/run-mission-button";
 import { TeamReportTabs } from "@/components/team-report-tabs";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -269,6 +271,90 @@ export default async function MissionResultPage({ params }: { params: { id: stri
     missionRow.error_message = "先前分析逾時或中斷，已自動標記為失敗。";
   }
 
+  const [holdingsResult, watchlistResult, linksResult] = await Promise.all([
+    supabase
+      .from("stocks_portfolio_holdings")
+      .select("id, security_id, securities:stocks_securities(symbol, market, name)")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("stocks_watchlist_items")
+      .select("id, security_id, securities:stocks_securities(symbol, market, name)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("stocks_mission_links")
+      .select("portfolio_holding_id, watchlist_item_id, link_type")
+      .eq("user_id", user.id)
+      .eq("mission_id", params.id)
+      .in("link_type", ["portfolio", "watchlist"])
+  ]);
+
+  if (holdingsResult.error) return <LoadErrorCard message={holdingsResult.error.message} />;
+  if (watchlistResult.error) return <LoadErrorCard message={watchlistResult.error.message} />;
+  if (linksResult.error) return <LoadErrorCard message={linksResult.error.message} />;
+
+  const portfolioOptions = ((holdingsResult.data ?? []) as unknown as Array<{
+    id: string;
+    securities: { symbol: string; market: string; name: string } | null;
+  }>).filter((item) => item.securities);
+  const watchlistOptions = ((watchlistResult.data ?? []) as unknown as Array<{
+    id: string;
+    securities: { symbol: string; market: string; name: string } | null;
+  }>).filter((item) => item.securities);
+  const currentPortfolioHoldingId =
+    ((linksResult.data ?? []) as Array<{ portfolio_holding_id: string | null; link_type: string }>)
+      .find((link) => link.link_type === "portfolio")?.portfolio_holding_id ?? "";
+  const currentWatchlistItemId =
+    ((linksResult.data ?? []) as Array<{ watchlist_item_id: string | null; link_type: string }>)
+      .find((link) => link.link_type === "watchlist")?.watchlist_item_id ?? "";
+
+  const associationSection = (
+    <form action={updateMissionAssociations} className="mt-5 border-t border-slate-100 pt-4">
+      <input type="hidden" name="missionId" value={params.id} />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium text-slate-700">關聯到關注清單</span>
+          <select
+            name="watchlistItemId"
+            defaultValue={currentWatchlistItemId}
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
+          >
+            <option value="">不關聯</option>
+            {watchlistOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.securities!.symbol} - {item.securities!.name}（{item.securities!.market}）
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium text-slate-700">關聯到投資組合</span>
+          <select
+            name="portfolioHoldingId"
+            defaultValue={currentPortfolioHoldingId}
+            className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
+          >
+            <option value="">不關聯</option>
+            {portfolioOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.securities!.symbol} - {item.securities!.name}（{item.securities!.market}）
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <PendingSubmitButton
+          idleLabel="儲存關聯"
+          pendingLabel="儲存中..."
+          variant="secondary"
+        />
+      </div>
+    </form>
+  );
+
   const detailSection = (
     <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
       <h1 className="text-2xl font-semibold text-slate-950">{String(missionRow.title)}</h1>
@@ -285,6 +371,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
           </span>
         </div>
       </div>
+      {associationSection}
     </section>
   );
   const backLink = (

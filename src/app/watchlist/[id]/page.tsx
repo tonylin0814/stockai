@@ -51,6 +51,22 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
 
   const security = item.securities;
   if (!security) notFound();
+  const { data: missionLinks } = await supabase
+    .from("stocks_mission_links")
+    .select("mission_id")
+    .eq("user_id", user.id)
+    .eq("watchlist_item_id", item.id);
+  const missionIds = Array.from(
+    new Set(((missionLinks ?? []) as Array<{ mission_id: string }>).map((link) => link.mission_id))
+  );
+  const { data: relatedMissions } = missionIds.length
+    ? await supabase
+        .from("stocks_missions")
+        .select("id, title, status, created_at")
+        .eq("user_id", user.id)
+        .in("id", missionIds)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   return (
     <div className="space-y-6">
@@ -104,6 +120,30 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
         <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
           {item.notes || "尚未填寫備註。"}
         </p>
+      </section>
+
+      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-950">相關任務</h2>
+        {(relatedMissions ?? []).length ? (
+          <div className="mt-3 divide-y divide-slate-100">
+            {relatedMissions!.map((mission) => (
+              <Link
+                key={mission.id}
+                href={`/missions/${mission.id}`}
+                className="block py-3 first:pt-0 last:pb-0 hover:text-blue-700"
+              >
+                <div className="text-sm font-medium text-slate-950 hover:underline">
+                  {mission.title}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {mission.status} / {formatDateTime(mission.created_at)}
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">目前沒有關聯任務。</p>
+        )}
       </section>
     </div>
   );

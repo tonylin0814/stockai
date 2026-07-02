@@ -99,6 +99,22 @@ export default async function StockDetailPage({
   const refreshAction = refreshStockMarketData.bind(null, holdingId);
   const pnlClass =
     pnl === null ? "text-slate-500" : pnl < 0 ? "text-red-700" : "text-green-700";
+  const { data: missionLinks } = await supabase
+    .from("stocks_mission_links")
+    .select("mission_id")
+    .eq("user_id", user.id)
+    .eq("portfolio_holding_id", holdingId);
+  const missionIds = Array.from(
+    new Set(((missionLinks ?? []) as Array<{ mission_id: string }>).map((link) => link.mission_id))
+  );
+  const { data: relatedMissions } = missionIds.length
+    ? await supabase
+        .from("stocks_missions")
+        .select("id, title, status, created_at")
+        .eq("user_id", user.id)
+        .in("id", missionIds)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   return (
     <div className="space-y-6">
@@ -276,6 +292,30 @@ export default async function StockDetailPage({
           <p className="text-sm text-slate-600">{holding.notes}</p>
         </div>
       ) : null}
+
+      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-slate-950">相關任務</h2>
+        {(relatedMissions ?? []).length ? (
+          <div className="divide-y divide-slate-100">
+            {relatedMissions!.map((mission) => (
+              <Link
+                key={mission.id}
+                href={`/missions/${mission.id}`}
+                className="block py-3 first:pt-0 last:pb-0 hover:text-blue-700"
+              >
+                <div className="text-sm font-medium text-slate-950 hover:underline">
+                  {mission.title}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {mission.status} / {formatDateTime(mission.created_at)}
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">目前沒有關聯任務。</p>
+        )}
+      </div>
     </div>
   );
 }
