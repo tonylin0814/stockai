@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { signOut } from "@/app/actions";
@@ -35,8 +36,17 @@ export default async function RootLayout({
         {user ? (
           <header className="border-b border-slate-200 bg-white">
             <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between">
-              <Link href="/markets" className="font-semibold text-slate-950">
-                台美股投資決策系統
+              <Link href="/markets" className="flex items-center gap-3 text-slate-950">
+                <Image
+                  src="/brand/rockhill-logo.png"
+                  alt="Rock Hill Innovation"
+                  width={260}
+                  height={52}
+                  className="h-10 w-auto"
+                />
+                <span className="hidden text-sm font-semibold text-slate-600 lg:inline">
+                  台美股投資決策系統
+                </span>
               </Link>
               <nav className="flex flex-wrap items-center gap-2">
                 {navLinks.map((link) => (

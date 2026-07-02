@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { TeamReportTabs } from "@/components/team-report-tabs";
 import { Table, Td, Th } from "@/components/ui/table";
@@ -38,6 +39,16 @@ function consensusClass(level: string | null) {
 
 function modelLabel(division: Record<string, unknown>) {
   return String(division.division ?? division.model_provider ?? "模型");
+}
+
+function advisorProfile(value: unknown) {
+  const text = String(value ?? "");
+
+  if (text.includes("Claire") || text.includes("Anthropic") || text.includes("Claude")) {
+    return { name: "Claire", image: "/advisors/claire.png" };
+  }
+
+  return { name: "Monica", image: "/advisors/monica.png" };
 }
 
 function confidenceRange(rows: Array<Record<string, unknown>>) {
@@ -150,13 +161,25 @@ export default async function PortfolioAnalysisPage() {
             committees.map((item, index) => {
               const provider = String(item.model_provider ?? "");
               const label = provider ? `Committee ${index + 1} - ${provider}` : `Committee ${index + 1}`;
+              const advisor = advisorProfile(provider);
 
               return (
                 <article key={`${provider}-${index}`} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-950">{label}</h3>
-                      <p className="mt-1 text-xs text-slate-500">{formatDateTime(String(item.created_at ?? ""))}</p>
+                    <div className="flex items-center gap-3">
+                      <Image
+                        src={advisor.image}
+                        alt={advisor.name}
+                        width={56}
+                        height={56}
+                        className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
+                      />
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-950">{label}</h3>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {advisor.name} / {formatDateTime(String(item.created_at ?? ""))}
+                        </p>
+                      </div>
                     </div>
                     <span className={`rounded-md border px-2 py-1 text-xs font-medium ${consensusClass(String(item.consensus_level ?? "none"))}`}>
                       {String(item.consensus_level ?? "none")}
@@ -204,15 +227,25 @@ export default async function PortfolioAnalysisPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {divisions.map((division) => {
             const actions = asPortfolioActions(division.portfolio_actions);
+            const advisor = advisorProfile(division.division_manager ?? division.model_provider ?? division.division);
 
             return (
               <article key={`division-${String(division.id)}`} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-950">{modelLabel(division)}</h3>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {String(division.division_manager ?? "-")}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <Image
+                      src={advisor.image}
+                      alt={advisor.name}
+                      width={56}
+                      height={56}
+                      className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
+                    />
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-950">{modelLabel(division)}</h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {String(division.division_manager ?? advisor.name)}
+                      </p>
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-slate-950">{actionLabel(division.decision_action)}</p>
