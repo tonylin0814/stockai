@@ -12,9 +12,9 @@ export const metadata: Metadata = {
   title: "RH 台美股分析",
   description: "RH 台美股投資決策系統",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/brand/rh-favicon.png"
+    icon: [{ url: "/brand/rh-favicon.png?v=2", type: "image/png" }],
+    shortcut: [{ url: "/brand/rh-favicon.png?v=2", type: "image/png" }],
+    apple: [{ url: "/brand/rh-favicon.png?v=2", type: "image/png" }]
   }
 };
 
