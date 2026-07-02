@@ -53,6 +53,10 @@ function advisorProfile(value: unknown) {
 
 const committeeAdvisor = { name: "Kevin", image: "/advisors/kevin.png" };
 
+function advisorTitle(advisor: { name: string }) {
+  return advisor.name === "Claire" ? "Claire 經理 - Claude" : "Monica 經理 - GPT";
+}
+
 function confidenceRange(rows: Array<Record<string, unknown>>) {
   const values = rows
     .map((row) => Number(row.confidence))
@@ -162,7 +166,7 @@ export default async function PortfolioAnalysisPage() {
           {committees.length ? (
             committees.map((item, index) => {
               const provider = String(item.model_provider ?? "");
-              const label = provider ? `Committee ${index + 1} - ${provider}` : `Committee ${index + 1}`;
+              const label = "Kevin 委員 - Codex";
 
               return (
                 <article key={`${provider}-${index}`} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
@@ -178,7 +182,7 @@ export default async function PortfolioAnalysisPage() {
                       <div>
                         <h3 className="text-base font-semibold text-slate-950">{label}</h3>
                         <p className="mt-1 text-xs text-slate-500">
-                          {committeeAdvisor.name} / {formatDateTime(String(item.created_at ?? ""))}
+                          {formatDateTime(String(item.created_at ?? ""))}
                         </p>
                       </div>
                     </div>
@@ -242,9 +246,9 @@ export default async function PortfolioAnalysisPage() {
                       className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
                     />
                     <div>
-                      <h3 className="text-base font-semibold text-slate-950">{modelLabel(division)}</h3>
+                      <h3 className="text-base font-semibold text-slate-950">{advisorTitle(advisor)}</h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        {String(division.division_manager ?? advisor.name)}
+                        {modelLabel(division)}
                       </p>
                     </div>
                   </div>
