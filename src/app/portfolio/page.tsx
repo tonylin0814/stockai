@@ -39,6 +39,10 @@ type HoldingWithQuote = Holding & {
   quote: Quote | null;
 };
 
+function formatDollar(value: number) {
+  return `$${formatNumber(value, 2)}`;
+}
+
 export default async function PortfolioPage({
   searchParams
 }: {
@@ -206,10 +210,12 @@ export default async function PortfolioPage({
                       </div>
                     </td>
                     <td className="px-3 py-3 text-right align-middle">{formatNumber(holding.shares, 2)}</td>
-                    <td className="px-3 py-3 text-right align-middle">{formatNumber(holding.average_cost, 2)}</td>
+                    <td className="px-3 py-3 text-right align-middle">
+                      {formatDollar(holding.average_cost)}
+                    </td>
                     <td className="px-3 py-3 text-right align-middle">
                       <div className="flex flex-col items-end gap-1">
-                        <span>{hasPrice ? formatNumber(quote.price, 2) : "—"}</span>
+                        <span>{hasPrice ? formatDollar(quote.price) : "—"}</span>
                         <QualityBadge state={quote?.qualityState ?? "missing"} />
                       </div>
                     </td>

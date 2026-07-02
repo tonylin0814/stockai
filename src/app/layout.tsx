@@ -44,10 +44,10 @@ export default async function RootLayout({
             <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between">
               <Link href="/home" className="flex items-center gap-3 text-slate-950">
                 <Image
-                  src="/brand/rockhill-logo.png"
+                  src="/brand/rh-logo-mark.png"
                   alt="Rock Hill Innovation"
-                  width={260}
-                  height={52}
+                  width={72}
+                  height={54}
                   className="h-10 w-auto"
                 />
                 <span className="hidden text-base font-semibold text-slate-600 lg:inline">
