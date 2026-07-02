@@ -508,6 +508,23 @@ export async function cancelMission(formData: FormData) {
   throw new Error("AI analysis has been removed.");
 }
 
+export async function deleteMission(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const id = z.string().uuid().parse(getString(formData, "id"));
+
+  const { error } = await supabase
+    .from("stocks_missions")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/missions");
+}
+
 const CreatePaperTradeSchema = z.object({
   recommendationId: z.string().uuid().optional(),
   symbol: z.string().trim().min(1).transform((value) => value.toUpperCase()),

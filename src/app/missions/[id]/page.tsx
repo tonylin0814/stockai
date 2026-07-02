@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RunMissionButton } from "@/components/run-mission-button";
 import { TeamReportTabs } from "@/components/team-report-tabs";
@@ -286,6 +287,14 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       </div>
     </section>
   );
+  const backLink = (
+    <Link
+      href="/missions"
+      className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-slate-50"
+    >
+      返回任務中心
+    </Link>
+  );
   const sourceRows = quoteRows(missionRow.data_package);
   const sourceSection = sourceRows.length ? (
     <section className="space-y-3">
@@ -320,6 +329,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   if (status === "pending") {
     return (
       <div className="space-y-5">
+        {backLink}
         {detailSection}
         <RunMissionButton missionId={params.id} />
       </div>
@@ -329,6 +339,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   if (status === "running") {
     return (
       <div className="space-y-5">
+        {backLink}
         <AutoRefresh />
         {detailSection}
         <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
@@ -341,6 +352,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   if (status === "failed") {
     return (
       <div className="space-y-5">
+        {backLink}
         {detailSection}
         {sourceSection}
         <div className="rounded-md border border-red-200 bg-red-50 p-6">
@@ -391,6 +403,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   } catch (error) {
     return (
       <div className="space-y-5">
+        {backLink}
         {detailSection}
         {sourceSection}
         <LoadErrorCard message={error instanceof Error ? error.message : "未知錯誤"} />
@@ -407,6 +420,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
   if (resultError) {
     return (
       <div className="space-y-5">
+        {backLink}
         {detailSection}
         {sourceSection}
         <LoadErrorCard message={resultError.message} />
@@ -451,6 +465,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-8">
+      {backLink}
       {detailSection}
       {sourceSection}
 

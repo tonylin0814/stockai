@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 type ConfirmSubmitButtonProps = {
   idleLabel: string;
   confirmLabel: string;
+  confirmMessage?: string;
   icon?: "trash" | "x";
   variant?: "danger" | "ghost";
 };
@@ -15,6 +16,7 @@ type ConfirmSubmitButtonProps = {
 export function ConfirmSubmitButton({
   idleLabel,
   confirmLabel,
+  confirmMessage,
   icon = "trash",
   variant = "danger"
 }: ConfirmSubmitButtonProps) {
@@ -28,7 +30,7 @@ export function ConfirmSubmitButton({
     return () => window.clearTimeout(id);
   }, [confirming]);
 
-  return (
+  const button = (
     <Button
       type={confirming ? "submit" : "button"}
       variant={variant}
@@ -54,5 +56,20 @@ export function ConfirmSubmitButton({
         <Trash2 className="h-4 w-4" />
       )}
     </Button>
+  );
+
+  if (!confirmMessage) {
+    return button;
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      {confirming ? (
+        <span className="max-w-48 text-xs font-medium leading-4 text-red-700">
+          {confirmMessage}
+        </span>
+      ) : null}
+      {button}
+    </span>
   );
 }

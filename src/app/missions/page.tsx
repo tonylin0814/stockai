@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { deleteMission } from "@/app/actions";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { Table, Td, Th } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -69,7 +71,14 @@ export default async function MissionsPage() {
           {(missions ?? []).length ? (
             missions!.map((mission) => (
               <tr key={mission.id}>
-                <Td>{mission.title}</Td>
+                <Td>
+                  <Link
+                    href={`/missions/${mission.id}`}
+                    className="font-medium text-blue-700 hover:underline"
+                  >
+                    {mission.title}
+                  </Link>
+                </Td>
                 <Td>{missionTypeLabel(mission.mission_type)}</Td>
                 <Td>
                   <span className={cn("rounded-md border px-2 py-1 text-xs font-medium", statusClass(mission.status))}>
@@ -78,12 +87,14 @@ export default async function MissionsPage() {
                 </Td>
                 <Td>{formatDateTime(mission.created_at)}</Td>
                 <Td>
-                  <Link
-                    href={`/missions/${mission.id}`}
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-slate-50"
-                  >
-                    查看
-                  </Link>
+                  <form action={deleteMission}>
+                    <input type="hidden" name="id" value={mission.id} />
+                    <ConfirmSubmitButton
+                      idleLabel="刪除任務"
+                      confirmLabel="確認刪除任務"
+                      confirmMessage="確認刪除這個任務？再按一次會永久刪除任務紀錄。"
+                    />
+                  </form>
                 </Td>
               </tr>
             ))
