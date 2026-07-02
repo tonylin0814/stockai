@@ -1,5 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
+import {
+  BarChart3,
+  FileText,
+  Landmark,
+  PieChart,
+  Star,
+  type LucideIcon
+} from "lucide-react";
 import { QualityBadge } from "@/components/quality-badge";
 import { Table, Td, Th } from "@/components/ui/table";
 import {
@@ -84,10 +92,60 @@ function asMarketPicks(value: unknown): MarketPick[] {
 
 function marketAdvisor(market: "TW" | "US") {
   if (market === "TW") {
-    return { name: "🇹🇼 Owen 委員 - Codex", image: "/advisors/owen.png", alt: "Owen" };
+    return { name: "Owen 委員 - Codex", image: "/advisors/owen.png", alt: "Owen", flag: "/flags/tw.svg" };
   }
 
-  return { name: "🇺🇸 Sofia 委員 - Codex", image: "/advisors/sofia.png", alt: "Sofia" };
+  return { name: "Sofia 委員 - Codex", image: "/advisors/sofia.png", alt: "Sofia", flag: "/flags/us.svg" };
+}
+
+function SectionTitle({
+  icon: Icon,
+  title,
+  tone = "blue"
+}: {
+  icon: LucideIcon;
+  title: string;
+  tone?: "blue" | "emerald" | "violet" | "amber" | "rose";
+}) {
+  const tones = {
+    blue: "border-blue-200 bg-blue-50 text-blue-700",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    violet: "border-violet-200 bg-violet-50 text-violet-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    rose: "border-rose-200 bg-rose-50 text-rose-700"
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`inline-flex h-8 w-8 items-center justify-center rounded-md border ${tones[tone]}`}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
+    </div>
+  );
+}
+
+function FlagPair({ base, quote }: { base: string; quote: string }) {
+  const flags: Record<string, string> = {
+    CAD: "/flags/ca.svg",
+    CNY: "/flags/cn.svg",
+    JPY: "/flags/jp.svg",
+    TWD: "/flags/tw.svg",
+    USD: "/flags/us.svg"
+  };
+
+  return (
+    <span className="flex items-center gap-1">
+      {[base, quote].map((currency) => (
+        <span
+          key={currency}
+          aria-label={currency}
+          className="inline-block h-4 w-6 rounded-sm bg-cover bg-center ring-1 ring-slate-200"
+          style={{ backgroundImage: `url('${flags[currency]}')` }}
+        />
+      ))}
+    </span>
+  );
 }
 
 function MarketPickList({ title, picks }: { title: string; picks: MarketPick[] }) {
@@ -143,7 +201,14 @@ function MarketAnalysisCard({ report }: { report: MarketAnalysisRow }) {
             className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
           />
           <div>
-            <h3 className="text-lg font-semibold text-slate-950">{advisor.name}</h3>
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
+              <span
+                aria-hidden="true"
+                className="inline-block h-4 w-6 rounded-sm bg-cover bg-center ring-1 ring-slate-200"
+                style={{ backgroundImage: `url('${advisor.flag}')` }}
+              />
+              <span>{advisor.name}</span>
+            </h3>
             <p className="mt-1 text-xs text-slate-500">
               {marketLabel} / {formatDateTime(report.created_at)}
             </p>
@@ -293,7 +358,12 @@ export default async function MarketsPage() {
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-950">市場總覽</h1>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-700">
+            <BarChart3 className="h-5 w-5" />
+          </span>
+          <h1 className="text-2xl font-semibold text-slate-950">市場總覽</h1>
+        </div>
         <p className="mt-1 text-sm text-slate-600">持股、關注清單、匯率與大盤指數。</p>
       </div>
 
@@ -305,10 +375,10 @@ export default async function MarketsPage() {
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-slate-950">市場分析報告</h2>
+          <SectionTitle icon={FileText} title="市場分析報告" tone="emerald" />
           <Link
             href="/markets"
-            className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-slate-50"
+            className="inline-flex h-8 items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
           >
             查看全部記錄
           </Link>
@@ -327,11 +397,14 @@ export default async function MarketsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">匯率</h2>
+        <SectionTitle icon={Landmark} title="匯率" tone="violet" />
         <div className="grid gap-3 md:grid-cols-5">
           {fxPairs.map((pair, index) => (
-            <div key={pair.label} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm text-slate-600">{pair.label}</div>
+            <div key={pair.label} className="rounded-md border border-violet-100 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2 text-sm text-slate-600">
+                <span>{pair.label}</span>
+                <FlagPair base={pair.base} quote={pair.quote} />
+              </div>
               <div className="mt-1 text-xl font-semibold text-slate-950">
                 {Number.isFinite(fxRates[index]) ? formatNumber(fxRates[index], 4) : "-"}
               </div>
@@ -341,7 +414,7 @@ export default async function MarketsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">我的持股</h2>
+        <SectionTitle icon={PieChart} title="我的持股" tone="amber" />
         {holdings.length === 0 ? (
           <EmptyState message="尚未建立持股。" linkHref="/portfolio" linkLabel="前往投資組合新增" />
         ) : (
@@ -400,7 +473,7 @@ export default async function MarketsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">關注清單</h2>
+        <SectionTitle icon={Star} title="關注清單" tone="rose" />
         {watchlistItems.length === 0 ? (
           <EmptyState message="尚未建立關注項目。" linkHref="/watchlist" linkLabel="前往關注清單新增" />
         ) : (

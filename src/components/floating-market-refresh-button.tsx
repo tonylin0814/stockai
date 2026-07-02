@@ -30,17 +30,18 @@ export function FloatingMarketRefreshButton() {
   return (
     <form
       action={refreshMarketDataForPage}
-      className="fixed right-5 top-1/2 z-50 w-36 -translate-y-1/2 rounded-md border border-slate-200 bg-white/95 p-2 text-center shadow-xl shadow-slate-900/10 backdrop-blur print:hidden"
+      className="fixed right-5 top-1/2 z-50 w-36 -translate-y-1/2 rounded-md border border-cyan-200 bg-cyan-50/95 p-2 text-center shadow-xl shadow-cyan-900/10 backdrop-blur print:hidden"
     >
       <input type="hidden" name="returnTo" value={returnTo} />
       <PendingSubmitButton
         idleLabel="更新"
         pendingLabel="更新中..."
         icon="refresh"
+        variant="secondary"
         size="sm"
-        className="w-full justify-center"
+        className="w-full justify-center border-cyan-300 bg-white text-cyan-800 hover:bg-cyan-100"
       />
-      <div className="mt-2 flex items-center justify-center gap-1 text-[11px] text-slate-500">
+      <div className="mt-2 flex items-center justify-center gap-1 text-[11px] text-cyan-700">
         <RefreshCw className="h-3 w-3" />
         <span>{fetchedAt}</span>
       </div>
