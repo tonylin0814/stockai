@@ -1,8 +1,8 @@
 import Link from "next/link";
-import type React from "react";
-import { ArrowLeft, BriefcaseBusiness } from "lucide-react";
+import Image from "next/image";
+import { BriefcaseBusiness } from "lucide-react";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { TeamReportTabs } from "@/components/team-report-tabs";
 import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
@@ -14,6 +14,9 @@ type DecisionRow = {
   id: string;
   daily_run_id: string | null;
   decision_action: string | null;
+  division: string | null;
+  division_manager: string | null;
+  model_provider: string | null;
   confidence: number | null;
   market_summary: string | null;
   portfolio_actions: unknown;
@@ -24,8 +27,9 @@ type TeamReportRow = {
   id: string;
   division: string;
   team_name: string;
+  market_view: Record<string, unknown> | null;
   portfolio_review: unknown;
-  final_team_view: unknown;
+  final_team_view: Record<string, unknown> | null;
   confidence: number | null;
   created_at: string;
 };
@@ -39,6 +43,29 @@ function asRecord(value: unknown): Record<string, unknown> {
 function normalizeSymbol(value: unknown) {
   return String(value ?? "").trim().toUpperCase();
 }
+
+function advisorProfile(value: unknown) {
+  const text = String(value ?? "");
+
+  if (text.includes("Claire") || text.includes("Anthropic") || text.includes("Claude")) {
+    return { name: "Claire", image: "/advisors/claire.png" };
+  }
+
+  return { name: "Monica", image: "/advisors/monica.png" };
+}
+
+function advisorTitle(advisor: { name: string }) {
+  return advisor.name === "Claire" ? "Claire 經理 - Claude" : "Monica 經理 - GPT";
+}
+
+function modelLabel(decision: DecisionRow) {
+  const provider = String(decision.model_provider ?? decision.division ?? "");
+  if (provider.includes("Anthropic") || provider.includes("Claude")) return "Claude";
+  if (provider.includes("OpenAI") || provider.includes("GPT")) return "GPT";
+  return String(decision.division ?? "模型");
+}
+
+const committeeAdvisor = { name: "Kevin", image: "/advisors/kevin.png" };
 
 function displayValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "-";
@@ -118,21 +145,6 @@ function MetricCard({
   );
 }
 
-function NarrativeSection({
-  title,
-  children
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
-      <div className="mt-3 text-sm leading-7 text-slate-700">{children}</div>
-    </section>
-  );
-}
-
 function ReportParagraphs({ data }: { data: Record<string, unknown> }) {
   const preferredKeys = [
     "reason",
@@ -191,7 +203,7 @@ export default async function PortfolioAnalysisDetailPage({
   const supabase = createSupabaseServiceClient();
   const { data: decisionData, error } = await supabase
     .from("stocks_division_decisions")
-    .select("id, daily_run_id, decision_action, confidence, market_summary, portfolio_actions, created_at")
+    .select("id, daily_run_id, division, division_manager, model_provider, decision_action, confidence, market_summary, portfolio_actions, created_at")
     .eq("id", params.id)
     .eq("user_id", user.id)
     .single();
@@ -216,7 +228,7 @@ export default async function PortfolioAnalysisDetailPage({
   const { data: teamData, error: teamError } = decision.daily_run_id
     ? await supabase
         .from("stocks_team_reports")
-        .select("id, division, team_name, portfolio_review, final_team_view, confidence, created_at")
+        .select("id, division, team_name, market_view, portfolio_review, final_team_view, confidence, created_at")
         .eq("user_id", user.id)
         .eq("daily_run_id", decision.daily_run_id)
         .order("created_at", { ascending: false })
@@ -239,91 +251,177 @@ export default async function PortfolioAnalysisDetailPage({
       };
     })
     .filter((report) => report.matchedReview);
+  const teamTabsReports = teamReports.map((report) => ({
+    id: report.id,
+    division: report.division,
+    team_name: report.team_name,
+    market_view: report.market_view,
+    portfolio_review: report.matchedReview ? [report.matchedReview] : [],
+    final_team_view: report.final_team_view
+  }));
+  const advisor = advisorProfile(decision.division_manager ?? decision.model_provider ?? decision.division);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link href="/portfolio/analysis">
-            <Button type="button" variant="secondary" size="icon" aria-label="返回">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-blue-100 bg-blue-50 text-blue-700">
-                <BriefcaseBusiness className="h-5 w-5" />
-              </span>
-              <h1 className="text-2xl font-semibold text-slate-950">
-                {actionSymbol || "持股"} 投資分析
-              </h1>
-            </div>
-            <p className="mt-1 text-sm text-slate-600">
-              分析時間：{formatDateTime(decision.created_at)}
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <Link
+        href="/portfolio/analysis"
+        className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-slate-50"
+      >
+        返回我的投資分析
+      </Link>
 
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-950">投資結論</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {actionSymbol} {actionName ? `/ ${actionName}` : ""}
-            </p>
-          </div>
-          <span className="rounded-md border border-blue-100 bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-800">
-            {actionText}
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-blue-100 bg-blue-50 text-blue-700">
+            <BriefcaseBusiness className="h-5 w-5" />
           </span>
+          <h1 className="text-2xl font-semibold text-slate-950">
+            {actionSymbol || "持股"} 投資分析
+          </h1>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-          <MetricCard label="現價" value={shortValue(action.current_price)} />
-          <MetricCard label="平均成本" value={shortValue(action.average_cost)} />
-          <MetricCard label="報酬率" value={formatPercent(returnPct)} tone={returnTone} />
-          <MetricCard label="今日漲跌幅" value={formatPercent(changePct)} tone={changeTone} />
+        <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-slate-700 md:grid-cols-2">
+          <p>原始問題：Portfolio 自動分析 {actionSymbol} {actionName}</p>
+          <p>任務類型：投資組合檢視</p>
+          <p>相關代號：{actionSymbol || "-"}</p>
+          <p>建立時間：{formatDateTime(decision.created_at)}</p>
+          <p>完成時間：{formatDateTime(decision.created_at)}</p>
+          <div className="flex items-center gap-2">
+            <span>狀態：</span>
+            <span className="rounded-md border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800">
+              完成
+            </span>
+          </div>
         </div>
-        {decision.market_summary ? (
-          <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-            {decision.market_summary}
-          </p>
-        ) : null}
       </section>
 
-      <NarrativeSection title="價格區間與風險控管">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          <MetricCard
-            label="買入區間"
-            value={[shortValue(action.buy_zone_low), shortValue(action.buy_zone_high)].filter((value) => value && value !== "-").join(" - ") || "-"}
-          />
-          <MetricCard
-            label="賣出區間"
-            value={[shortValue(action.sell_zone_low), shortValue(action.sell_zone_high)].filter((value) => value && value !== "-").join(" - ") || "-"}
-          />
-          <MetricCard label="目標價" value={shortValue(action.target_price)} />
-          <MetricCard label="停損" value={shortValue(action.stop_loss)} tone="bad" />
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-950">委員會決策</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            模型共識：{actionText} | 信心 {displayValue(decision.confidence)}
+          </p>
         </div>
-      </NarrativeSection>
+        <article className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Image
+                src={committeeAdvisor.image}
+                alt={committeeAdvisor.name}
+                width={56}
+                height={56}
+                className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
+              />
+              <div>
+                <h3 className="text-base font-semibold text-slate-950">Kevin 委員 - Codex</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  決策時間：{formatDateTime(decision.created_at)}
+                </p>
+              </div>
+            </div>
+            <span className="rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs font-medium text-green-800">
+              completed
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-slate-500">建議</p>
+              <p className="font-medium text-slate-950">{actionText}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">信心</p>
+              <p className="font-medium text-slate-950">{displayValue(decision.confidence)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">允許行動</p>
+              <p className="font-medium text-slate-950">是</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">最終動作</p>
+              <p className="font-medium text-slate-950">{actionText}</p>
+            </div>
+          </div>
+          <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+            {decision.market_summary || textFor(action, ["reason", "view", "technical", "macro", "risk"]) || "-"}
+          </p>
+        </article>
+      </section>
 
-      <NarrativeSection title="分析說明">
-        <ReportParagraphs data={action} />
-      </NarrativeSection>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-950">模型分析對照</h2>
+          <div className="mt-2 rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-sm">
+            <p>模型共識：{actionText}</p>
+            <p className="mt-1">
+              價格區間：買入 {[shortValue(action.buy_zone_low), shortValue(action.buy_zone_high)].filter((value) => value && value !== "-").join(" - ") || "—"}；
+              目標 {shortValue(action.target_price)}；停損 {shortValue(action.stop_loss)}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <article className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Image
+                  src={advisor.image}
+                  alt={advisor.name}
+                  width={56}
+                  height={56}
+                  className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
+                />
+                <div>
+                  <h3 className="text-base font-semibold text-slate-950">{advisorTitle(advisor)}</h3>
+                  <p className="mt-1 text-xs text-slate-500">{modelLabel(decision)}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    分析時間：{formatDateTime(decision.created_at)}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-semibold text-slate-950">{actionText}</p>
+                <p className="text-xs text-slate-500">信心 {displayValue(decision.confidence)}</p>
+              </div>
+            </div>
+            <p className="text-sm leading-6 text-slate-700">
+              {decision.market_summary || textFor(action, ["summary", "view", "reason"]) || "-"}
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+              <div className="rounded-md bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">買進區間</p>
+                <p className="mt-1 font-medium text-slate-950">
+                  {[shortValue(action.buy_zone_low), shortValue(action.buy_zone_high)].filter((value) => value && value !== "-").join(" - ") || "-"}
+                </p>
+              </div>
+              <div className="rounded-md bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">目標價</p>
+                <p className="mt-1 font-medium text-slate-950">{shortValue(action.target_price)}</p>
+              </div>
+              <div className="rounded-md bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">停損</p>
+                <p className="mt-1 font-medium text-slate-950">{shortValue(action.stop_loss)}</p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">核心理由</p>
+                <div className="mt-1 text-sm leading-6 text-slate-700">
+                  <ReportParagraphs data={action} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                <MetricCard label="現價" value={shortValue(action.current_price)} />
+                <MetricCard label="平均成本" value={shortValue(action.average_cost)} />
+                <MetricCard label="報酬率" value={formatPercent(returnPct)} tone={returnTone} />
+                <MetricCard label="今日漲跌幅" value={formatPercent(changePct)} tone={changeTone} />
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-950">團隊分析內容</h2>
-        {teamReports.length ? (
-          teamReports.map((report) => (
-            <article key={report.id} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold text-slate-950">{report.team_name}</h3>
-                  <p className="mt-1 text-sm text-slate-500">{report.division}</p>
-                </div>
-                <div className="text-sm text-slate-500">信心 {displayValue(report.confidence)}</div>
-              </div>
-              <ReportParagraphs data={report.matchedReview ?? {}} />
-            </article>
-          ))
+        <h2 className="text-xl font-semibold text-slate-950">Team Reports</h2>
+        {teamTabsReports.length ? (
+          <TeamReportTabs reports={teamTabsReports} />
         ) : (
           <div className="rounded-md border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
             這筆分析沒有找到對應的團隊明細。
