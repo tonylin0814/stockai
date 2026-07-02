@@ -360,7 +360,7 @@ export async function createHolding(formData: FormData) {
         price: input.average_cost,
         currency: input.cost_currency,
         fees: 0,
-        notes: input.notes ? `初始持股：${input.notes}` : "初始持股"
+        notes: input.notes ? `新增持股自動建立：${input.notes}` : "新增持股自動建立"
       });
 
     if (transactionError) {
@@ -369,6 +369,7 @@ export async function createHolding(formData: FormData) {
   }
 
   revalidatePath("/portfolio");
+  revalidatePath(`/portfolio/${holding.id}`);
 }
 
 export async function updateHolding(formData: FormData) {
