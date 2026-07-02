@@ -82,6 +82,14 @@ function asMarketPicks(value: unknown): MarketPick[] {
     .filter((item): item is MarketPick => Boolean(item));
 }
 
+function marketAdvisor(market: "TW" | "US") {
+  if (market === "TW") {
+    return { name: "🇹🇼 Owen 委員 - Codex", image: "/advisors/owen.png", alt: "Owen" };
+  }
+
+  return { name: "🇺🇸 Sofia 委員 - Codex", image: "/advisors/sofia.png", alt: "Sofia" };
+}
+
 function MarketPickList({ title, picks }: { title: string; picks: MarketPick[] }) {
   return (
     <div className="rounded-md border border-slate-200 bg-white p-4">
@@ -121,20 +129,21 @@ function MarketAnalysisCard({ report }: { report: MarketAnalysisRow }) {
   const under200 = asMarketPicks(report.picks_under_200);
   const etfs = asMarketPicks(report.etf_picks);
   const marketLabel = report.market === "TW" ? "台股市場分析" : "美股市場分析";
+  const advisor = marketAdvisor(report.market);
 
   return (
     <article className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <Image
-            src="/advisors/kevin.png"
-            alt="Kevin"
+            src={advisor.image}
+            alt={advisor.alt}
             width={56}
             height={56}
             className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
           />
           <div>
-            <h3 className="text-lg font-semibold text-slate-950">Kevin 委員 - Codex</h3>
+            <h3 className="text-lg font-semibold text-slate-950">{advisor.name}</h3>
             <p className="mt-1 text-xs text-slate-500">
               {marketLabel} / {formatDateTime(report.created_at)}
             </p>
