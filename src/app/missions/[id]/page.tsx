@@ -286,7 +286,36 @@ export default async function MissionResultPage({ params }: { params: { id: stri
       </div>
     </section>
   );
-  const sourceSection = null;
+  const sourceRows = quoteRows(missionRow.data_package);
+  const sourceSection = sourceRows.length ? (
+    <section className="space-y-3">
+      <h2 className="text-xl font-semibold text-slate-950">使用資料</h2>
+      <Table>
+        <thead>
+          <tr>
+            <Th>項目</Th>
+            <Th>價格</Th>
+            <Th>漲跌</Th>
+            <Th>漲跌幅</Th>
+            <Th>資料時間</Th>
+            <Th>品質</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {sourceRows.map((row) => (
+            <tr key={row.label}>
+              <Td>{row.label}</Td>
+              <Td>{priceText(row.quote.price, row.quote.qualityState)}</Td>
+              <Td>{signedText(row.quote.change)}</Td>
+              <Td>{percentText(row.quote.changePct)}</Td>
+              <Td>{formatDateTime(String(row.quote.sourceUpdatedAt ?? ""))}</Td>
+              <Td>{String(row.quote.qualityState ?? "—")}</Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </section>
+  ) : null;
 
   if (status === "pending") {
     return (
