@@ -6,7 +6,6 @@ import { MarketStatusDot } from "@/components/market-status-dot";
 import { PortfolioStatusBar } from "@/components/portfolio-status-bar";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
-import { Table, Td, Th } from "@/components/ui/table";
 import {
   formatCurrency,
   formatDateTime,
@@ -39,20 +38,6 @@ type Holding = {
 type HoldingWithQuote = Holding & {
   quote: Quote | null;
 };
-
-function formatMarketRef(quote: Quote): string | null {
-  const parts: string[] = [];
-
-  if (quote.dayHigh && quote.dayLow) {
-    parts.push(`H ${formatNumber(quote.dayHigh, 2)} / L ${formatNumber(quote.dayLow, 2)}`);
-  }
-
-  if (quote.bid && quote.ask) {
-    parts.push(`買 ${formatNumber(quote.bid, 2)} / 賣 ${formatNumber(quote.ask, 2)}`);
-  }
-
-  return parts.length > 0 ? parts.join(" · ") : null;
-}
 
 export default async function PortfolioPage({
   searchParams
@@ -149,108 +134,118 @@ export default async function PortfolioPage({
         </div>
       </div>
 
-      <Table>
-        <thead>
-          <tr>
-            <Th>代號</Th>
-            <Th>名稱</Th>
-            <Th>市場</Th>
-            <Th>股數</Th>
-            <Th>平均成本</Th>
-            <Th>幣別</Th>
-            <Th>策略</Th>
-            <Th>現價</Th>
-            <Th>市值</Th>
-            <Th>未實現損益</Th>
-            <Th>報酬率</Th>
-            <Th>操作</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rowsWithQuotes.length ? (
-            rowsWithQuotes.map((holding) => {
-              const quote = holding.quote;
-              const hasPrice = quote && quote.qualityState !== "missing";
-              const marketRef = hasPrice ? formatMarketRef(quote) : null;
-              const marketValue = hasPrice ? holding.shares * quote.price : null;
-              const pnl = hasPrice
-                ? (quote.price - holding.average_cost) * holding.shares
-                : null;
-              const returnPct =
-                hasPrice && holding.average_cost > 0
-                  ? ((quote.price - holding.average_cost) / holding.average_cost) * 100
-                  : null;
-              const pnlClass =
-                pnl === null ? "text-slate-500" : pnl < 0 ? "text-red-700" : "text-green-700";
-
-              return (
-                <tr key={holding.id}>
-                  <Td>
-                    <Link
-                      href={`/portfolio/${holding.id}`}
-                      className="font-medium text-blue-700 hover:underline"
-                    >
-                      {holding.securities?.symbol}
-                    </Link>
-                  </Td>
-                  <Td>
-                    <Link href={`/portfolio/${holding.id}`} className="hover:text-blue-700">
-                      {holding.securities?.name}
-                    </Link>
-                  </Td>
-                  <Td>
-                    <div className="flex items-center gap-1.5">
-                      {holding.securities?.market ? (
-                        <MarketStatusDot market={holding.securities.market as "US" | "TW"} />
-                      ) : null}
-                      <span>{holding.securities?.market}</span>
-                    </div>
-                  </Td>
-                  <Td>{formatNumber(holding.shares, 4)}</Td>
-                  <Td>{formatNumber(holding.average_cost, 2)}</Td>
-                  <Td>{holding.cost_currency}</Td>
-                  <Td>{holding.strategy}</Td>
-                  <Td>
-                    <div className="flex flex-col gap-1">
-                      <span>{hasPrice ? formatNumber(quote.price, 2) : "—"}</span>
-                      {marketRef ? (
-                        <span className="text-xs text-slate-400">{marketRef}</span>
-                      ) : null}
-                      <QualityBadge state={quote?.qualityState ?? "missing"} />
-                    </div>
-                  </Td>
-                  <Td>
-                    {marketValue === null
-                      ? "—"
-                      : formatCurrency(marketValue, holding.cost_currency)}
-                  </Td>
-                  <Td className={pnlClass}>
-                    {pnl === null ? "—" : formatCurrency(pnl, holding.cost_currency)}
-                  </Td>
-                  <Td className={pnlClass}>
-                    {returnPct === null ? "—" : formatSignedPercent(returnPct)}
-                  </Td>
-                  <Td>
-                    <div className="flex items-center gap-2">
-                      <EditHoldingDialog holding={holding} />
-                      <form action={softDeleteHolding}>
-                        <input type="hidden" name="id" value={holding.id} />
-                        <ConfirmSubmitButton idleLabel="刪除" confirmLabel="再次點擊確認刪除" />
-                      </form>
-                    </div>
-                  </Td>
-                </tr>
-              );
-            })
-          ) : (
-            <tr>
-              <Td colSpan={12} className="py-8 text-center text-slate-500">
-                尚未建立持股。
-              </Td>
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <table className="w-full table-fixed text-sm leading-6">
+          <colgroup>
+            <col className="w-[8%]" />
+            <col className="w-[16%]" />
+            <col className="w-[7%]" />
+            <col className="w-[8%]" />
+            <col className="w-[9%]" />
+            <col className="w-[9%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+            <col className="w-[8%]" />
+            <col className="w-[11%]" />
+          </colgroup>
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50 text-left font-semibold text-slate-800">
+              <th className="px-3 py-3">代號</th>
+              <th className="px-3 py-3">名稱</th>
+              <th className="px-3 py-3">市場</th>
+              <th className="px-3 py-3 text-right">股數</th>
+              <th className="px-3 py-3 text-right">平均成本</th>
+              <th className="px-3 py-3 text-right">現價</th>
+              <th className="px-3 py-3 text-right">市值</th>
+              <th className="px-3 py-3 text-right">未實現損益</th>
+              <th className="px-3 py-3 text-right">報酬率</th>
+              <th className="px-3 py-3 text-right">操作</th>
             </tr>
-          )}
-        </tbody>
-      </Table>
+          </thead>
+          <tbody>
+            {rowsWithQuotes.length ? (
+              rowsWithQuotes.map((holding) => {
+                const quote = holding.quote;
+                const hasPrice = quote && quote.qualityState !== "missing";
+                const marketValue = hasPrice ? holding.shares * quote.price : null;
+                const pnl = hasPrice
+                  ? (quote.price - holding.average_cost) * holding.shares
+                  : null;
+                const returnPct =
+                  hasPrice && holding.average_cost > 0
+                    ? ((quote.price - holding.average_cost) / holding.average_cost) * 100
+                    : null;
+                const pnlClass =
+                  pnl === null ? "text-slate-500" : pnl < 0 ? "text-red-700" : "text-green-700";
+
+                return (
+                  <tr key={holding.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-3 align-middle">
+                      <Link
+                        href={`/portfolio/${holding.id}`}
+                        className="font-medium text-blue-700 hover:underline"
+                      >
+                        {holding.securities?.symbol}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-3 align-middle">
+                      <Link
+                        href={`/portfolio/${holding.id}`}
+                        className="block truncate hover:text-blue-700"
+                        title={holding.securities?.name ?? ""}
+                      >
+                        {holding.securities?.name}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-3 align-middle">
+                      <div className="flex items-center gap-1.5">
+                        {holding.securities?.market ? (
+                          <MarketStatusDot market={holding.securities.market as "US" | "TW"} />
+                        ) : null}
+                        <span>{holding.securities?.market}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-right align-middle">{formatNumber(holding.shares, 2)}</td>
+                    <td className="px-3 py-3 text-right align-middle">{formatNumber(holding.average_cost, 2)}</td>
+                    <td className="px-3 py-3 text-right align-middle">
+                      <div className="flex flex-col items-end gap-1">
+                        <span>{hasPrice ? formatNumber(quote.price, 2) : "—"}</span>
+                        <QualityBadge state={quote?.qualityState ?? "missing"} />
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-right align-middle">
+                      {marketValue === null
+                        ? "—"
+                        : formatCurrency(marketValue, holding.cost_currency)}
+                    </td>
+                    <td className={`px-3 py-3 text-right align-middle ${pnlClass}`}>
+                      {pnl === null ? "—" : formatCurrency(pnl, holding.cost_currency)}
+                    </td>
+                    <td className={`px-3 py-3 text-right align-middle ${pnlClass}`}>
+                      {returnPct === null ? "—" : formatSignedPercent(returnPct)}
+                    </td>
+                    <td className="px-3 py-3 text-right align-middle">
+                      <div className="flex justify-end gap-1.5">
+                        <EditHoldingDialog holding={holding} />
+                        <form action={softDeleteHolding}>
+                          <input type="hidden" name="id" value={holding.id} />
+                          <ConfirmSubmitButton idleLabel="刪除" confirmLabel="再次點擊確認刪除" />
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={10} className="px-3 py-8 text-center text-slate-500">
+                  尚未建立持股。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
