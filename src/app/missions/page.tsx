@@ -92,7 +92,7 @@ export default async function MissionsPage() {
                     <ConfirmSubmitButton
                       idleLabel="刪除任務"
                       confirmLabel="確認刪除任務"
-                      confirmMessage="確認刪除這個任務？再按一次會永久刪除任務紀錄。"
+                      confirmMessage="確認刪除？"
                     />
                   </form>
                 </Td>
