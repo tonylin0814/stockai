@@ -95,18 +95,7 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
     .from("stocks_mission_links")
     .select("mission_id")
     .eq("user_id", user.id)
-    .eq("watchlist_item_id", item.id);
-  const missionIds = Array.from(
-    new Set(((missionLinks ?? []) as Array<{ mission_id: string }>).map((link) => link.mission_id))
-  );
-  const { data: relatedMissions } = missionIds.length
-    ? await supabase
-        .from("stocks_missions")
-        .select("id, title, status, created_at")
-        .eq("user_id", user.id)
-        .in("id", missionIds)
-        .order("created_at", { ascending: false })
-    : { data: [] };
+    .or(`watchlist_item_id.eq.${item.id},security_id.eq.${security.id}`);
   const { data: recommendationData, error: recommendationError } = await supabase
     .from("stocks_recommendations")
     .select(
@@ -118,6 +107,20 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
   const recommendationRows = (recommendationError ? [] : recommendationData ?? []) as unknown as AnalysisRow[];
   const committeeRows = recommendationRows.filter((row) => row.source_type === "committee");
   const analysisRows = (committeeRows.length ? committeeRows : recommendationRows).slice(0, 5);
+  const missionIds = Array.from(
+    new Set([
+      ...((missionLinks ?? []) as Array<{ mission_id: string | null }>).map((link) => link.mission_id),
+      ...recommendationRows.map((row) => row.mission_id)
+    ].filter((id): id is string => Boolean(id)))
+  );
+  const { data: relatedMissions } = missionIds.length
+    ? await supabase
+        .from("stocks_missions")
+        .select("id, title, status, created_at")
+        .eq("user_id", user.id)
+        .in("id", missionIds)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   return (
     <div className="space-y-6">
@@ -174,7 +177,7 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
       </section>
 
       <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">相關任務</h2>
+        <h2 className="text-lg font-semibold text-slate-950">分析報告</h2>
         {(relatedMissions ?? []).length ? (
           <div className="mt-3 divide-y divide-slate-100">
             {relatedMissions!.map((mission) => (
@@ -193,7 +196,7 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
             ))}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-slate-500">目前沒有關聯任務。</p>
+          <p className="mt-3 text-sm text-slate-500">目前沒有分析報告。</p>
         )}
       </section>
 
