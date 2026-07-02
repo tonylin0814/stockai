@@ -21,6 +21,7 @@ import {
 } from "@/lib/format";
 import { getMarketDataProvider } from "@/lib/market-data/provider";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 type PortfolioTransaction = PortfolioTransactionFormValue & {
   created_at: string;
@@ -174,7 +175,8 @@ export default async function StockDetailPage({
 
   const transactions = (transactionsData ?? []) as unknown as PortfolioTransaction[];
   const realizedById = calculateRealizedPnl(transactions);
-  const { data: recommendationsData, error: recommendationsError } = await supabase
+  const serviceSupabase = createSupabaseServiceClient();
+  const { data: recommendationsData, error: recommendationsError } = await serviceSupabase
     .from("stocks_recommendations")
     .select(
       "id, mission_id, recommendation_date, buy_zone_low, buy_zone_high, target_price, stop_loss, created_at"
@@ -185,12 +187,12 @@ export default async function StockDetailPage({
     .order("created_at", { ascending: false });
 
   if (recommendationsError) {
-    throw new Error(recommendationsError.message);
+    console.error("Failed to load Kevin recommendations", recommendationsError.message);
   }
 
   const analysisPage = Math.max(1, Number(searchParams?.analysisPage ?? 1) || 1);
   const analysisPageSize = 5;
-  const relatedAnalysisRows = (recommendationsData ?? []) as unknown as KevinRecommendationRow[];
+  const relatedAnalysisRows = (recommendationsError ? [] : recommendationsData ?? []) as unknown as KevinRecommendationRow[];
   const analysisStart = (analysisPage - 1) * analysisPageSize;
   const pagedAnalysisRows = relatedAnalysisRows.slice(
     analysisStart,
