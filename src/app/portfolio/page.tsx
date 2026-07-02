@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { BriefcaseBusiness } from "lucide-react";
 import { softDeleteHolding } from "@/app/actions";
 import { AddHoldingDialog, EditHoldingDialog } from "@/app/portfolio/holding-dialogs";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { MarketStatusDot } from "@/components/market-status-dot";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   formatCurrency,
   formatNumber,
@@ -93,6 +96,8 @@ function PortfolioSummaryCard({
   title: string;
   summary: ReturnType<typeof marketSummary>;
 }) {
+  const todayLabel = title.includes("台股") ? "今日台股變動" : "今日美股變動";
+
   return (
     <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <h2 className="text-base font-semibold text-slate-950">{title}</h2>
@@ -121,7 +126,7 @@ function PortfolioSummaryCard({
         </div>
       </dl>
       <div className="mt-4 rounded-md border border-blue-100 bg-blue-50 p-3">
-        <div className="text-sm font-medium text-blue-900">今日{title.replace("市值", "")}變動</div>
+        <div className="text-sm font-medium text-blue-900">{todayLabel}</div>
         <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
           <div>
             <div className="text-blue-700">金額變動</div>
@@ -144,7 +149,15 @@ function PortfolioSummaryCard({
 export default async function PortfolioPage({
   searchParams
 }: {
-  searchParams?: { updated?: string };
+  searchParams?: {
+    updated?: string;
+    page?: string;
+    market?: string;
+    symbol?: string;
+    name?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  };
 }) {
   const supabase = createSupabaseServerClient();
   const { data: holdings, error } = await supabase
@@ -178,12 +191,51 @@ export default async function PortfolioPage({
   }));
   const taiwanSummary = marketSummary(rowsWithQuotes, "TW");
   const usSummary = marketSummary(rowsWithQuotes, "US");
+  const selectedMarket = searchParams?.market === "TW" || searchParams?.market === "US"
+    ? searchParams.market
+    : "";
+  const symbolFilter = (searchParams?.symbol ?? "").trim().toUpperCase();
+  const nameFilter = (searchParams?.name ?? "").trim().toLowerCase();
+  const dateFrom = (searchParams?.dateFrom ?? "").trim();
+  const dateTo = (searchParams?.dateTo ?? "").trim();
+  const filteredRows = rowsWithQuotes.filter((holding) => {
+    const security = holding.securities;
+    if (selectedMarket && security?.market !== selectedMarket) return false;
+    if (symbolFilter && !security?.symbol?.toUpperCase().includes(symbolFilter)) return false;
+    if (nameFilter && !security?.name?.toLowerCase().includes(nameFilter)) return false;
+    if (dateFrom && (!holding.opened_at || holding.opened_at < dateFrom)) return false;
+    if (dateTo && (!holding.opened_at || holding.opened_at > dateTo)) return false;
+    return true;
+  });
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const currentPage = Math.min(
+    totalPages,
+    Math.max(1, Number.parseInt(searchParams?.page ?? "1", 10) || 1)
+  );
+  const pageStart = (currentPage - 1) * pageSize;
+  const pagedRows = filteredRows.slice(pageStart, pageStart + pageSize);
+  const pageUrl = (page: number) => {
+    const params = new URLSearchParams();
+    if (selectedMarket) params.set("market", selectedMarket);
+    if (symbolFilter) params.set("symbol", symbolFilter);
+    if (nameFilter) params.set("name", searchParams?.name ?? "");
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    params.set("page", String(page));
+    return `/portfolio?${params.toString()}`;
+  };
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-950">投資組合</h1>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-blue-100 bg-blue-50 text-blue-700">
+              <BriefcaseBusiness className="h-5 w-5" />
+            </span>
+            <h1 className="text-2xl font-semibold text-slate-950">我的投資</h1>
+          </div>
           <p className="mt-1 text-sm text-slate-600">管理手動輸入的台股、美股與 ETF 持股。</p>
         </div>
         <div className="flex flex-wrap items-start justify-end gap-3">
@@ -197,9 +249,49 @@ export default async function PortfolioPage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <PortfolioSummaryCard title="台股市值" summary={taiwanSummary} />
-        <PortfolioSummaryCard title="美股市值" summary={usSummary} />
+        <PortfolioSummaryCard title="我的台股市值" summary={taiwanSummary} />
+        <PortfolioSummaryCard title="我的美股市值" summary={usSummary} />
       </div>
+
+      <form className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+          <label className="space-y-1 text-sm font-medium text-slate-700">
+            日期起
+            <Input name="dateFrom" type="date" defaultValue={dateFrom} />
+          </label>
+          <label className="space-y-1 text-sm font-medium text-slate-700">
+            日期止
+            <Input name="dateTo" type="date" defaultValue={dateTo} />
+          </label>
+          <label className="space-y-1 text-sm font-medium text-slate-700">
+            市場
+            <Select name="market" defaultValue={selectedMarket}>
+              <option value="">全部</option>
+              <option value="TW">台股</option>
+              <option value="US">美股</option>
+            </Select>
+          </label>
+          <label className="space-y-1 text-sm font-medium text-slate-700">
+            名稱
+            <Input name="name" defaultValue={searchParams?.name ?? ""} placeholder="股票名稱" />
+          </label>
+          <label className="space-y-1 text-sm font-medium text-slate-700">
+            代號
+            <Input name="symbol" defaultValue={symbolFilter} placeholder="例如 NVDA" />
+          </label>
+          <div className="flex items-end gap-2">
+            <Button type="submit" className="flex-1">
+              送出
+            </Button>
+            <Link
+              href="/portfolio"
+              className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
+            >
+              Reset
+            </Link>
+          </div>
+        </div>
+      </form>
 
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
         <table className="w-full table-fixed text-sm leading-6">
@@ -230,8 +322,8 @@ export default async function PortfolioPage({
             </tr>
           </thead>
           <tbody>
-            {rowsWithQuotes.length ? (
-              rowsWithQuotes.map((holding) => {
+            {pagedRows.length ? (
+              pagedRows.map((holding) => {
                 const quote = holding.quote;
                 const hasPrice = quote && quote.qualityState !== "missing";
                 const marketValue = hasPrice ? holding.shares * quote.price : null;
@@ -308,13 +400,42 @@ export default async function PortfolioPage({
             ) : (
               <tr>
                 <td colSpan={10} className="px-3 py-8 text-center text-slate-500">
-                  尚未建立持股。
+                  沒有符合條件的持股。
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {filteredRows.length > pageSize ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div className="text-slate-500">
+            顯示 {pageStart + 1} - {Math.min(pageStart + pageSize, filteredRows.length)} 筆，共 {filteredRows.length} 筆
+          </div>
+          <div className="flex items-center gap-2">
+            {currentPage > 1 ? (
+              <Link
+                href={pageUrl(currentPage - 1)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+              >
+                上一頁
+              </Link>
+            ) : null}
+            <span className="text-slate-500">
+              第 {currentPage} / {totalPages} 頁
+            </span>
+            {currentPage < totalPages ? (
+              <Link
+                href={pageUrl(currentPage + 1)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+              >
+                下一頁
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
