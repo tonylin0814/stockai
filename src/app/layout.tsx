@@ -19,8 +19,8 @@ export const metadata: Metadata = {
 };
 
 const navLinks = [
-  { href: "/markets", label: "Home" },
-  { href: "/markets/analysis", label: "Markets" },
+  { href: "/home", label: "Home" },
+  { href: "/markets", label: "Markets" },
   { href: "/portfolio", label: "投資組合" },
   { href: "/watchlist", label: "關注清單" },
   { href: "/missions", label: "任務" },
@@ -42,7 +42,7 @@ export default async function RootLayout({
         {user ? (
           <header className="border-b border-slate-200 bg-white">
             <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between">
-              <Link href="/markets" className="flex items-center gap-3 text-slate-950">
+              <Link href="/home" className="flex items-center gap-3 text-slate-950">
                 <Image
                   src="/brand/rockhill-logo.png"
                   alt="Rock Hill Innovation"

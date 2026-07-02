@@ -809,17 +809,17 @@ export async function refreshStockMarketData(holdingId: string) {
 }
 
 export async function refreshMarketOverview() {
-  revalidatePath("/markets");
-  redirect("/markets?updated=1");
+  revalidatePath("/home");
+  redirect("/home?updated=1");
 }
 
 export async function refreshMarketDataForPage(formData: FormData) {
-  const returnTo = getString(formData, "returnTo") || "/markets";
+  const returnTo = getString(formData, "returnTo") || "/home";
   const url = new URL(returnTo, "https://local.app");
   const pathname =
     url.origin === "https://local.app" && url.pathname.startsWith("/")
       ? url.pathname
-      : "/markets";
+      : "/home";
 
   revalidatePath(pathname);
   url.searchParams.set("updated", "1");
