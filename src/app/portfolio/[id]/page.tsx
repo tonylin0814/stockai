@@ -299,7 +299,7 @@ export default async function StockDetailPage({
                     <Td className={`font-medium ${transactionTypeClass(transaction.transaction_type)}`}>
                       {transactionTypeLabel(transaction.transaction_type)}
                     </Td>
-                    <Td className="text-right">{formatNumber(transaction.shares, 4)}</Td>
+                    <Td className="text-right">{formatNumber(transaction.shares, 2)}</Td>
                     <Td className="text-right">
                       {formatCurrency(transaction.price, transaction.currency)}
                     </Td>

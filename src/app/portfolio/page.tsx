@@ -3,12 +3,10 @@ import { softDeleteHolding } from "@/app/actions";
 import { AddHoldingDialog, EditHoldingDialog } from "@/app/portfolio/holding-dialogs";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { MarketStatusDot } from "@/components/market-status-dot";
-import { PortfolioStatusBar } from "@/components/portfolio-status-bar";
 import { QualityBadge } from "@/components/quality-badge";
 import { Button } from "@/components/ui/button";
 import {
   formatCurrency,
-  formatDateTime,
   formatNumber,
   formatSignedPercent
 } from "@/lib/format";
@@ -41,6 +39,106 @@ type HoldingWithQuote = Holding & {
 
 function formatDollar(value: number) {
   return `$${formatNumber(value, 2)}`;
+}
+
+function signedCurrency(value: number, currency: string) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${formatCurrency(value, currency)}`;
+}
+
+function valueClass(value: number) {
+  if (value < 0) return "text-red-700";
+  if (value > 0) return "text-green-700";
+  return "text-slate-700";
+}
+
+function marketSummary(rows: HoldingWithQuote[], market: "TW" | "US") {
+  const currency = market === "TW" ? "TWD" : "USD";
+  const marketRows = rows.filter((holding) => holding.securities?.market === market);
+  const pricedRows = marketRows.filter(
+    (holding) => holding.quote && holding.quote.qualityState !== "missing"
+  );
+  const marketValue = pricedRows.reduce(
+    (total, holding) => total + holding.shares * holding.quote!.price,
+    0
+  );
+  const cost = pricedRows.reduce(
+    (total, holding) => total + holding.shares * holding.average_cost,
+    0
+  );
+  const pnl = marketValue - cost;
+  const pnlPct = cost > 0 ? (pnl / cost) * 100 : null;
+  const dayChange = pricedRows.reduce(
+    (total, holding) => total + holding.shares * holding.quote!.change,
+    0
+  );
+  const previousValue = marketValue - dayChange;
+  const dayChangePct = previousValue > 0 ? (dayChange / previousValue) * 100 : null;
+
+  return {
+    currency,
+    count: marketRows.length,
+    marketValue,
+    pnl,
+    pnlPct,
+    dayChange,
+    dayChangePct
+  };
+}
+
+function PortfolioSummaryCard({
+  title,
+  summary
+}: {
+  title: string;
+  summary: ReturnType<typeof marketSummary>;
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <dt className="text-slate-500">總股票</dt>
+          <dd className="mt-1 font-semibold text-slate-950">{summary.count}</dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">總市值</dt>
+          <dd className="mt-1 font-semibold text-slate-950">
+            {formatCurrency(summary.marketValue, summary.currency)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">總收益</dt>
+          <dd className={`mt-1 font-semibold ${valueClass(summary.pnl)}`}>
+            {signedCurrency(summary.pnl, summary.currency)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-slate-500">百分比</dt>
+          <dd className={`mt-1 font-semibold ${valueClass(summary.pnl)}`}>
+            {summary.pnlPct === null ? "-" : formatSignedPercent(summary.pnlPct)}
+          </dd>
+        </div>
+      </dl>
+      <div className="mt-4 rounded-md border border-blue-100 bg-blue-50 p-3">
+        <div className="text-sm font-medium text-blue-900">今日{title.replace("市值", "")}變動</div>
+        <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <div className="text-blue-700">金額變動</div>
+            <div className={`mt-1 font-semibold ${valueClass(summary.dayChange)}`}>
+              {signedCurrency(summary.dayChange, summary.currency)}
+            </div>
+          </div>
+          <div>
+            <div className="text-blue-700">百分比變動</div>
+            <div className={`mt-1 font-semibold ${valueClass(summary.dayChange)}`}>
+              {summary.dayChangePct === null ? "-" : formatSignedPercent(summary.dayChangePct)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default async function PortfolioPage({
@@ -78,21 +176,9 @@ export default async function PortfolioPage({
     ...holding,
     quote: quotes[index]
   }));
-  const pricedRows = rowsWithQuotes.filter(
-    (holding) => holding.quote && holding.quote.qualityState !== "missing"
-  );
-  const taiwanMarketValueTwd = pricedRows.reduce((total, holding) => {
-    if (holding.securities?.market !== "TW") return total;
-    return total + holding.shares * holding.quote!.price;
-  }, 0);
-  const usMarketValueUsd = pricedRows.reduce((total, holding) => {
-    if (holding.securities?.market !== "US") return total;
-    return total + holding.shares * holding.quote!.price;
-  }, 0);
-  const latestTimestamp = pricedRows
-    .map((holding) => holding.quote!.sourceUpdatedAt)
-    .sort()
-    .at(-1);
+  const taiwanSummary = marketSummary(rowsWithQuotes, "TW");
+  const usSummary = marketSummary(rowsWithQuotes, "US");
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -110,32 +196,9 @@ export default async function PortfolioPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-600">台股市值</div>
-          <div className="mt-1 text-xl font-semibold text-slate-950">
-            {formatCurrency(taiwanMarketValueTwd, "TWD")}
-          </div>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-600">美股市值</div>
-          <div className="mt-1 text-xl font-semibold text-slate-950">
-            {formatCurrency(usMarketValueUsd, "USD")}
-          </div>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-600">今日持股數</div>
-          <div className="mt-1 text-xl font-semibold text-slate-950">{rows.length}</div>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-600">最後價格更新</div>
-          <div className="mt-1 text-sm font-medium text-slate-950">
-            {latestTimestamp ? formatDateTime(latestTimestamp) : "—"}
-          </div>
-          <div className="mt-1">
-            <PortfolioStatusBar />
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <PortfolioSummaryCard title="台股市值" summary={taiwanSummary} />
+        <PortfolioSummaryCard title="美股市值" summary={usSummary} />
       </div>
 
       <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
