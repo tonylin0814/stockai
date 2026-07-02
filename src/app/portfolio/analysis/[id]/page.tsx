@@ -94,6 +94,25 @@ function formatPercent(value: unknown) {
   return text && text !== "-" ? text : "-";
 }
 
+function actionForSymbol(decision: DecisionRow, symbol: string) {
+  const actions = Array.isArray(decision.portfolio_actions)
+    ? decision.portfolio_actions.map((item) => asRecord(item))
+    : [];
+  return actions.find((item) => normalizeSymbol(item.symbol) === symbol) ?? actions[0] ?? {};
+}
+
+function actionTextFor(decision: DecisionRow, action: Record<string, unknown>) {
+  return textFor(action, ["action"]) || displayValue(decision.decision_action);
+}
+
+function consensusText(items: Array<{ decision: DecisionRow; action: Record<string, unknown> }>) {
+  if (!items.length) return "模型共識：-";
+  const labels = items.map((item) => actionTextFor(item.decision, item.action));
+  const same = labels.every((label) => label === labels[0]);
+  if (same) return `模型共識：${labels[0]}`;
+  return `模型分歧：${items.map((item) => `${modelLabel(item.decision)} ${actionTextFor(item.decision, item.action)}`).join("，")}`;
+}
+
 function labelForKey(key: string) {
   const labels: Record<string, string> = {
     symbol: "代號",
@@ -201,21 +220,55 @@ export default async function PortfolioAnalysisDetailPage({
 
   const symbol = normalizeSymbol(searchParams?.symbol);
   const supabase = createSupabaseServiceClient();
-  const { data: decisionData, error } = await supabase
+  let { data: decisionData, error } = await supabase
     .from("stocks_division_decisions")
     .select("id, daily_run_id, division, division_manager, model_provider, decision_action, confidence, market_summary, portfolio_actions, created_at")
     .eq("id", params.id)
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (error || !decisionData) notFound();
+  if (error) notFound();
+
+  if (!decisionData) {
+    const runResult = await supabase
+      .from("stocks_division_decisions")
+      .select("id, daily_run_id, division, division_manager, model_provider, decision_action, confidence, market_summary, portfolio_actions, created_at")
+      .eq("daily_run_id", params.id)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (runResult.error || !runResult.data) notFound();
+    decisionData = runResult.data;
+  }
 
   const decision = decisionData as unknown as DecisionRow;
+  const allDecisionResult = decision.daily_run_id
+    ? await supabase
+        .from("stocks_division_decisions")
+        .select("id, daily_run_id, division, division_manager, model_provider, decision_action, confidence, market_summary, portfolio_actions, created_at")
+        .eq("user_id", user.id)
+        .eq("daily_run_id", decision.daily_run_id)
+        .order("created_at", { ascending: true })
+    : { data: [decisionData], error: null };
+
+  if (allDecisionResult.error) {
+    throw new Error(allDecisionResult.error.message);
+  }
+
+  const allDecisions = (allDecisionResult.data ?? []) as unknown as DecisionRow[];
   const actions = Array.isArray(decision.portfolio_actions)
     ? decision.portfolio_actions.map((item) => asRecord(item))
     : [];
   const action = actions.find((item) => normalizeSymbol(item.symbol) === symbol) ?? actions[0] ?? {};
   const actionSymbol = normalizeSymbol(action.symbol) || symbol;
+  const decisionAnalyses = allDecisions
+    .map((item) => ({
+      decision: item,
+      action: actionForSymbol(item, actionSymbol)
+    }))
+    .filter((item) => Object.keys(item.action).length);
   const actionName = textFor(action, ["name"]);
   const actionText = textFor(action, ["action"]) || displayValue(decision.decision_action);
   const returnPct = action.return_pct;
@@ -259,7 +312,13 @@ export default async function PortfolioAnalysisDetailPage({
     portfolio_review: report.matchedReview ? [report.matchedReview] : [],
     final_team_view: report.final_team_view
   }));
-  const advisor = advisorProfile(decision.division_manager ?? decision.model_provider ?? decision.division);
+  const consensus = consensusText(decisionAnalyses);
+  const confidenceValues = decisionAnalyses
+    .map((item) => Number(item.decision.confidence))
+    .filter((value) => Number.isFinite(value));
+  const confidenceText = confidenceValues.length
+    ? `信心區間：${Math.min(...confidenceValues)} - ${Math.max(...confidenceValues)}`
+    : "信心區間：-";
 
   return (
     <div className="space-y-8">
@@ -298,7 +357,7 @@ export default async function PortfolioAnalysisDetailPage({
         <div>
           <h2 className="text-xl font-semibold text-slate-950">委員會決策</h2>
           <p className="mt-1 text-sm text-slate-500">
-            模型共識：{actionText} | 信心 {displayValue(decision.confidence)}
+            {consensus} | {confidenceText}
           </p>
         </div>
         <article className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
@@ -329,7 +388,7 @@ export default async function PortfolioAnalysisDetailPage({
             </div>
             <div>
               <p className="text-xs text-slate-500">信心</p>
-              <p className="font-medium text-slate-950">{displayValue(decision.confidence)}</p>
+              <p className="font-medium text-slate-950">{confidenceText.replace("信心區間：", "")}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500">允許行動</p>
@@ -350,7 +409,7 @@ export default async function PortfolioAnalysisDetailPage({
         <div>
           <h2 className="text-xl font-semibold text-slate-950">模型分析對照</h2>
           <div className="mt-2 rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-sm">
-            <p>模型共識：{actionText}</p>
+            <p>{consensus}</p>
             <p className="mt-1">
               價格區間：買入 {[shortValue(action.buy_zone_low), shortValue(action.buy_zone_high)].filter((value) => value && value !== "-").join(" - ") || "—"}；
               目標 {shortValue(action.target_price)}；停損 {shortValue(action.stop_loss)}
@@ -358,63 +417,76 @@ export default async function PortfolioAnalysisDetailPage({
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <article className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Image
-                  src={advisor.image}
-                  alt={advisor.name}
-                  width={56}
-                  height={56}
-                  className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
-                />
-                <div>
-                  <h3 className="text-base font-semibold text-slate-950">{advisorTitle(advisor)}</h3>
-                  <p className="mt-1 text-xs text-slate-500">{modelLabel(decision)}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    分析時間：{formatDateTime(decision.created_at)}
-                  </p>
+          {decisionAnalyses.map(({ decision: itemDecision, action: itemAction }) => {
+            const advisor = advisorProfile(itemDecision.division_manager ?? itemDecision.model_provider ?? itemDecision.division);
+            const itemActionText = actionTextFor(itemDecision, itemAction);
+            const itemReturnPct = itemAction.return_pct;
+            const itemChangePct = itemAction.change_pct;
+            const itemReturnTone =
+              typeof itemReturnPct === "number" && itemReturnPct < 0 ? "bad" : typeof itemReturnPct === "number" && itemReturnPct > 0 ? "good" : "neutral";
+            const itemChangeTone =
+              typeof itemChangePct === "number" && itemChangePct < 0 ? "bad" : typeof itemChangePct === "number" && itemChangePct > 0 ? "good" : "neutral";
+
+            return (
+              <article key={itemDecision.id} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <Image
+                      src={advisor.image}
+                      alt={advisor.name}
+                      width={56}
+                      height={56}
+                      className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
+                    />
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-950">{advisorTitle(advisor)}</h3>
+                      <p className="mt-1 text-xs text-slate-500">{modelLabel(itemDecision)}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        分析時間：{formatDateTime(itemDecision.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-slate-950">{itemActionText}</p>
+                    <p className="text-xs text-slate-500">信心 {displayValue(itemDecision.confidence)}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold text-slate-950">{actionText}</p>
-                <p className="text-xs text-slate-500">信心 {displayValue(decision.confidence)}</p>
-              </div>
-            </div>
-            <p className="text-sm leading-6 text-slate-700">
-              {decision.market_summary || textFor(action, ["summary", "view", "reason"]) || "-"}
-            </p>
-            <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-              <div className="rounded-md bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">買進區間</p>
-                <p className="mt-1 font-medium text-slate-950">
-                  {[shortValue(action.buy_zone_low), shortValue(action.buy_zone_high)].filter((value) => value && value !== "-").join(" - ") || "-"}
+                <p className="text-sm leading-6 text-slate-700">
+                  {itemDecision.market_summary || textFor(itemAction, ["summary", "view", "reason"]) || "-"}
                 </p>
-              </div>
-              <div className="rounded-md bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">目標價</p>
-                <p className="mt-1 font-medium text-slate-950">{shortValue(action.target_price)}</p>
-              </div>
-              <div className="rounded-md bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">停損</p>
-                <p className="mt-1 font-medium text-slate-950">{shortValue(action.stop_loss)}</p>
-              </div>
-            </div>
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-800">核心理由</p>
-                <div className="mt-1 text-sm leading-6 text-slate-700">
-                  <ReportParagraphs data={action} />
+                <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">買進區間</p>
+                    <p className="mt-1 font-medium text-slate-950">
+                      {[shortValue(itemAction.buy_zone_low), shortValue(itemAction.buy_zone_high)].filter((value) => value && value !== "-").join(" - ") || "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">目標價</p>
+                    <p className="mt-1 font-medium text-slate-950">{shortValue(itemAction.target_price)}</p>
+                  </div>
+                  <div className="rounded-md bg-slate-50 p-3">
+                    <p className="text-xs text-slate-500">停損</p>
+                    <p className="mt-1 font-medium text-slate-950">{shortValue(itemAction.stop_loss)}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                <MetricCard label="現價" value={shortValue(action.current_price)} />
-                <MetricCard label="平均成本" value={shortValue(action.average_cost)} />
-                <MetricCard label="報酬率" value={formatPercent(returnPct)} tone={returnTone} />
-                <MetricCard label="今日漲跌幅" value={formatPercent(changePct)} tone={changeTone} />
-              </div>
-            </div>
-          </article>
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">核心理由</p>
+                    <div className="mt-1 text-sm leading-6 text-slate-700">
+                      <ReportParagraphs data={itemAction} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                    <MetricCard label="現價" value={shortValue(itemAction.current_price)} />
+                    <MetricCard label="平均成本" value={shortValue(itemAction.average_cost)} />
+                    <MetricCard label="報酬率" value={formatPercent(itemReturnPct)} tone={itemReturnTone} />
+                    <MetricCard label="今日漲跌幅" value={formatPercent(itemChangePct)} tone={itemChangeTone} />
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
