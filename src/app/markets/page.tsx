@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { QualityBadge } from "@/components/quality-badge";
 import { Table, Td, Th } from "@/components/ui/table";
 import {
@@ -119,15 +120,25 @@ function MarketAnalysisCard({ report }: { report: MarketAnalysisRow }) {
   const under100 = asMarketPicks(report.picks_under_100);
   const under200 = asMarketPicks(report.picks_under_200);
   const etfs = asMarketPicks(report.etf_picks);
+  const marketLabel = report.market === "TW" ? "台股市場分析" : "美股市場分析";
 
   return (
     <article className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-950">
-            {report.market === "TW" ? "台股" : "美股"}市場分析
-          </h3>
-          <p className="mt-1 text-xs text-slate-500">{formatDateTime(report.created_at)}</p>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/advisors/kevin.png"
+            alt="Kevin"
+            width={56}
+            height={56}
+            className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
+          />
+          <div>
+            <h3 className="text-lg font-semibold text-slate-950">Kevin 委員 - Codex</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {marketLabel} / {formatDateTime(report.created_at)}
+            </p>
+          </div>
         </div>
         <span className={`rounded-md border px-2 py-1 text-xs font-medium ${sentimentClass(report.sentiment)}`}>
           {sentimentLabel(report.sentiment)}
@@ -284,7 +295,15 @@ export default async function MarketsPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-950">市場分析報告</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold text-slate-950">市場分析報告</h2>
+          <Link
+            href="/markets/analysis"
+            className="inline-flex h-8 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-slate-50"
+          >
+            查看全部記錄
+          </Link>
+        </div>
         {marketReports.length ? (
           <div className="grid gap-4 xl:grid-cols-2">
             {marketReports.map((report) => (
