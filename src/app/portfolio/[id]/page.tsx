@@ -229,7 +229,7 @@ export default async function StockDetailPage({
         <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
           <div className="text-sm text-slate-600">持倉</div>
           <div className="mt-1 text-xl font-semibold text-slate-950">
-            {formatNumber(holding.shares, 4)} 股
+            {formatNumber(holding.shares, 2)} 股
           </div>
           <div className="mt-1 text-xs text-slate-500">
             市值 {marketValue !== null ? formatCurrency(marketValue, holding.cost_currency) : "-"}
