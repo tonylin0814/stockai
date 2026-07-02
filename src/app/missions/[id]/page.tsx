@@ -160,6 +160,8 @@ function advisorProfile(value: unknown) {
   return { name: "Monica", image: "/advisors/monica.png" };
 }
 
+const committeeAdvisor = { name: "Kevin", image: "/advisors/kevin.png" };
+
 function comparisonSummary(divisions: Array<Record<string, unknown>>) {
   const completed = divisions.filter((division) =>
     Object.keys(asRecord(division.mission_decision)).length
@@ -579,15 +581,14 @@ export default async function MissionResultPage({ params }: { params: { id: stri
             const finalScenarios = asRecord(item.final_scenarios ?? item.finalScenarios);
             const provider = String(item.model_provider ?? "");
             const label = provider === "Anthropic" ? "Committee B - Claude" : "Committee A - GPT";
-            const advisor = advisorProfile(provider);
 
             return (
               <article key={`${provider}-${index}`} className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <Image
-                      src={advisor.image}
-                      alt={advisor.name}
+                      src={committeeAdvisor.image}
+                      alt={committeeAdvisor.name}
                       width={56}
                       height={56}
                       className="h-14 w-14 rounded-full object-cover ring-1 ring-slate-200"
@@ -595,7 +596,7 @@ export default async function MissionResultPage({ params }: { params: { id: stri
                     <div>
                       <h3 className="text-base font-semibold text-slate-950">{label}</h3>
                       <p className="mt-1 text-xs text-slate-500">
-                        {advisor.name} / {formatDateTime(String(item.created_at ?? ""))}
+                        {committeeAdvisor.name} / {formatDateTime(String(item.created_at ?? ""))}
                       </p>
                     </div>
                   </div>
