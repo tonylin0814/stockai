@@ -30,6 +30,7 @@ type PortfolioTransaction = PortfolioTransactionFormValue & {
 type KevinRecommendationRow = {
   id: string;
   mission_id: string | null;
+  source_type: string;
   recommendation_date: string | null;
   buy_zone_low: number | null;
   buy_zone_high: number | null;
@@ -179,11 +180,10 @@ export default async function StockDetailPage({
   const { data: recommendationsData, error: recommendationsError } = await serviceSupabase
     .from("stocks_recommendations")
     .select(
-      "id, mission_id, recommendation_date, buy_zone_low, buy_zone_high, target_price, stop_loss, created_at"
+      "id, mission_id, source_type, recommendation_date, buy_zone_low, buy_zone_high, target_price, stop_loss, created_at"
     )
     .eq("user_id", user.id)
     .eq("security_id", security.id)
-    .eq("source_type", "committee")
     .order("created_at", { ascending: false });
 
   if (recommendationsError) {
@@ -192,7 +192,9 @@ export default async function StockDetailPage({
 
   const analysisPage = Math.max(1, Number(searchParams?.analysisPage ?? 1) || 1);
   const analysisPageSize = 5;
-  const relatedAnalysisRows = (recommendationsError ? [] : recommendationsData ?? []) as unknown as KevinRecommendationRow[];
+  const recommendationRows = (recommendationsError ? [] : recommendationsData ?? []) as unknown as KevinRecommendationRow[];
+  const committeeRows = recommendationRows.filter((row) => row.source_type === "committee");
+  const relatedAnalysisRows = committeeRows.length ? committeeRows : recommendationRows;
   const analysisStart = (analysisPage - 1) * analysisPageSize;
   const pagedAnalysisRows = relatedAnalysisRows.slice(
     analysisStart,

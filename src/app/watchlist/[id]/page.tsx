@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { Table, Td, Th } from "@/components/ui/table";
+import { formatCurrency, formatDateTime, formatNumber } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -14,6 +15,39 @@ function statusLabel(status: string | null) {
   if (status === "候選") return "候選";
   if (status === "暫不考慮") return "暫不考慮";
   return status ?? "-";
+}
+
+type AnalysisRow = {
+  id: string;
+  mission_id: string | null;
+  source_type: string;
+  recommendation_date: string | null;
+  buy_zone_low: number | null;
+  buy_zone_high: number | null;
+  target_price: number | null;
+  stop_loss: number | null;
+  created_at: string;
+};
+
+function currencyForMarket(market: string) {
+  return market === "US" ? "USD" : "TWD";
+}
+
+function priceText(value: number | null, currency: string) {
+  return value === null ? "-" : formatCurrency(value, currency);
+}
+
+function priceRangeText(low: number | null, high: number | null, currency: string) {
+  if (low === null && high === null) return "-";
+  if (low !== null && high !== null && low !== high) {
+    return `${formatCurrency(low, currency)} - ${formatCurrency(high, currency)}`;
+  }
+
+  return priceText(low ?? high, currency);
+}
+
+function targetPriceText(value: number | null, currency: string) {
+  return `短期 - / 中期 ${priceText(value, currency)} / 長期 -`;
 }
 
 export default async function WatchlistDetailPage({ params }: { params: { id: string } }) {
@@ -56,6 +90,7 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
 
   const security = item.securities;
   if (!security) notFound();
+  const currency = currencyForMarket(security.market);
   const { data: missionLinks } = await supabase
     .from("stocks_mission_links")
     .select("mission_id")
@@ -72,6 +107,17 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
         .in("id", missionIds)
         .order("created_at", { ascending: false })
     : { data: [] };
+  const { data: recommendationData, error: recommendationError } = await supabase
+    .from("stocks_recommendations")
+    .select(
+      "id, mission_id, source_type, recommendation_date, buy_zone_low, buy_zone_high, target_price, stop_loss, created_at"
+    )
+    .eq("user_id", user.id)
+    .eq("security_id", security.id)
+    .order("created_at", { ascending: false });
+  const recommendationRows = (recommendationError ? [] : recommendationData ?? []) as unknown as AnalysisRow[];
+  const committeeRows = recommendationRows.filter((row) => row.source_type === "committee");
+  const analysisRows = (committeeRows.length ? committeeRows : recommendationRows).slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -148,6 +194,47 @@ export default async function WatchlistDetailPage({ params }: { params: { id: st
           </div>
         ) : (
           <p className="mt-3 text-sm text-slate-500">目前沒有關聯任務。</p>
+        )}
+      </section>
+
+      <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-950">Kevin 分析</h2>
+        {analysisRows.length ? (
+          <div className="mt-4">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>日期</Th>
+                  <Th>可加倉價格</Th>
+                  <Th>停損價格</Th>
+                  <Th>短中長期價格目標</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {analysisRows.map((row) => (
+                  <tr key={row.id}>
+                    <Td>
+                      {row.mission_id ? (
+                        <Link
+                          href={`/missions/${row.mission_id}`}
+                          className="font-medium text-blue-700 hover:underline"
+                        >
+                          {row.recommendation_date ?? formatDateTime(row.created_at)}
+                        </Link>
+                      ) : (
+                        row.recommendation_date ?? formatDateTime(row.created_at)
+                      )}
+                    </Td>
+                    <Td>{priceRangeText(row.buy_zone_low, row.buy_zone_high, currency)}</Td>
+                    <Td>{priceText(row.stop_loss, currency)}</Td>
+                    <Td>{targetPriceText(row.target_price, currency)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">目前沒有 Kevin 分析紀錄。</p>
         )}
       </section>
     </div>
