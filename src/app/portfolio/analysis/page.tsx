@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Table, Td, Th } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -110,13 +111,14 @@ function normalizeSymbol(value: unknown) {
 }
 
 export default async function PortfolioAnalysisPage() {
-  const supabase = createSupabaseServerClient();
+  const authClient = createSupabaseServerClient();
   const {
     data: { user }
-  } = await supabase.auth.getUser();
+  } = await authClient.auth.getUser();
 
   if (!user) notFound();
 
+  const supabase = createSupabaseServiceClient();
   const [linkResult, holdingsResult, divisionResult] = await Promise.all([
     supabase
       .from("stocks_mission_links")
@@ -256,6 +258,7 @@ export default async function PortfolioAnalysisPage() {
         <p className="mt-1 text-sm text-slate-600">
           顯示 portfolio 持股相關的自動分析與手動關聯任務。
         </p>
+        <p className="mt-1 text-sm font-medium text-slate-700">共 {rows.length} 筆分析紀錄</p>
       </div>
 
       <Table>
