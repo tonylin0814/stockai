@@ -19,8 +19,8 @@ export const metadata: Metadata = {
 };
 
 const navLinks = [
-  { href: "/home", label: "Home" },
-  { href: "/markets", label: "Markets" },
+  { href: "/home", label: "首頁" },
+  { href: "/markets", label: "市場分析" },
   { href: "/portfolio", label: "投資組合" },
   { href: "/watchlist", label: "關注清單" },
   { href: "/missions", label: "任務" },
