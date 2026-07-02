@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
-import { refreshStockMarketData } from "@/app/actions";
-import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { QualityBadge } from "@/components/quality-badge";
 import { StockChart } from "@/components/stock-chart";
 import { Button } from "@/components/ui/button";
@@ -31,11 +29,9 @@ function formatMarketRef(quote: Quote) {
 }
 
 export default async function StockDetailPage({
-  params,
-  searchParams
+  params
 }: {
   params: { id: string };
-  searchParams?: { updated?: string };
 }) {
   const holdingId = params.id;
   const supabase = createSupabaseServerClient();
@@ -96,7 +92,6 @@ export default async function StockDetailPage({
   const { dayRange, bidAsk } = hasPrice
     ? formatMarketRef(quote)
     : { dayRange: null, bidAsk: null };
-  const refreshAction = refreshStockMarketData.bind(null, holdingId);
   const pnlClass =
     pnl === null ? "text-slate-500" : pnl < 0 ? "text-red-700" : "text-green-700";
   const { data: missionLinks } = await supabase
@@ -135,19 +130,6 @@ export default async function StockDetailPage({
               {holding.strategy ? ` / ${holding.strategy}` : ""}
             </p>
           </div>
-        </div>
-        <div className="space-y-1">
-          <form action={refreshAction}>
-            <PendingSubmitButton
-              idleLabel="更新市場資料"
-              pendingLabel="更新中..."
-              icon="refresh"
-              variant="secondary"
-            />
-          </form>
-          {searchParams?.updated === "1" ? (
-            <p className="text-xs text-green-700">市場資料已更新。</p>
-          ) : null}
         </div>
       </div>
 

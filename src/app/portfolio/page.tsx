@@ -112,6 +112,11 @@ export default async function PortfolioPage({
           <p className="mt-1 text-sm text-slate-600">管理手動輸入的台股、美股與 ETF 持股。</p>
         </div>
         <div className="flex flex-wrap items-start justify-end gap-3">
+          <Link href="/portfolio/analysis">
+            <Button type="button" variant="secondary">
+              投資組合分析
+            </Button>
+          </Link>
           <AddHoldingDialog />
         </div>
       </div>
