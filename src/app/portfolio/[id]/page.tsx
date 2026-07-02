@@ -26,6 +26,17 @@ type PortfolioTransaction = PortfolioTransactionFormValue & {
   created_at: string;
 };
 
+type KevinRecommendationRow = {
+  id: string;
+  mission_id: string | null;
+  recommendation_date: string | null;
+  buy_zone_low: number | null;
+  buy_zone_high: number | null;
+  target_price: number | null;
+  stop_loss: number | null;
+  created_at: string;
+};
+
 function transactionTypeLabel(type: "buy" | "sell") {
   return type === "buy" ? "買入" : "賣出";
 }
@@ -65,6 +76,23 @@ function calculateRealizedPnl(transactions: PortfolioTransaction[]) {
   }
 
   return realizedById;
+}
+
+function priceText(value: number | null, currency: string) {
+  return value === null ? "-" : formatCurrency(value, currency);
+}
+
+function priceRangeText(low: number | null, high: number | null, currency: string) {
+  if (low === null && high === null) return "-";
+  if (low !== null && high !== null && low !== high) {
+    return `${formatCurrency(low, currency)} - ${formatCurrency(high, currency)}`;
+  }
+
+  return priceText(low ?? high, currency);
+}
+
+function targetPriceText(value: number | null, currency: string) {
+  return `短期 - / 中期 ${priceText(value, currency)} / 長期 -`;
 }
 
 export default async function StockDetailPage({
@@ -146,25 +174,23 @@ export default async function StockDetailPage({
 
   const transactions = (transactionsData ?? []) as unknown as PortfolioTransaction[];
   const realizedById = calculateRealizedPnl(transactions);
-  const { data: missionLinks } = await supabase
-    .from("stocks_mission_links")
-    .select("mission_id")
+  const { data: recommendationsData, error: recommendationsError } = await supabase
+    .from("stocks_recommendations")
+    .select(
+      "id, mission_id, recommendation_date, buy_zone_low, buy_zone_high, target_price, stop_loss, created_at"
+    )
     .eq("user_id", user.id)
-    .eq("portfolio_holding_id", holdingId);
-  const missionIds = Array.from(
-    new Set(((missionLinks ?? []) as Array<{ mission_id: string }>).map((link) => link.mission_id))
-  );
-  const { data: relatedMissions } = missionIds.length
-    ? await supabase
-        .from("stocks_missions")
-        .select("id, title, status, created_at")
-        .eq("user_id", user.id)
-        .in("id", missionIds)
-        .order("created_at", { ascending: false })
-    : { data: [] };
+    .eq("security_id", security.id)
+    .eq("source_type", "committee")
+    .order("created_at", { ascending: false });
+
+  if (recommendationsError) {
+    throw new Error(recommendationsError.message);
+  }
+
   const analysisPage = Math.max(1, Number(searchParams?.analysisPage ?? 1) || 1);
   const analysisPageSize = 5;
-  const relatedAnalysisRows = relatedMissions ?? [];
+  const relatedAnalysisRows = (recommendationsData ?? []) as unknown as KevinRecommendationRow[];
   const analysisStart = (analysisPage - 1) * analysisPageSize;
   const pagedAnalysisRows = relatedAnalysisRows.slice(
     analysisStart,
@@ -342,7 +368,7 @@ export default async function StockDetailPage({
 
       <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-slate-950">團隊分析</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Kevin 分析</h2>
           {relatedAnalysisRows.length > analysisPageSize ? (
             <div className="flex items-center gap-2 text-sm">
               {hasPreviousAnalysisPage ? (
@@ -369,27 +395,42 @@ export default async function StockDetailPage({
           <Table>
             <thead>
               <tr>
-                <Th>日期時間</Th>
-                <Th>標題</Th>
-                <Th>狀態</Th>
+                <Th>日期</Th>
+                <Th>可加倉價格</Th>
+                <Th>停損價格</Th>
+                <Th>短中長期價格目標</Th>
               </tr>
             </thead>
             <tbody>
-              {pagedAnalysisRows.map((mission) => (
-                <tr key={mission.id}>
-                  <Td>{formatDateTime(mission.created_at)}</Td>
+              {pagedAnalysisRows.map((recommendation) => (
+                <tr key={recommendation.id}>
                   <Td>
-                    <Link href={`/missions/${mission.id}`} className="font-medium text-blue-700 hover:underline">
-                      {mission.title}
-                    </Link>
+                    {recommendation.mission_id ? (
+                      <Link
+                        href={`/missions/${recommendation.mission_id}`}
+                        className="font-medium text-blue-700 hover:underline"
+                      >
+                        {recommendation.recommendation_date ?? formatDateTime(recommendation.created_at)}
+                      </Link>
+                    ) : (
+                      recommendation.recommendation_date ?? formatDateTime(recommendation.created_at)
+                    )}
                   </Td>
-                  <Td>{mission.status}</Td>
+                  <Td>
+                    {priceRangeText(
+                      recommendation.buy_zone_low,
+                      recommendation.buy_zone_high,
+                      holding.cost_currency
+                    )}
+                  </Td>
+                  <Td>{priceText(recommendation.stop_loss, holding.cost_currency)}</Td>
+                  <Td>{targetPriceText(recommendation.target_price, holding.cost_currency)}</Td>
                 </tr>
               ))}
             </tbody>
           </Table>
         ) : (
-          <p className="text-sm text-slate-500">目前沒有團隊分析紀錄。</p>
+          <p className="text-sm text-slate-500">目前沒有 Kevin 分析紀錄。</p>
         )}
       </div>
 
