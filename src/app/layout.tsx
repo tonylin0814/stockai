@@ -14,8 +14,8 @@ export const metadata: Metadata = {
 };
 
 const navLinks = [
-  { href: "/markets", label: "總覽" },
-  { href: "/markets/analysis", label: "市場分析" },
+  { href: "/markets", label: "Home" },
+  { href: "/markets/analysis", label: "Markets" },
   { href: "/portfolio", label: "投資組合" },
   { href: "/watchlist", label: "關注清單" },
   { href: "/missions", label: "任務" },
@@ -45,7 +45,7 @@ export default async function RootLayout({
                   height={52}
                   className="h-10 w-auto"
                 />
-                <span className="hidden text-sm font-semibold text-slate-600 lg:inline">
+                <span className="hidden text-base font-semibold text-slate-600 lg:inline">
                   台美股投資決策系統
                 </span>
               </Link>
