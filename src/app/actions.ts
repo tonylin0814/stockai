@@ -798,6 +798,37 @@ export async function deleteMission(formData: FormData) {
   revalidatePath("/missions");
 }
 
+export async function deletePortfolioAnalysisRecord(formData: FormData) {
+  const { supabase, user } = await requireUser();
+  const kind = z.enum(["division", "mission_link"]).parse(getString(formData, "kind"));
+  const id = z.string().uuid().parse(getString(formData, "id"));
+
+  if (kind === "division") {
+    const { error } = await supabase
+      .from("stocks_division_decisions")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  } else {
+    const { error } = await supabase
+      .from("stocks_mission_links")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .eq("link_type", "portfolio");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  revalidatePath("/portfolio/analysis");
+}
+
 export async function updateMissionAssociations(formData: FormData) {
   const { supabase, user } = await requireUser();
   const schema = z.object({

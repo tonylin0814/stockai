@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { BriefcaseBusiness } from "lucide-react";
 import { notFound } from "next/navigation";
+import { deletePortfolioAnalysisRecord } from "@/app/actions";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { Table, Td, Th } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -51,6 +53,8 @@ type DisplayRow = {
   status: string;
   createdAt: string;
   href?: string;
+  deleteKind: "division" | "mission_link";
+  deleteId: string;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -207,7 +211,9 @@ export default async function PortfolioAnalysisPage() {
         action: "-",
         status: mission.status,
         createdAt: mission.created_at,
-        href: `/missions/${mission.id}`
+        href: `/missions/${mission.id}`,
+        deleteKind: "mission_link",
+        deleteId: link.id
       }
     ];
   });
@@ -235,7 +241,10 @@ export default async function PortfolioAnalysisPage() {
             source: "Portfolio 自動分析",
             action: actionLabel(action.action ?? decision.decision_action),
             status: "completed",
-            createdAt: decision.created_at
+            createdAt: decision.created_at,
+            href: `/portfolio/analysis/${decision.id}?symbol=${encodeURIComponent(symbol)}`,
+            deleteKind: "division",
+            deleteId: decision.id
           }
         ];
       });
@@ -270,6 +279,7 @@ export default async function PortfolioAnalysisPage() {
             <Th>建議</Th>
             <Th>狀態</Th>
             <Th>建立時間</Th>
+            <Th>操作</Th>
           </tr>
         </thead>
         <tbody>
@@ -304,11 +314,22 @@ export default async function PortfolioAnalysisPage() {
                   </span>
                 </Td>
                 <Td>{formatDateTime(row.createdAt)}</Td>
+                <Td>
+                  <form action={deletePortfolioAnalysisRecord}>
+                    <input type="hidden" name="kind" value={row.deleteKind} />
+                    <input type="hidden" name="id" value={row.deleteId} />
+                    <ConfirmSubmitButton
+                      idleLabel="刪除"
+                      confirmLabel="確認刪除"
+                      confirmMessage="確認刪除？"
+                    />
+                  </form>
+                </Td>
               </tr>
             ))
           ) : (
             <tr>
-              <Td colSpan={6} className="py-8 text-center text-slate-500">
+              <Td colSpan={7} className="py-8 text-center text-slate-500">
                 目前沒有 portfolio 股票分析紀錄。
               </Td>
             </tr>
